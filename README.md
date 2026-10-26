@@ -87,6 +87,11 @@ Node 18+ 即可，无需 `npm install`。
 轮询服务与看板服务是两个进程，**可以分别启停**，只通过 SQLite 文件耦合：
 
 ```bash
+# 方式一：一键打开两个窗口（Windows）
+start-all.cmd
+#   采集窗口关闭 = 停止采集；看板窗口关闭 = 停止看板，互不影响
+
+# 方式二：手动分别启动
 # 终端 1：采集（每 30 秒一次，写入 data/laundry.sqlite）
 cd packages/laundry-monitor && npm start
 #   或双击 packages/laundry-monitor/run.cmd
@@ -123,6 +128,7 @@ cd packages/laundry-dashboard && node scripts/probe-services.mjs   # 探针：�
 ## 目录结构
 
 ```
+start-all.cmd          一键启动采集 + 看板两个窗口（也可分别用各自的 run.cmd）
 laundry.mjs            只读 API 客户端 + CLI（可直接 import 复用）
 packages/laundry-machines/  npm 包：机器状态查询库（ESM + TS 类型 + CLI + 测试）
 packages/laundry-monitor/   采集服务：按配置周期轮询并写入 SQLite（stats/export/run）
