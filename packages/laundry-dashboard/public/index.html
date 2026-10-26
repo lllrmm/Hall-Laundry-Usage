@@ -1,10 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HKUST Laundry Monitor</title>
+    <script>
+      // 首屏前确定主题，避免闪白：localStorage 优先，其次跟随系统
+      (function () {
+        var mode = 'auto';
+        try {
+          mode = localStorage.getItem('laundry.theme') || 'auto';
+        } catch (error) {
+          mode = 'auto';
+        }
+        var dark =
+          mode === 'dark' ||
+          (mode !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      })();
+    </script>
     <link rel="stylesheet" href="/styles.css" />
+    <meta name="color-scheme" content="light dark" />
   </head>
   <body>
     <header class="topbar">
@@ -25,6 +41,10 @@
           <span class="label">Database</span>
           <b id="db-path" class="mono">—</b>
         </div>
+        <button id="theme-toggle" class="btn theme-toggle" type="button" title="Theme: Auto (follows system)">
+          <span class="theme-icon">◐</span>
+          <span id="theme-label">Auto</span>
+        </button>
         <button id="refresh" class="btn" type="button">Refresh now</button>
         <label class="auto" title="Auto-refresh every 30 seconds">
           <input type="checkbox" id="auto" checked />

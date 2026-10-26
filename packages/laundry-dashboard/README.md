@@ -35,6 +35,13 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 
 图表全部用原生 SVG 手绘（无图表库），鼠标悬停显示该时刻数值；数据每 30 秒自动刷新，窗口 resize 自动重绘。
 
+### 深浅色主题
+
+- 默认 **Auto**：跟随浏览器/系统的 `prefers-color-scheme`，系统切换时页面实时跟随；
+- 顶栏按钮循环切换 **Auto → Light → Dark**，选择写入 `localStorage["laundry.theme"]`，刷新后保持；
+- 首屏由 `<head>` 内联脚本先确定主题，避免深色系统下闪白；
+- 图表颜色也跟主题走：深色主题使用更亮的机器色板，网格/坐标轴/状态颜色均取自 CSS 变量。
+
 ## 配置
 
 `dashboard.config.json`：

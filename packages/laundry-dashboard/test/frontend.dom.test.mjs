@@ -125,6 +125,21 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
       beforeParse(window) {
         // jsdom 没有 fetch：桥接到 Node 的 fetch，并解析相对 URL
         window.fetch = (input, init) => globalThis.fetch(new URL(input, window.location.href), init);
+        // jsdom 没有完整的 matchMedia：用可控 stub 模拟系统深浅色
+        const media = { matches: false, listeners: new Set() };
+        window.__themeMedia = media;
+        window.matchMedia = () => ({
+          get matches() {
+            return media.matches;
+          },
+          media: '(prefers-color-scheme: dark)',
+          addEventListener: (type, listener) => {
+            if (type === 'change') media.listeners.add(listener);
+          },
+          removeEventListener: (type, listener) => {
+            media.listeners.delete(listener);
+          },
+        });
       },
     });
 
@@ -187,6 +202,38 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
       { label: '7 days chip highlighted' },
     );
     assert.ok(document.querySelector('#chart-trend svg'), '切换时间跨度后图表仍存在');
+
+    // 5) 主题：Auto → Light → Dark → Auto，深色时图表换深色色板
+    const root = document.documentElement;
+    assert.ok(['light', 'dark'].includes(root.dataset.theme), '首屏应已确定 data-theme');
+    assert.equal(document.getElementById('theme-label').textContent, 'Auto');
+    const themeButton = document.getElementById('theme-toggle');
+
+    themeButton.click(); // Auto -> Light
+    await waitFor(() => document.getElementById('theme-label').textContent === 'Light', { label: '切换到 Light' });
+    assert.equal(root.dataset.theme, 'light');
+
+    themeButton.click(); // Light -> Dark
+    await waitFor(() => root.dataset.theme === 'dark', { label: '切换到 Dark' });
+    assert.equal(document.getElementById('theme-label').textContent, 'Dark');
+    assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'dark');
+    assert.ok(document.querySelector('#chart-trend svg'), '切换深色后图表仍存在');
+    assert.equal(
+      document.querySelector('#chart-series path.series-line').getAttribute('stroke'),
+      '#60a5fa',
+      '深色主题应使用深色色板',
+    );
+
+    themeButton.click(); // Dark -> Auto
+    await waitFor(() => document.getElementById('theme-label').textContent === 'Auto', { label: '回到 Auto' });
+    assert.equal(root.dataset.theme, 'light', 'Auto 在浅色系统下应解析为 light');
+
+    // 模拟系统切到深色：Auto 模式应自动跟随，且不写入 localStorage
+    dom.window.__themeMedia.matches = true;
+    for (const listener of dom.window.__themeMedia.listeners) listener({ matches: true });
+    await waitFor(() => root.dataset.theme === 'dark', { label: 'Auto 跟随系统切到深色' });
+    assert.equal(document.getElementById('theme-label').textContent, 'Auto', '跟随系统时模式仍显示 Auto');
+    assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'auto');
 
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {

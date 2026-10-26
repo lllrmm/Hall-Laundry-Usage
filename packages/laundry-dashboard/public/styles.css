@@ -1,15 +1,67 @@
+/* 主题变量：默认浅色，data-theme="dark" 时切换为深色 */
 :root {
+  color-scheme: light;
   --bg: #f4f6fb;
   --card: #ffffff;
+  --card-sub: #fcfdff;
+  --topbar-bg: rgba(255, 255, 255, 0.92);
   --text: #16213a;
   --muted: #6b7893;
   --line: #e4e8f2;
+  --grid: #eef1f7;
+  --track: #f1f5f9;
   --brand: #1b4dc1;
+  --brand-soft: #eef2ff;
+  --brand-contrast: #ffffff;
   --free: #22c55e;
+  --free-strong: #15803d;
+  --free-tint: #f6fef9;
   --busy: #f59e0b;
+  --busy-strong: #b45309;
+  --busy-tint: #fffaf1;
   --off: #94a3b8;
-  --radius: 14px;
+  --ok: #047857;
+  --ok-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fff7ed;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --tooltip-bg: rgba(15, 23, 42, 0.92);
+  --tooltip-text: #ffffff;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --radius: 14px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --card: #121a2b;
+  --card-sub: #0f1726;
+  --topbar-bg: rgba(15, 23, 42, 0.9);
+  --text: #e5e9f2;
+  --muted: #93a0b8;
+  --line: #243044;
+  --grid: #1e2a3d;
+  --track: #1a2434;
+  --brand: #6d9eff;
+  --brand-soft: #1a2740;
+  --brand-contrast: #0b1220;
+  --free: #34d399;
+  --free-strong: #6ee7b7;
+  --free-tint: #12261c;
+  --busy: #fbbf24;
+  --busy-strong: #fcd34d;
+  --busy-tint: #2a2110;
+  --off: #64748b;
+  --ok: #34d399;
+  --ok-soft: #10291f;
+  --warn: #fbbf24;
+  --warn-soft: #2a2110;
+  --danger: #f87171;
+  --danger-soft: #2a1414;
+  --tooltip-bg: rgba(226, 232, 240, 0.96);
+  --tooltip-text: #0b1220;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -25,8 +77,9 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .mono {
@@ -46,7 +99,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--topbar-bg);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
@@ -66,25 +119,25 @@ body {
 .badge {
   padding: 3px 9px;
   border-radius: 999px;
-  background: #eef2ff;
+  background: var(--brand-soft);
   color: var(--brand);
   font-size: 12px;
   font-weight: 600;
 }
 
 .badge.warn {
-  background: #fff7ed;
-  color: #b45309;
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 .badge.error {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .badge.ok {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 
 .meta {
@@ -119,19 +172,32 @@ body {
 
 .btn {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   padding: 7px 14px;
   border-radius: 9px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--track);
+  border-color: var(--muted);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 96px;
+  justify-content: center;
+}
+
+.theme-toggle .theme-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .auto {
@@ -166,6 +232,7 @@ main {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 16px 18px 18px;
+  transition: background-color 0.2s ease;
 }
 
 .card-head {
@@ -207,17 +274,18 @@ footer {
   border-left: 4px solid var(--off);
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fcfdff;
+  background: var(--card-sub);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .machine.free {
   border-left-color: var(--free);
-  background: #f6fef9;
+  background: var(--free-tint);
 }
 
 .machine.busy {
   border-left-color: var(--busy);
-  background: #fffaf1;
+  background: var(--busy-tint);
 }
 
 .machine-head {
@@ -243,15 +311,15 @@ footer {
 }
 
 .powder.with {
-  background: #e8f1ff;
-  color: #1b4dc1;
-  border-color: #c9dcff;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-color: var(--brand);
 }
 
 .powder.without {
-  background: #f1f5f9;
-  color: #64748b;
-  border-color: #e2e8f0;
+  background: var(--track);
+  color: var(--muted);
+  border-color: var(--line);
 }
 
 .chip-tag {
@@ -282,11 +350,11 @@ footer {
 }
 
 .machine.free .st b {
-  color: #15803d;
+  color: var(--free-strong);
 }
 
 .machine.busy .st b {
-  color: #b45309;
+  color: var(--busy-strong);
 }
 
 .machine .sub {
@@ -356,7 +424,7 @@ footer {
 
 .chip {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   border-radius: 999px;
   padding: 5px 12px;
@@ -370,13 +438,13 @@ footer {
 }
 
 .chip:hover {
-  border-color: #b9c3d6;
+  border-color: var(--muted);
 }
 
 .chip.active {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--brand-contrast);
 }
 
 .chip .swatch {
@@ -414,7 +482,7 @@ footer {
 }
 
 .chart .grid-line {
-  stroke: #eef1f7;
+  stroke: var(--grid);
   stroke-width: 1;
 }
 
@@ -435,7 +503,7 @@ footer {
 }
 
 .chart .hover-line {
-  stroke: #94a3b8;
+  stroke: var(--muted);
   stroke-width: 1;
   stroke-dasharray: 3 3;
   pointer-events: none;
@@ -444,8 +512,8 @@ footer {
 .tooltip {
   position: absolute;
   pointer-events: none;
-  background: rgba(15, 23, 42, 0.92);
-  color: #fff;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 12px;

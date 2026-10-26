@@ -3,10 +3,57 @@
   'use strict';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const COLORS = [
-    '#1b4dc1', '#e11d48', '#0d9488', '#7c3aed', '#c2410c', '#0891b2',
-    '#4d7c0f', '#be185d', '#4338ca', '#a16207', '#0f766e', '#9d174d',
-  ];
+
+  /* ---------------- 主题 ---------------- */
+
+  const THEME_KEY = 'laundry.theme';
+  const THEME_CYCLE = ['auto', 'light', 'dark'];
+  const THEME_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+  const THEME_ICONS = { auto: '◐', light: '☀', dark: '☾' };
+
+  /** 每台机器的线条颜色：深色主题用更亮的色板，保证深底可读 */
+  const COLOR_PALETTES = {
+    light: [
+      '#1b4dc1', '#e11d48', '#0d9488', '#7c3aed', '#c2410c', '#0891b2',
+      '#4d7c0f', '#be185d', '#4338ca', '#a16207', '#0f766e', '#9d174d',
+    ],
+    dark: [
+      '#60a5fa', '#f472b6', '#2dd4bf', '#a78bfa', '#fb923c', '#22d3ee',
+      '#a3e635', '#f9a8d4', '#818cf8', '#facc15', '#34d399', '#f87171',
+    ],
+  };
+
+  function currentTheme() {
+    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  }
+
+  function palette() {
+    return COLOR_PALETTES[currentTheme()] ?? COLOR_PALETTES.light;
+  }
+
+  function cssVar(name, fallback = '') {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  function readThemeMode() {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      return THEME_CYCLE.includes(saved) ? saved : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  function resolveTheme(mode) {
+    if (mode === 'light' || mode === 'dark') return mode;
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+    } catch {
+      // 忽略：不支持 matchMedia 时按浅色处理
+    }
+    return 'light';
+  }
 
   const RANGES = [
     ['1h', '1 hour'],
@@ -39,7 +86,8 @@
     countdown: 30,
     loading: false,
     firstLoad: true,
-    colorOf: new Map(),
+    themeMode: 'auto',
+    knownIds: new Set(),
   };
 
   const $ = (id) => document.getElementById(id);
@@ -126,10 +174,9 @@
   }
 
   function colorFor(machineId) {
-    if (!state.colorOf.has(machineId)) {
-      state.colorOf.set(machineId, COLORS[state.colorOf.size % COLORS.length]);
-    }
-    return state.colorOf.get(machineId);
+    const index = state.machines.findIndex((machine) => machine.id === machineId);
+    const colors = palette();
+    return colors[(index >= 0 ? index : 0) % colors.length];
   }
 
   function stateClass(machine) {
@@ -546,11 +593,15 @@
 
     const svg = el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img' });
 
+    const colorFree = cssVar('--free', '#22c55e');
+    const colorBusy = cssVar('--busy', '#f59e0b');
+    const colorOff = cssVar('--off', '#94a3b8');
+
     const legendY = height - 12;
     const legend = [
-      ['Free', '#22c55e'],
-      ['In use', '#f59e0b'],
-      ['Unavailable', '#94a3b8'],
+      ['Free', colorFree],
+      ['In use', colorBusy],
+      ['Unavailable', colorOff],
     ];
     let legendX = labelWidth;
     for (const [label, color] of legend) {
@@ -574,13 +625,13 @@
         width: plotW,
         height: rowHeight,
         rx: 5,
-        fill: '#f1f5f9',
+        fill: cssVar('--track', '#f1f5f9'),
       }));
 
       const segments = [
-        [row.availableRatio, '#22c55e'],
-        [row.inUseRatio, '#f59e0b'],
-        [row.unavailableRatio, '#94a3b8'],
+        [row.availableRatio, colorFree],
+        [row.inUseRatio, colorBusy],
+        [row.unavailableRatio, colorOff],
       ];
       let offset = 0;
       const segmentGroup = el('g', {});
@@ -663,7 +714,7 @@
         width: barWidth,
         height: h,
         rx: 3,
-        fill: isBest ? '#15803d' : '#22c55e',
+        fill: isBest ? cssVar('--free-strong', '#15803d') : cssVar('--free', '#22c55e'),
         opacity: entry.freeRatio === 0 ? 0.35 : 0.75,
       });
       const title = el('title', {});
@@ -726,19 +777,24 @@
 
       renderTrend(series);
       renderSeriesChart(series);
-      drawStackedBars($('chart-bars'), (bars.rows ?? []).map((row) => ({
-        name: row.name,
-        samples: row.samples,
-        availableRatio: row.availableRatio,
-        inUseRatio: row.inUseRatio,
-        unavailableRatio: row.unavailableRatio,
-      })));
+      renderBarsChart();
       drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
     } catch (error) {
       console.error('Failed to load charts', error);
       $('db-badge').textContent = `Load failed: ${error.message}`;
       $('db-badge').className = 'badge error';
     }
+  }
+
+  /** 用缓存的数据重画"状态占比"柱状图（主题切换/窗口缩放时复用） */
+  function renderBarsChart() {
+    drawStackedBars($('chart-bars'), (state.bars?.rows ?? []).map((row) => ({
+      name: row.name,
+      samples: row.samples,
+      availableRatio: row.availableRatio,
+      inUseRatio: row.inUseRatio,
+      unavailableRatio: row.unavailableRatio,
+    })));
   }
 
   function renderTrend(series) {
@@ -757,8 +813,8 @@
       yMax,
       yFormat: (value) => `${Math.round(value)}`,
       lines: [
-        { label: 'Free', color: '#22c55e', values: totals.available ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
-        { label: 'In use', color: '#f59e0b', values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
+        { label: 'Free', color: cssVar('--free', '#22c55e'), values: totals.available ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
+        { label: 'In use', color: cssVar('--busy', '#f59e0b'), values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
       ],
     });
   }
@@ -811,15 +867,16 @@
 
     if (state.firstLoad) {
       state.selected = new Set(state.machines.map((machine) => machine.id));
+      state.knownIds = new Set(state.machines.map((machine) => machine.id));
       state.firstLoad = false;
       renderMachineChips();
     } else {
-      // 新出现的机器默认加进选择（保持视图完整）
-      let added = false;
-      for (const machine of state.machines) {
-        if (!state.colorOf.has(machine.id)) added = true;
+      // 新出现的机器：刷新 chip 列表（新机器默认未选中），并让视图保持完整
+      const hasNewMachine = state.machines.some((machine) => !state.knownIds.has(machine.id));
+      if (hasNewMachine) {
+        for (const machine of state.machines) state.knownIds.add(machine.id);
+        renderMachineChips();
       }
-      if (added) renderMachineChips();
     }
 
     renderHeader();
@@ -850,6 +907,65 @@
     }
   }
 
+  /* ---------------- 主题切换 ---------------- */
+
+  function applyTheme(mode, { persist = false, redraw = true } = {}) {
+    state.themeMode = THEME_CYCLE.includes(mode) ? mode : 'auto';
+
+    if (persist) {
+      try {
+        localStorage.setItem(THEME_KEY, state.themeMode);
+      } catch {
+        // 隐私模式下 localStorage 可能不可用，忽略
+      }
+    }
+
+    document.documentElement.dataset.theme = resolveTheme(state.themeMode);
+
+    const button = $('theme-toggle');
+    if (button) {
+      const icon = button.querySelector('.theme-icon');
+      const label = $('theme-label');
+      if (icon) icon.textContent = THEME_ICONS[state.themeMode];
+      if (label) label.textContent = THEME_LABELS[state.themeMode];
+      button.title =
+        state.themeMode === 'auto' ? 'Theme: Auto (follows system)' : `Theme: ${THEME_LABELS[state.themeMode]}`;
+    }
+
+    if (redraw) redrawCharts();
+  }
+
+  function cycleTheme() {
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(state.themeMode) + 1) % THEME_CYCLE.length];
+    applyTheme(next, { persist: true });
+  }
+
+  function redrawCharts() {
+    renderMachineChips();
+    if (state.series) {
+      renderTrend(state.series);
+      renderSeriesChart(state.series);
+    }
+    if (state.bars) renderBarsChart();
+    if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
+  }
+
+  /** 监听系统深浅色变化（仅 Auto 模式下跟随） */
+  function watchSystemTheme() {
+    if (!window.matchMedia) return;
+    let media;
+    try {
+      media = window.matchMedia('(prefers-color-scheme: dark)');
+    } catch {
+      return;
+    }
+    const onChange = () => {
+      if (state.themeMode === 'auto') applyTheme('auto');
+    };
+    if (typeof media.addEventListener === 'function') media.addEventListener('change', onChange);
+    else if (typeof media.addListener === 'function') media.addListener(onChange);
+  }
+
   /* ---------------- 初始化 ---------------- */
 
   function tick() {
@@ -864,6 +980,7 @@
 
   function bindEvents() {
     $('refresh').addEventListener('click', () => refreshAll());
+    $('theme-toggle').addEventListener('click', () => cycleTheme());
 
     $('auto').addEventListener('change', (event) => {
       state.auto = event.target.checked;
@@ -876,15 +993,7 @@
       debounce(() => {
         if (state.series) renderTrend(state.series);
         if (state.series) renderSeriesChart(state.series);
-        if (state.bars) {
-          drawStackedBars($('chart-bars'), (state.bars.rows ?? []).map((row) => ({
-            name: row.name,
-            samples: row.samples,
-            availableRatio: row.availableRatio,
-            inUseRatio: row.inUseRatio,
-            unavailableRatio: row.unavailableRatio,
-          })));
-        }
+        if (state.bars) renderBarsChart();
         if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
       }, 200),
     );
@@ -897,6 +1006,8 @@
   async function init() {
     renderRangeChips();
     renderPresetChips();
+    applyTheme(readThemeMode(), { redraw: false });
+    watchSystemTheme();
     bindEvents();
     await refreshAll();
     setInterval(tick, 1000);
