@@ -584,12 +584,100 @@ footer {
 }
 
 @media (max-width: 720px) {
+  body {
+    font-size: 13px;
+  }
+
   .topbar {
-    padding: 12px 14px;
+    position: static;
+    padding: 10px 12px;
+    gap: 8px 12px;
+  }
+
+  .brand h1 {
+    font-size: 16px;
+  }
+
+  .badge {
+    font-size: 11px;
+  }
+
+  .meta {
+    width: 100%;
+    gap: 6px 14px;
+  }
+
+  .meta-item {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .meta-item .label {
+    font-size: 10px;
+  }
+
+  .meta-item b {
+    font-size: 12px;
+  }
+
+  .meta-item.wide {
+    display: none;
+  }
+
+  .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .theme-toggle {
+    min-width: 0;
   }
 
   main {
-    padding: 14px;
+    padding: 10px 10px 28px;
+    gap: 10px;
+  }
+
+  .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .card-head {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+
+  .card-head h2 {
+    font-size: 14px;
+  }
+
+  .legend-inline {
+    flex-wrap: wrap;
+  }
+
+  .machine-grid {
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    gap: 8px;
+  }
+
+  .machine {
+    padding: 8px 10px;
+  }
+
+  .machine .name {
+    font-size: 12px;
+  }
+
+  .machine .st,
+  .machine .sub {
+    font-size: 11px;
+  }
+
+  .powder {
+    font-size: 9px;
+    padding: 2px 5px;
   }
 
   .control-row {
@@ -602,7 +690,57 @@ footer {
     padding-top: 0;
   }
 
-  .meta-item.wide {
+  .chip {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .machine-chips {
+    max-height: 112px;
+  }
+
+  .chart {
+    min-height: 200px;
+  }
+
+  .chart.tall {
+    min-height: 260px;
+  }
+
+  .chart .axis-text {
+    font-size: 10px;
+  }
+
+  .chart .bar-label,
+  .chart .bar-value {
+    font-size: 10px;
+  }
+
+  .chart .hour-label {
+    font-size: 9px;
+  }
+
+  .tooltip {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  footer {
+    padding: 4px 0 18px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px) {
+  .machine-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .machine-head {
+    flex-wrap: wrap;
+  }
+
+  .legend-inline .hint {
     display: none;
   }
 }

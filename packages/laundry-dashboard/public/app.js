@@ -422,9 +422,12 @@
   /* ---------------- 图表：折线 ---------------- */
 
   function drawLineChart(container, options) {
-    const width = Math.max(320, container.clientWidth || 900);
-    const height = options.height ?? 260;
-    const margin = { top: 14, right: 18, bottom: 26, left: 44 };
+    const width = Math.max(280, container.clientWidth || 900);
+    const compact = width < 520;
+    const height = options.height ?? (compact ? 200 : 260);
+    const margin = compact
+      ? { top: 12, right: 10, bottom: 22, left: 34 }
+      : { top: 14, right: 18, bottom: 26, left: 44 };
     const plotW = width - margin.left - margin.right;
     const plotH = height - margin.top - margin.bottom;
     const { buckets, lines } = options;
@@ -442,7 +445,7 @@
 
     const svg = el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img' });
 
-    const yTicks = 4;
+    const yTicks = compact ? 3 : 4;
     for (let t = 0; t <= yTicks; t += 1) {
       const value = (yMax / yTicks) * t;
       const y = yFor(value);
@@ -455,7 +458,7 @@
       }));
     }
 
-    const xLabelCount = Math.min(6, n);
+    const xLabelCount = Math.min(compact ? 4 : 6, n);
     for (let k = 0; k < xLabelCount; k += 1) {
       const index = Math.round((k / Math.max(1, xLabelCount - 1)) * (n - 1));
       svg.appendChild(svgText(fmtAxisTime(buckets[index], options.bucketSeconds), {
@@ -529,7 +532,7 @@
       width: ctx.plotW,
       height: ctx.plotH,
       fill: 'transparent',
-      style: 'cursor: crosshair',
+      style: 'cursor: crosshair; touch-action: pan-y',
     });
     svg.appendChild(hoverLine);
     svg.appendChild(overlay);
@@ -554,7 +557,7 @@
         .map((line) => {
           const value = line.values[index];
           const shown = line.valueFormat ? line.valueFormat(value) : String(value);
-          return `<div class="t-row"><span class="t-dot" style="background:${line.color}"></span>${line.label}：<b>${shown}</b></div>`;
+          return `<div class="t-row"><span class="t-dot" style="background:${line.color}"></span>${line.label}: <b>${shown}</b></div>`;
         })
         .join('');
 
@@ -567,27 +570,55 @@
       tooltip.classList.add('visible');
     };
 
-    overlay.addEventListener('mousemove', show);
-    overlay.addEventListener('mouseleave', () => {
+    const hide = () => {
       tooltip.classList.remove('visible');
       hoverLine.setAttribute('opacity', 0);
-    });
+    };
+
+    overlay.addEventListener('mousemove', show);
+    overlay.addEventListener('mouseleave', hide);
+
+    // 触摸屏：按住/拖动显示数值，抬手 2 秒后自动隐藏
+    let hideTimer = null;
+    const showTouch = (event) => {
+      const touch = event.touches?.[0] ?? event.changedTouches?.[0];
+      if (!touch) return;
+      clearTimeout(hideTimer);
+      show({ clientX: touch.clientX, clientY: touch.clientY });
+    };
+    overlay.addEventListener('touchstart', showTouch, { passive: true });
+    overlay.addEventListener('touchmove', showTouch, { passive: true });
+    overlay.addEventListener(
+      'touchend',
+      () => {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(hide, 2000);
+      },
+      { passive: true },
+    );
+    overlay.addEventListener('touchcancel', hide, { passive: true });
   }
 
   /* ---------------- 图表：堆叠柱状 ---------------- */
 
+  /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏标签用短名 */
+  function shortMachineName(name) {
+    return String(name ?? '').replace(/^UG\d+\s+/i, '');
+  }
+
   function drawStackedBars(container, rows) {
-    const width = Math.max(320, container.clientWidth || 900);
+    const width = Math.max(300, container.clientWidth || 900);
+    const compact = width < 520;
     container.innerHTML = '';
     if (!rows.length) {
       renderEmpty(container, 'No data yet (waiting for polls)');
       return;
     }
 
-    const rowHeight = 26;
-    const rowGap = 8;
-    const labelWidth = 132;
-    const valueWidth = 96;
+    const rowHeight = compact ? 22 : 26;
+    const rowGap = compact ? 6 : 8;
+    const labelWidth = compact ? 84 : 132;
+    const valueWidth = compact ? 56 : 96;
     const height = rows.length * (rowHeight + rowGap) + 32;
     const plotW = Math.max(80, width - labelWidth - valueWidth - 8);
 
@@ -607,12 +638,12 @@
     for (const [label, color] of legend) {
       svg.appendChild(el('rect', { x: legendX, y: legendY - 8, width: 10, height: 10, rx: 2, fill: color }));
       svg.appendChild(svgText(label, { x: legendX + 14, y: legendY + 1, class: 'bar-value' }));
-      legendX += 14 + label.length * 12 + 18;
+      legendX += 14 + label.length * (compact ? 7 : 12) + (compact ? 12 : 18);
     }
 
     rows.forEach((row, index) => {
       const y = index * (rowHeight + rowGap);
-      svg.appendChild(svgText(row.name, {
+      svg.appendChild(svgText(compact ? shortMachineName(row.name) : row.name, {
         x: labelWidth - 10,
         y: y + rowHeight / 2 + 4,
         'text-anchor': 'end',
@@ -653,7 +684,7 @@
       segmentGroup.appendChild(title);
       svg.appendChild(segmentGroup);
 
-      svg.appendChild(svgText(`${Math.round(row.availableRatio * 100)}% free`, {
+      svg.appendChild(svgText(`${Math.round(row.availableRatio * 100)}%${compact ? '' : ' free'}`, {
         x: labelWidth + plotW + 8,
         y: y + rowHeight / 2 + 4,
         class: 'bar-value',
@@ -666,9 +697,12 @@
   /* ---------------- 图表：按小时 ---------------- */
 
   function drawHourlyBars(container, hours) {
-    const width = Math.max(320, container.clientWidth || 900);
-    const height = 240;
-    const margin = { top: 14, right: 12, bottom: 26, left: 44 };
+    const width = Math.max(300, container.clientWidth || 900);
+    const compact = width < 520;
+    const height = compact ? 190 : 240;
+    const margin = compact
+      ? { top: 12, right: 8, bottom: 22, left: 32 }
+      : { top: 14, right: 12, bottom: 26, left: 44 };
     const plotW = width - margin.left - margin.right;
     const plotH = height - margin.top - margin.bottom;
 
@@ -722,7 +756,7 @@
       bar.appendChild(title);
       svg.appendChild(bar);
 
-      if (index % 3 === 0) {
+      if (index % (compact ? 6 : 3) === 0) {
         svg.appendChild(svgText(`${pad2(entry.hour)}`, {
           x: x + barWidth / 2,
           y: height - 8,
@@ -732,7 +766,10 @@
       }
     });
 
-    svg.appendChild(svgText(`Best time ${pad2(bestHour.hour)}:00 (${Math.round(bestHour.freeRatio * 100)}% free)`, {
+    const bestLabel = compact
+      ? `Best ${pad2(bestHour.hour)}:00`
+      : `Best time ${pad2(bestHour.hour)}:00 (${Math.round(bestHour.freeRatio * 100)}% free)`;
+    svg.appendChild(svgText(bestLabel, {
       x: margin.left + plotW,
       y: 10,
       'text-anchor': 'end',

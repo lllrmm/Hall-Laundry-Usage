@@ -235,6 +235,29 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     assert.equal(document.getElementById('theme-label').textContent, 'Auto', '跟随系统时模式仍显示 Auto');
     assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'auto');
 
+    // 6) 移动端：375px 宽度下按窄屏参数重绘
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get() {
+        return dom.window.innerWidth;
+      },
+    });
+    dom.window.innerWidth = 375;
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+
+    await waitFor(
+      () => document.querySelector('#chart-trend svg')?.getAttribute('width') === '375',
+      { label: '移动端图表按 375px 重绘' },
+    );
+    assert.equal(document.querySelector('#chart-bars svg').getAttribute('width'), '375');
+    assert.equal(document.querySelector('#chart-hourly svg').getAttribute('width'), '375');
+
+    // 窄屏柱状图标签用短名（去掉 "UG4 " 前缀）
+    const barLabels = [...document.querySelectorAll('#chart-bars svg text.bar-label')].map((node) => node.textContent);
+    assert.ok(barLabels.length > 0, '柱状图应有机器标签');
+    assert.ok(barLabels.every((label) => !label.startsWith('UG')), `窄屏应使用短名，实际：${barLabels.join(', ')}`);
+    assert.ok(barLabels.includes('Dryer (51)'), '短名应保留机器编号');
+
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
     if (dom) dom.window.close();

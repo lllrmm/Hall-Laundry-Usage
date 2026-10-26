@@ -18,6 +18,12 @@ const html = await get('/', false);
 check('页面 /', html.includes('Laundry Monitor') && html.includes('chart-trend'), `${html.length} bytes`);
 check('主题切换控件', html.includes('id="theme-toggle"') && html.includes('data-theme'), '');
 
+const css = await get('/styles.css', false);
+const appJs = await get('/app.js', false);
+check('响应式样式', css.includes('@media (max-width: 720px)') && css.includes('@media (max-width: 420px)'), '');
+check('移动端图表逻辑', appJs.includes('compact') && appJs.includes('shortMachineName'), '');
+check('触摸 tooltip', appJs.includes('touchstart') && appJs.includes('touchmove'), '');
+
 const state = await get('/api/state');
 check('/api/state meta', state.meta?.available === true, `lastObserved=${state.meta?.lastObservedAt}`);
 check('/api/state 机器数', state.latest?.length === 12, `${state.latest?.length} 台`);
