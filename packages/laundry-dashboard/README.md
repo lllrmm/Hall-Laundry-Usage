@@ -25,7 +25,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 区块 | 说明 |
 |---|---|
 | 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、数据库路径、立即刷新、自动刷新倒计时 |
-| 当前状态 | 12 台机器卡片，按 空闲 / 在用 / 不可用 着色；在用显示预计剩余时间，洗衣机显示已运行时长 |
+| 当前状态 | 12 台机器卡片，按 空闲 / 在用 / 不可用 着色；在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注「带洗衣粉 / 不带洗衣粉」**（来自 `service_type.value`，烘干机不显示） |
 | 时间跨度 | 1 小时 / 6 小时 / 24 小时 / 7 天 / 30 天 / 全部 |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择：全部 / 仅洗衣机 / 仅烘干机 / 当前空闲 / 当前在用 |
 | 整体趋势 | 折线图：所选机器中"可用 / 在用"台数随时间变化 |
@@ -52,14 +52,15 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 |---|---|
 | `GET /api/meta` | 数据最后更新时间、最近一次轮询结果、轮询次数、机器数、快照数 |
 | `GET /api/state` | meta + 机器维度 + 最新一轮全部机器状态（页面首屏用这一个请求） |
-| `GET /api/machines` | 机器维度表 |
-| `GET /api/latest` | 最新一轮每台机器的状态 |
+| `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
+| `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
 | `GET /api/series?since=24h&machines=id1,id2` | 时间序列（自动分桶，返回 `buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals`） |
 | `GET /api/bars?since=24h&machines=...` | 时间窗内每台机器的状态占比 |
 | `GET /api/hourly?since=7d&machines=...` | 按本地小时聚合的空闲率（24 桶） |
 
 - `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；
 - 分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；
+- `powder` 字段：`washing_machine_with_powder` → `"with"`，`washing_machine_without_powder` → `"without"`，烘干机为 `null`；
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
 - 数据库以**只读**方式打开（失败时退回 `PRAGMA query_only`），绝不会写入采集数据。
 

@@ -220,6 +220,49 @@ footer {
   background: #fffaf1;
 }
 
+.machine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.machine-head .name {
+  flex: 1;
+  min-width: 0;
+}
+
+.powder {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.powder.with {
+  background: #e8f1ff;
+  color: #1b4dc1;
+  border-color: #c9dcff;
+}
+
+.powder.without {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.chip-tag {
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.75;
+}
+
 .machine .name {
   font-weight: 650;
   font-size: 13px;

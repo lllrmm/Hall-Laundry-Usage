@@ -178,6 +178,67 @@ test('hourly：总是返回 24 个小时桶', () => {
   });
 });
 
+test('洗粉标注：洗衣机 powder 字段（with / without），烘干机为 null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-powder-'));
+  const file = path.join(dir, 'test.sqlite');
+  const db = new MonitorDatabase(file, { journalMode: 'DELETE' });
+
+  const makeMachine = (id, name, kind, value) => ({
+    _id: id,
+    status: 'enabled',
+    state: 'available',
+    name,
+    service_type: { _id: `st-${id}`, machine_type: kind, value, label: value },
+    laundry_room_name: 'UG Hall IV',
+  });
+
+  const status = normalizeResponse(
+    {
+      meta: { code: 200, message: 'Success' },
+      data: {
+        laundry_room_machines: [
+          {
+            laundry_room_name: 'UG Hall IV',
+            machines: [
+              makeMachine('d1', 'UG4 Dryer (51)', 'dryer', 'dryer_machine'),
+              makeMachine('w1', 'UG4 Washer (01)', 'washer', 'washing_machine_without_powder'),
+              makeMachine('w2', 'UG4 Washer (05)', 'washer', 'washing_machine_with_powder'),
+            ],
+          },
+        ],
+      },
+    },
+    T0,
+  );
+
+  db.recordSuccessfulPoll(status, { startedAt: new Date(T0), finishedAt: new Date(T0), durationMs: 10 });
+  db.close();
+
+  const dashboard = new DashboardDatabase(file);
+  try {
+    const latest = dashboard.latest();
+    const byId = new Map(latest.map((machine) => [machine.id, machine]));
+
+    assert.equal(byId.get('w1').powder, 'without');
+    assert.equal(byId.get('w1').serviceValue, 'washing_machine_without_powder');
+    assert.equal(byId.get('w2').powder, 'with');
+    assert.equal(byId.get('w2').serviceValue, 'washing_machine_with_powder');
+    assert.equal(byId.get('d1').powder, null);
+
+    const machines = new Map(dashboard.machines().map((machine) => [machine.id, machine]));
+    assert.equal(machines.get('w1').powder, 'without');
+    assert.equal(machines.get('w2').powder, 'with');
+    assert.equal(machines.get('d1').powder, null);
+  } finally {
+    dashboard.close();
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  }
+});
+
 test('数据库不存在时优雅降级', () => {
   const dashboard = new DashboardDatabase(path.join(os.tmpdir(), 'definitely-missing', 'nope.sqlite'));
   try {

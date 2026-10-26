@@ -14,6 +14,17 @@ import { buildBuckets, chooseBucketSeconds, MAX_WINDOW_SECONDS } from './time.js
 /** 机器状态 0/1 → boolean */
 const bool = (value) => value === 1 || value === true;
 
+/** 洗衣机是否带洗衣粉：取决于 service_type.value */
+const POWDER_BY_SERVICE_VALUE = {
+  washing_machine_with_powder: 'with',
+  washing_machine_without_powder: 'without',
+};
+
+/** @returns {'with'|'without'|null} */
+function powderOf(serviceValue) {
+  return POWDER_BY_SERVICE_VALUE[serviceValue] ?? null;
+}
+
 function emptySeries(since, until, bucketSeconds) {
   return {
     available: false,
@@ -151,9 +162,20 @@ export class DashboardDatabase {
     if (!db || !this._hasSchema(db)) return [];
     try {
       return db
-        .prepare('SELECT id, name, kind, room_name FROM machines ORDER BY kind, name')
+        .prepare(
+          `SELECT id, name, kind, room_name, service_value, service_label
+           FROM machines ORDER BY kind, name`,
+        )
         .all()
-        .map((row) => ({ id: row.id, name: row.name, kind: row.kind, roomName: row.room_name }));
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          kind: row.kind,
+          roomName: row.room_name,
+          serviceValue: row.service_value ?? null,
+          serviceLabel: row.service_label ?? null,
+          powder: powderOf(row.service_value),
+        }));
     } catch {
       return [];
     }
@@ -169,7 +191,8 @@ export class DashboardDatabase {
           `SELECT s.machine_id AS id, m.name, m.kind, s.observed_at,
                   s.status, s.state, s.available, s.planned_minutes,
                   s.remaining_seconds, s.elapsed_seconds, s.finished_but_not_emptied,
-                  s.started_at, s.ends_at
+                  s.started_at, s.ends_at,
+                  m.service_value AS service_value, m.service_label AS service_label
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
            WHERE s.run_id = (SELECT MAX(run_id) FROM machine_snapshots)
@@ -190,6 +213,9 @@ export class DashboardDatabase {
           finishedButNotEmptied: bool(row.finished_but_not_emptied),
           startedAt: row.started_at,
           endsAt: row.ends_at,
+          serviceValue: row.service_value ?? null,
+          serviceLabel: row.service_label ?? null,
+          powder: powderOf(row.service_value),
         }));
     } catch {
       return [];

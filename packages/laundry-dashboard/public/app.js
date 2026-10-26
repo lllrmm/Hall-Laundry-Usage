@@ -214,6 +214,13 @@
     $('footer-time').textContent = fmtClock(new Date().toISOString());
   }
 
+  function powderText(machine) {
+    if (machine.kind !== 'washer') return '';
+    if (machine.powder === 'with') return '带洗衣粉';
+    if (machine.powder === 'without') return '不带洗衣粉';
+    return '';
+  }
+
   function renderMachineGrid() {
     const grid = $('machine-grid');
     grid.innerHTML = '';
@@ -228,10 +235,23 @@
       const div = document.createElement('div');
       div.className = `machine ${stateClass(machine)}`;
 
+      const head = document.createElement('div');
+      head.className = 'machine-head';
+
       const name = document.createElement('div');
       name.className = 'name';
       name.textContent = machine.name;
       name.title = machine.name;
+      head.appendChild(name);
+
+      const powder = powderText(machine);
+      if (powder) {
+        const badge = document.createElement('span');
+        badge.className = `powder ${machine.powder}`;
+        badge.textContent = powder;
+        badge.title = machine.serviceLabel ?? powder;
+        head.appendChild(badge);
+      }
 
       const st = document.createElement('div');
       st.className = 'st';
@@ -241,8 +261,8 @@
       sub.className = 'sub';
       sub.textContent = machineSubText(machine);
 
-      div.append(name, st, sub);
-      div.title = `${machine.name}\n观测时间：${fmtDateTime(machine.observedAt)}`;
+      div.append(head, st, sub);
+      div.title = `${machine.name}${powder ? ' · ' + powder : ''}\n观测时间：${fmtDateTime(machine.observedAt)}`;
       grid.appendChild(div);
     }
   }
@@ -316,10 +336,11 @@
 
       for (const machine of list) {
         const active = state.selected.has(machine.id);
+        const powder = powderText(machine);
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `chip${active ? ' active' : ''}`;
-        button.title = `点击${active ? '取消' : '选中'} ${machine.name}`;
+        button.title = `点击${active ? '取消' : '选中'} ${machine.name}${powder ? ' · ' + powder : ''}`;
 
         const swatch = document.createElement('span');
         swatch.className = 'swatch';
@@ -329,6 +350,14 @@
         text.textContent = machine.name.replace(/^UG\d\s*/, '');
 
         button.append(swatch, text);
+
+        if (powder) {
+          const tag = document.createElement('span');
+          tag.className = 'chip-tag';
+          tag.textContent = machine.powder === 'with' ? '带粉' : '无粉';
+          button.appendChild(tag);
+        }
+
         button.onclick = () => {
           if (state.selected.has(machine.id)) state.selected.delete(machine.id);
           else state.selected.add(machine.id);
