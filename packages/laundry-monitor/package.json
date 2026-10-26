@@ -1,0 +1,27 @@
+{
+  "name": "hkust-laundry-monitor",
+  "version": "0.1.0",
+  "description": "Poll HKUST laundry machine status on an interval and store every observation in SQLite for later analysis.",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "laundry-monitor": "./bin/cli.mjs"
+  },
+  "files": ["bin", "src", "monitor.config.example.json", "README.md"],
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node bin/cli.mjs run --config monitor.config.json",
+    "once": "node bin/cli.mjs once --config monitor.config.json",
+    "stats": "node bin/cli.mjs stats --config monitor.config.json",
+    "test": "node --test test/",
+    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/db.test.mjs test/collector.test.mjs",
+    "test:bun": "bun test"
+  },
+  "dependencies": {
+    "hkust-laundry-machines": "file:../laundry-machines"
+  },
+  "license": "MIT",
+  "private": true
+}
