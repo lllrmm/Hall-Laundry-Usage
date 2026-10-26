@@ -141,11 +141,11 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     // 1.1) 洗衣机洗粉标注
     const withPowder = document.querySelectorAll('#machine-grid .powder.with');
     const withoutPowder = document.querySelectorAll('#machine-grid .powder.without');
-    assert.equal(withPowder.length, 1, '应有一台洗衣机标注"带洗衣粉"');
-    assert.equal(withPowder[0].textContent, '带洗衣粉');
-    assert.equal(withoutPowder.length, 1, '应有一台洗衣机标注"不带洗衣粉"');
-    assert.equal(withoutPowder[0].textContent, '不带洗衣粉');
-    assert.equal(document.querySelectorAll('#machine-grid .powder').length, 2, '烘干机不显示洗粉标注');
+    assert.equal(withPowder.length, 1, 'should mark one washer "With detergent"');
+    assert.equal(withPowder[0].textContent, 'With detergent');
+    assert.equal(withoutPowder.length, 1, 'should mark one washer "No detergent"');
+    assert.equal(withoutPowder[0].textContent, 'No detergent');
+    assert.equal(document.querySelectorAll('#machine-grid .powder').length, 2, 'dryers should not show detergent badges');
 
     // 2) 四张图表都渲染出 SVG
     for (const id of ['chart-trend', 'chart-series', 'chart-bars', 'chart-hourly']) {
@@ -159,13 +159,13 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
     // 小时图：只有有数据的那个小时会画柱子（测试数据集中在几分钟内）
     assert.ok(document.querySelectorAll('#chart-hourly svg rect').length >= 1, '小时图应有柱子');
-    assert.match(document.getElementById('chart-hourly').textContent, /最佳时段/, '小时图应标注最佳时段');
+    assert.match(document.getElementById('chart-hourly').textContent, /Best time/, 'hourly chart should label the best time');
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
     assert.equal(document.querySelectorAll('#presets .chip').length, 5, '5 个快捷选择');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
-    assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, '洗衣机 chip 带洗粉短标签');
+    assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
     // 4) 交互：取消一台机器 → 折线减少；切到 7 天 → chip 高亮
@@ -176,15 +176,15 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     });
     assert.match(document.getElementById('selected-count').textContent, /3\/4/);
 
-    const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 天'));
+    const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 days'));
     weekChip.click();
     // 点击后 chips 会重建，需要重新查询
     await waitFor(
       () => {
         const active = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.classList.contains('active'));
-        return active && active.textContent.includes('7 天');
+        return active && active.textContent.includes('7 days');
       },
-      { label: '7 天 chip 高亮' },
+      { label: '7 days chip highlighted' },
     );
     assert.ok(document.querySelector('#chart-trend svg'), '切换时间跨度后图表仍存在');
 

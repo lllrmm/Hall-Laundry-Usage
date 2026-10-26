@@ -15,7 +15,7 @@ function check(name, condition, detail) {
 }
 
 const html = await get('/', false);
-check('页面 /', html.includes('洗衣房监控') && html.includes('chart-trend'), `${html.length} bytes`);
+check('页面 /', html.includes('Laundry Monitor') && html.includes('chart-trend'), `${html.length} bytes`);
 
 const state = await get('/api/state');
 check('/api/state meta', state.meta?.available === true, `lastObserved=${state.meta?.lastObservedAt}`);

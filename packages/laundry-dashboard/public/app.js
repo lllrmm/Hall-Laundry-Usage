@@ -9,20 +9,20 @@
   ];
 
   const RANGES = [
-    ['1h', '1 小时'],
-    ['6h', '6 小时'],
-    ['24h', '24 小时'],
-    ['7d', '7 天'],
-    ['30d', '30 天'],
-    ['all', '全部'],
+    ['1h', '1 hour'],
+    ['6h', '6 hours'],
+    ['24h', '24 hours'],
+    ['7d', '7 days'],
+    ['30d', '30 days'],
+    ['all', 'All'],
   ];
 
   const PRESETS = [
-    ['all', '全部'],
-    ['washer', '仅洗衣机'],
-    ['dryer', '仅烘干机'],
-    ['free', '当前空闲'],
-    ['busy', '当前在用'],
+    ['all', 'All'],
+    ['washer', 'Washers only'],
+    ['dryer', 'Dryers only'],
+    ['free', 'Free now'],
+    ['busy', 'In use now'],
   ];
 
   const state = {
@@ -79,10 +79,10 @@
   function fmtRelative(iso) {
     if (!iso) return '';
     const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-    if (seconds < 60) return `${seconds} 秒前`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
-    return `${Math.floor(seconds / 86400)} 天前`;
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
   }
 
   function fmtDuration(seconds) {
@@ -139,25 +139,25 @@
   }
 
   function stateLabel(machine) {
-    if (machine.available) return '空闲';
-    if (machine.state === 'in_use') return '在用';
-    if (machine.state === 'offline') return '离线';
-    if (machine.status === 'maintenance') return '维护中';
-    if (machine.status === 'on_hold') return '暂停';
-    if (machine.status === 'disabled') return '停用';
-    return machine.state || '不可用';
+    if (machine.available) return 'Free';
+    if (machine.state === 'in_use') return 'In use';
+    if (machine.state === 'offline') return 'Offline';
+    if (machine.status === 'maintenance') return 'Maintenance';
+    if (machine.status === 'on_hold') return 'On hold';
+    if (machine.status === 'disabled') return 'Disabled';
+    return machine.state || 'Unavailable';
   }
 
   function machineSubText(machine) {
     if (machine.state === 'in_use') {
       if (machine.remainingSeconds !== null && machine.remainingSeconds !== undefined) {
         return machine.remainingSeconds > 0
-          ? `预计剩 ${fmtDuration(machine.remainingSeconds)}`
-          : `已到点 ${fmtDuration(-machine.remainingSeconds)}，可能未取衣`;
+          ? `~${fmtDuration(machine.remainingSeconds)} left`
+          : `Finished ${fmtDuration(-machine.remainingSeconds)} ago, not collected`;
       }
-      return `已运行 ${fmtDuration(machine.elapsedSeconds)}`;
+      return `Running for ${fmtDuration(machine.elapsedSeconds)}`;
     }
-    if (machine.available) return machine.kind === 'dryer' ? '可烘干' : '可洗涤';
+    if (machine.available) return machine.kind === 'dryer' ? 'Ready to dry' : 'Ready to wash';
     return machine.status && machine.status !== 'enabled' ? machine.status : '';
   }
 
@@ -176,13 +176,13 @@
     const badge = $('db-badge');
 
     if (!meta || !meta.available) {
-      badge.textContent = '等待数据';
+      badge.textContent = 'Waiting for data';
       badge.className = 'badge warn';
     } else if (meta.lastPoll && !meta.lastPoll.ok) {
-      badge.textContent = `采集失败 ${meta.lastPoll.errorCode ?? ''}`;
+      badge.textContent = `Poll failed ${meta.lastPoll.errorCode ?? ''}`;
       badge.className = 'badge error';
     } else {
-      badge.textContent = '运行中';
+      badge.textContent = 'Running';
       badge.className = 'badge ok';
     }
 
@@ -195,15 +195,15 @@
       let pollText = '—';
       if (meta.lastPoll) {
         const ok = meta.lastPoll.ok;
-        pollText = `${ok ? '成功' : '失败'} · ${meta.lastPoll.durationMs}ms`;
+        pollText = `${ok ? 'ok' : 'failed'} · ${meta.lastPoll.durationMs}ms`;
         if (!ok && meta.lastPoll.errorCode) pollText += ` · ${meta.lastPoll.errorCode}`;
-        if (meta.pollCount) pollText += ` · 共 ${meta.pollCount} 次`;
+        if (meta.pollCount) pollText += ` · ${meta.pollCount} polls`;
       }
       $('poll-state').textContent = pollText;
       $('db-path').textContent = meta.database;
       $('db-path').title = meta.database;
       $('latest-time').textContent = meta.lastObservedAt
-        ? `数据时间 ${fmtDateTime(meta.lastObservedAt)}`
+        ? `Data time ${fmtDateTime(meta.lastObservedAt)}`
         : '';
 
       if (meta.lastPoll && meta.lastPoll.finishedAt) {
@@ -216,8 +216,8 @@
 
   function powderText(machine) {
     if (machine.kind !== 'washer') return '';
-    if (machine.powder === 'with') return '带洗衣粉';
-    if (machine.powder === 'without') return '不带洗衣粉';
+    if (machine.powder === 'with') return 'With detergent';
+    if (machine.powder === 'without') return 'No detergent';
     return '';
   }
 
@@ -262,7 +262,7 @@
       sub.textContent = machineSubText(machine);
 
       div.append(head, st, sub);
-      div.title = `${machine.name}${powder ? ' · ' + powder : ''}\n观测时间：${fmtDateTime(machine.observedAt)}`;
+      div.title = `${machine.name}${powder ? ' · ' + powder : ''}\nObserved: ${fmtDateTime(machine.observedAt)}`;
       grid.appendChild(div);
     }
   }
@@ -320,8 +320,8 @@
     box.innerHTML = '';
 
     const groups = [
-      ['washer', '洗衣机'],
-      ['dryer', '烘干机'],
+      ['washer', 'Washers'],
+      ['dryer', 'Dryers'],
     ];
 
     for (const [kind, label] of groups) {
@@ -340,7 +340,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `chip${active ? ' active' : ''}`;
-        button.title = `点击${active ? '取消' : '选中'} ${machine.name}${powder ? ' · ' + powder : ''}`;
+        button.title = `Click to ${active ? 'deselect' : 'select'} ${machine.name}${powder ? ' · ' + powder : ''}`;
 
         const swatch = document.createElement('span');
         swatch.className = 'swatch';
@@ -354,7 +354,7 @@
         if (powder) {
           const tag = document.createElement('span');
           tag.className = 'chip-tag';
-          tag.textContent = machine.powder === 'with' ? '带粉' : '无粉';
+          tag.textContent = machine.powder === 'with' ? 'det.' : 'no det.';
           button.appendChild(tag);
         }
 
@@ -369,7 +369,7 @@
     }
 
     const count = $('selected-count');
-    count.textContent = `已选 ${state.selected.size}/${state.machines.length} 台`;
+    count.textContent = `${state.selected.size}/${state.machines.length} selected`;
   }
 
   /* ---------------- 图表：折线 ---------------- */
@@ -385,7 +385,7 @@
 
     container.innerHTML = '';
     if (!n) {
-      renderEmpty(container, '暂无数据（等待采集）');
+      renderEmpty(container, 'No data yet (waiting for polls)');
       return;
     }
 
@@ -511,7 +511,7 @@
         })
         .join('');
 
-      tooltip.innerHTML = `<div class="t-title">${fmtTickTime(ctx.buckets[index])}</div>${rows || '<div class="t-row">无数据</div>'}`;
+      tooltip.innerHTML = `<div class="t-title">${fmtTickTime(ctx.buckets[index])}</div>${rows || '<div class="t-row">No data</div>'}`;
 
       const containerRect = container.getBoundingClientRect();
       const cssX = (x / scale);
@@ -533,7 +533,7 @@
     const width = Math.max(320, container.clientWidth || 900);
     container.innerHTML = '';
     if (!rows.length) {
-      renderEmpty(container, '暂无数据（等待采集）');
+      renderEmpty(container, 'No data yet (waiting for polls)');
       return;
     }
 
@@ -548,9 +548,9 @@
 
     const legendY = height - 12;
     const legend = [
-      ['可用', '#22c55e'],
-      ['在用', '#f59e0b'],
-      ['不可用', '#94a3b8'],
+      ['Free', '#22c55e'],
+      ['In use', '#f59e0b'],
+      ['Unavailable', '#94a3b8'],
     ];
     let legendX = labelWidth;
     for (const [label, color] of legend) {
@@ -598,11 +598,11 @@
         offset += w;
       }
       const title = el('title', {});
-      title.textContent = `${row.name}：可用 ${(row.availableRatio * 100).toFixed(1)}%，在用 ${(row.inUseRatio * 100).toFixed(1)}%，不可用 ${(row.unavailableRatio * 100).toFixed(1)}%（${row.samples} 个采样）`;
+      title.textContent = `${row.name}: free ${(row.availableRatio * 100).toFixed(1)}%, in use ${(row.inUseRatio * 100).toFixed(1)}%, unavailable ${(row.unavailableRatio * 100).toFixed(1)}% (${row.samples} samples)`;
       segmentGroup.appendChild(title);
       svg.appendChild(segmentGroup);
 
-      svg.appendChild(svgText(`${Math.round(row.availableRatio * 100)}% 空闲`, {
+      svg.appendChild(svgText(`${Math.round(row.availableRatio * 100)}% free`, {
         x: labelWidth + plotW + 8,
         y: y + rowHeight / 2 + 4,
         class: 'bar-value',
@@ -624,7 +624,7 @@
     container.innerHTML = '';
     const withData = hours.filter((entry) => entry.freeRatio !== null);
     if (!withData.length) {
-      renderEmpty(container, '暂无数据（等待采集）');
+      renderEmpty(container, 'No data yet (waiting for polls)');
       return;
     }
 
@@ -667,7 +667,7 @@
         opacity: entry.freeRatio === 0 ? 0.35 : 0.75,
       });
       const title = el('title', {});
-      title.textContent = `${pad2(entry.hour)}:00 空闲率 ${(entry.freeRatio * 100).toFixed(1)}%（${entry.samples} 个采样）`;
+      title.textContent = `${pad2(entry.hour)}:00 free rate ${(entry.freeRatio * 100).toFixed(1)}% (${entry.samples} samples)`;
       bar.appendChild(title);
       svg.appendChild(bar);
 
@@ -681,7 +681,7 @@
       }
     });
 
-    svg.appendChild(svgText(`最佳时段 ${pad2(bestHour.hour)}:00（${Math.round(bestHour.freeRatio * 100)}% 空闲）`, {
+    svg.appendChild(svgText(`Best time ${pad2(bestHour.hour)}:00 (${Math.round(bestHour.freeRatio * 100)}% free)`, {
       x: margin.left + plotW,
       y: 10,
       'text-anchor': 'end',
@@ -695,10 +695,10 @@
 
   async function loadCharts() {
     if (!state.selected.size) {
-      $('trend-hint').textContent = '未选择机器';
-      renderEmpty($('chart-trend'), '请至少选择一台机器');
-      renderEmpty($('chart-series'), '请至少选择一台机器');
-      renderEmpty($('chart-bars'), '请至少选择一台机器');
+      $('trend-hint').textContent = 'No machines selected';
+      renderEmpty($('chart-trend'), 'Select at least one machine');
+      renderEmpty($('chart-series'), 'Select at least one machine');
+      renderEmpty($('chart-bars'), 'Select at least one machine');
       $('legend-series').innerHTML = '';
       return;
     }
@@ -735,8 +735,8 @@
       })));
       drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
     } catch (error) {
-      console.error('加载图表失败', error);
-      $('db-badge').textContent = `加载失败: ${error.message}`;
+      console.error('Failed to load charts', error);
+      $('db-badge').textContent = `Load failed: ${error.message}`;
       $('db-badge').className = 'badge error';
     }
   }
@@ -748,7 +748,7 @@
     const yMax = Math.max(machineCount, Math.ceil(Math.max(1, ...values)));
 
     $('trend-hint').textContent = series.buckets?.length
-      ? `${fmtDateTime(series.since)} 起 · ${series.bucketSeconds >= 60 ? `${Math.round(series.bucketSeconds / 60)} 分钟` : `${series.bucketSeconds} 秒`}/点 · ${series.buckets.length} 点`
+      ? `from ${fmtDateTime(series.since)} · ${series.bucketSeconds >= 60 ? `${Math.round(series.bucketSeconds / 60)} min` : `${series.bucketSeconds} s`}/point · ${series.buckets.length} points`
       : '';
 
     drawLineChart($('chart-trend'), {
@@ -757,8 +757,8 @@
       yMax,
       yFormat: (value) => `${Math.round(value)}`,
       lines: [
-        { label: '可用', color: '#22c55e', values: totals.available ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)} 台` },
-        { label: '在用', color: '#f59e0b', values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)} 台` },
+        { label: 'Free', color: '#22c55e', values: totals.available ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
+        { label: 'In use', color: '#f59e0b', values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
       ],
     });
   }
@@ -769,7 +769,7 @@
     const bucketSeconds = series.bucketSeconds;
 
     $('series-hint').textContent = machines.length
-      ? `${machines.length} 台机器 · 空闲率 = 该时段内处于 available 的采样占比`
+      ? `${machines.length} machines · free rate = share of polls in the "available" state`
       : '';
 
     const lines = machines.map((machine) => ({
@@ -828,7 +828,7 @@
   }
 
   function updateSelectedCount() {
-    $('selected-count').textContent = `已选 ${state.selected.size}/${state.machines.length} 台`;
+    $('selected-count').textContent = `${state.selected.size}/${state.machines.length} selected`;
   }
 
   let refreshing = false;
@@ -840,8 +840,8 @@
       await loadState();
       await loadCharts();
     } catch (error) {
-      console.error('刷新失败', error);
-      $('db-badge').textContent = `连接失败: ${error.message}`;
+      console.error('Refresh failed', error);
+      $('db-badge').textContent = `Connection failed: ${error.message}`;
       $('db-badge').className = 'badge error';
     } finally {
       refreshing = false;

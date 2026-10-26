@@ -42,7 +42,9 @@ export function parseRange(value, now = Date.now()) {
 
   const parsed = Date.parse(text);
   if (Number.isNaN(parsed)) {
-    throw new Error(`无法解析时间窗口：${JSON.stringify(value)}（支持 1h / 24h / 7d / all / ISO 时间）`);
+    throw new Error(
+      `Cannot parse time range: ${JSON.stringify(value)} (supported: 1h / 24h / 7d / all / ISO time)`,
+    );
   }
   const windowSeconds = Math.min(Math.max(1, Math.round((now - parsed) / 1000)), MAX_WINDOW_SECONDS);
   return { since: new Date(parsed).toISOString(), windowSeconds, label: text };

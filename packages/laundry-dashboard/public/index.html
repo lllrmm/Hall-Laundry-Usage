@@ -1,34 +1,34 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HKUST 洗衣房监控</title>
+    <title>HKUST Laundry Monitor</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand">
-        <h1>洗衣房监控</h1>
-        <span id="db-badge" class="badge">连接中…</span>
+        <h1>Laundry Monitor</h1>
+        <span id="db-badge" class="badge">Connecting…</span>
       </div>
       <div class="meta">
         <div class="meta-item">
-          <span class="label">数据更新</span>
+          <span class="label">Data updated</span>
           <b id="last-update">—</b>
         </div>
         <div class="meta-item">
-          <span class="label">采集状态</span>
+          <span class="label">Polling</span>
           <b id="poll-state">—</b>
         </div>
         <div class="meta-item wide">
-          <span class="label">数据库</span>
+          <span class="label">Database</span>
           <b id="db-path" class="mono">—</b>
         </div>
-        <button id="refresh" class="btn" type="button">立即刷新</button>
-        <label class="auto" title="每 30 秒自动刷新">
+        <button id="refresh" class="btn" type="button">Refresh now</button>
+        <label class="auto" title="Auto-refresh every 30 seconds">
           <input type="checkbox" id="auto" checked />
-          自动刷新 <span id="auto-countdown" class="hint"></span>
+          Auto refresh <span id="auto-countdown" class="hint"></span>
         </label>
       </div>
     </header>
@@ -36,38 +36,38 @@
     <main>
       <section class="card">
         <div class="card-head">
-          <h2>当前状态 <span class="hint" id="latest-time"></span></h2>
+          <h2>Current status <span class="hint" id="latest-time"></span></h2>
           <div class="legend-inline">
-            <span class="dot free"></span>空闲
-            <span class="dot busy"></span>在用
-            <span class="dot off"></span>不可用
-            <span class="hint">· 洗衣机标注洗粉</span>
+            <span class="dot free"></span>Free
+            <span class="dot busy"></span>In use
+            <span class="dot off"></span>Unavailable
+            <span class="hint">· Washers show detergent</span>
           </div>
         </div>
         <div id="machine-grid" class="machine-grid"></div>
         <p id="no-data" class="empty" hidden>
-          数据库还没有数据。先启动轮询服务（<code>packages/laundry-monitor</code>）采集几分钟。
+          No data yet. Start the polling service (<code>packages/laundry-monitor</code>) and wait a few minutes.
         </p>
       </section>
 
       <section class="card controls">
         <div class="control-row">
-          <span class="label">时间跨度</span>
+          <span class="label">Time range</span>
           <div id="ranges" class="chips"></div>
         </div>
         <div class="control-row">
-          <span class="label">快捷选择</span>
+          <span class="label">Presets</span>
           <div id="presets" class="chips"></div>
         </div>
         <div class="control-row">
-          <span class="label">机器 <span id="selected-count" class="hint"></span></span>
+          <span class="label">Machines <span id="selected-count" class="hint"></span></span>
           <div id="machine-chips" class="chips machine-chips"></div>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">
-          <h2>整体趋势 · 可用 / 在用机器数</h2>
+          <h2>Overall trend · machines free / in use</h2>
           <span class="hint" id="trend-hint"></span>
         </div>
         <div id="chart-trend" class="chart"></div>
@@ -75,7 +75,7 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>每台机器空闲率</h2>
+          <h2>Free rate per machine</h2>
           <span class="hint" id="series-hint"></span>
         </div>
         <div id="chart-series" class="chart"></div>
@@ -84,23 +84,23 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>时间窗内状态占比</h2>
-          <span class="hint">按所选机器聚合</span>
+          <h2>State breakdown in window</h2>
+          <span class="hint">Aggregated over selected machines</span>
         </div>
         <div id="chart-bars" class="chart tall"></div>
       </section>
 
       <section class="card">
         <div class="card-head">
-          <h2>按小时的空闲率（本地时间）</h2>
-          <span class="hint">柱子越高越容易抢到机器</span>
+          <h2>Free rate by hour (local time)</h2>
+          <span class="hint">Taller bar = easier to find a free machine</span>
         </div>
         <div id="chart-hourly" class="chart"></div>
       </section>
     </main>
 
     <footer>
-      数据只读自 SQLite · 与轮询服务解耦 · 最后渲染 <span id="footer-time">—</span>
+      Read-only from SQLite · Decoupled from the poller · Last rendered <span id="footer-time">—</span>
     </footer>
 
     <script src="/app.js"></script>

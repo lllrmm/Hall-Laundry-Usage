@@ -73,7 +73,8 @@ test('GET / 返回看板页面', async () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /text\/html/);
     const html = await response.text();
-    assert.match(html, /洗衣房监控/);
+    assert.match(html, /HKUST Laundry Monitor/);
+    assert.match(html, /Current status/);
     assert.match(html, /chart-trend/);
   });
 });
@@ -120,7 +121,7 @@ test('非法时间窗口返回 500 错误 JSON', async () => {
     const response = await fetch(`${base}/api/series?since=bogus`);
     assert.equal(response.status, 500);
     const body = await response.json();
-    assert.match(body.error, /无法解析/);
+    assert.match(body.error, /Cannot parse/);
   });
 });
 

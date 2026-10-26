@@ -20,18 +20,18 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 
 打开 <http://127.0.0.1:8787> 即可。
 
-## 页面内容
+## 页面内容（界面为英文）
 
 | 区块 | 说明 |
 |---|---|
-| 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、数据库路径、立即刷新、自动刷新倒计时 |
-| 当前状态 | 12 台机器卡片，按 空闲 / 在用 / 不可用 着色；在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注「带洗衣粉 / 不带洗衣粉」**（来自 `service_type.value`，烘干机不显示） |
-| 时间跨度 | 1 小时 / 6 小时 / 24 小时 / 7 天 / 30 天 / 全部 |
-| 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择：全部 / 仅洗衣机 / 仅烘干机 / 当前空闲 / 当前在用 |
-| 整体趋势 | 折线图：所选机器中"可用 / 在用"台数随时间变化 |
-| 每台机器空闲率 | 多系列折线图：每台机器在时间桶内的空闲采样占比（阶梯线），颜色与 chip 一致 |
-| 时间窗内状态占比 | 横向堆叠柱状图：每台机器 空闲 / 在用 / 不可用 的时间占比 |
-| 按小时的空闲率 | 24 根柱状图（本地时间），越高越容易抢到机器，并标出最佳时段 |
+| 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、数据库路径、Refresh now、自动刷新倒计时 |
+| 当前状态 Current status | 12 台机器卡片，按 Free / In use / Unavailable 着色；在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
+| 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
+| 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择 Presets：All / Washers only / Dryers only / Free now / In use now |
+| Overall trend | 折线图：所选机器中 free / in use 台数随时间变化 |
+| Free rate per machine | 多系列折线图：每台机器在时间桶内的空闲采样占比（阶梯线），颜色与 chip 一致 |
+| State breakdown in window | 横向堆叠柱状图：每台机器 Free / In use / Unavailable 的时间占比 |
+| Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
 
 图表全部用原生 SVG 手绘（无图表库），鼠标悬停显示该时刻数值；数据每 30 秒自动刷新，窗口 resize 自动重绘。
 

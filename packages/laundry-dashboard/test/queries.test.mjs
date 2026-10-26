@@ -94,7 +94,7 @@ test('parseRange / chooseBucketSeconds', () => {
   const all = parseRange('all', now);
   assert.equal(all.since, null);
 
-  assert.throws(() => parseRange('nonsense', now), /无法解析/);
+  assert.throws(() => parseRange('nonsense', now), /Cannot parse/);
 
   assert.equal(chooseBucketSeconds(3600), 30);
   assert.equal(chooseBucketSeconds(86400), 600);
