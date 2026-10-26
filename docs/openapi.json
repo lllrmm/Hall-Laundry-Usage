@@ -1,0 +1,271 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HKUST Laundry System — Student Panel Read-only API",
+    "version": "1.0.0",
+    "description": "只读信息获取接口（机器状态 / Available Tickets / Used Tickets）。数据来自 https://laundry.ust.hk/ldr/app/ SPA bundle 逆向 + 真实 token 实测。业务结果看 meta.code，HTTP 状态码恒为 200。"
+  },
+  "servers": [
+    { "url": "https://laundry.ust.hk/ldr/api", "description": "Production" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/app/laundry-rooms/machines": {
+      "get": {
+        "summary": "获取当前机器状态（主接口）",
+        "description": "一次返回该账号所属洗衣房的全部机器及其实时状态。可用 = status=='enabled' && state=='available'。job 仅 in_use 时存在；job.ticket.number_of_minutes 只有烘干机才有。",
+        "operationId": "getMachines",
+        "responses": {
+          "200": {
+            "description": "成功（业务错误同样返回 200，需检查 meta.code）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "required": ["laundry_room_machines"],
+                          "properties": {
+                            "laundry_room_machines": {
+                              "type": "array",
+                              "items": { "$ref": "#/components/schemas/LaundryRoomGroup" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/tickets": {
+      "get": {
+        "summary": "获取当前账号全部券（Available / Used 由此派生）",
+        "description": "无分页、无服务端过滤（query 参数会被忽略）。客户端分类：Available = usage_status=='available' && expire_at>now；Used = usage_status=='used'（按 used_at 倒序，网页仅展示最近 10 张）；available 但已过期 = Expired。",
+        "operationId": "getTickets",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "required": ["tickets"],
+                          "properties": {
+                            "tickets": {
+                              "type": "array",
+                              "items": { "$ref": "#/components/schemas/Ticket" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/laundry-rooms": {
+      "get": {
+        "summary": "洗衣房列表（辅助，只是拿 laundry_room_id）",
+        "operationId": "getLaundryRooms",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "laundry_rooms": {
+                              "type": "array",
+                              "items": { "$ref": "#/components/schemas/LaundryRoom" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/machines": {
+      "get": {
+        "summary": "按房间+机型获取机器状态（备选接口）",
+        "operationId": "getMachinesByRoom",
+        "parameters": [
+          { "name": "laundry_room_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "service_type_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；缺参数时 meta.code=4034 并在 data.errors 中给出 missingProperty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Envelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "machines": { "type": "array", "items": { "$ref": "#/components/schemas/Machine" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "token 取自网页 localStorage['ldr_student'].token；失效时 HTTP 200 + meta.code=4032"
+      }
+    },
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "required": ["meta"],
+        "properties": {
+          "meta": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "integer", "example": 200, "description": "200 成功；4031 缺 token；4032 token 无效；4033 未授权；4034 参数校验失败；404 路由不存在" },
+              "message": { "type": "string", "example": "Success" }
+            }
+          }
+        }
+      },
+      "LaundryRoomGroup": {
+        "type": "object",
+        "properties": {
+          "laundry_room_name": { "type": "string", "example": "UG Hall IV" },
+          "machines": { "type": "array", "items": { "$ref": "#/components/schemas/Machine" } }
+        }
+      },
+      "Machine": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "64d03c75e24330a9fc5692ae" },
+          "name": { "type": "string", "example": "UG4 Dryer (51)" },
+          "status": { "type": "string", "enum": ["enabled", "disabled", "on_hold", "maintenance"] },
+          "state": { "type": "string", "enum": ["available", "in_use", "offline", "reserved"] },
+          "service_type": { "$ref": "#/components/schemas/ServiceType" },
+          "laundry_room_name": { "type": "string" },
+          "job": {
+            "type": "object",
+            "nullable": true,
+            "description": "仅 state=in_use 时出现",
+            "properties": {
+              "created_at": { "type": "string", "format": "date-time" },
+              "ticket": {
+                "type": "object",
+                "properties": { "number_of_minutes": { "type": "integer", "description": "仅烘干机有；洗衣机缺失" } }
+              }
+            }
+          }
+        }
+      },
+      "ServiceType": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "machine_type": { "type": "string", "enum": ["washer", "dryer"] },
+          "value": { "type": "string", "example": "dryer_machine" },
+          "label": { "type": "string", "example": "Dry Machine" }
+        }
+      },
+      "LaundryRoom": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "64b3b75b419acf208b1ce861" },
+          "name": { "type": "string", "example": "UG Hall IV" },
+          "invoice_prefix": { "type": "string", "example": "L1" },
+          "app_id": { "type": "string", "example": "UGLaundry" },
+          "status": { "type": "string", "enum": ["enabled", "disabled"] }
+        }
+      },
+      "Ticket": {
+        "type": "object",
+        "required": ["_id", "usage_status", "expire_at", "machine_type"],
+        "properties": {
+          "_id": { "type": "string" },
+          "display_id": { "type": "string", "example": "L126091612412194802" },
+          "invoice_number": { "type": "string", "description": "批量购买的多张券共享同一 invoice_number" },
+          "ticket_type": { "type": "string", "example": "user" },
+          "uuid": { "type": "string" },
+          "token": { "type": "string", "description": "128 字符券码（二维码内容），敏感" },
+          "machine_type": { "type": "string", "enum": ["washer", "dryer"] },
+          "number_of_minutes": { "type": "integer", "description": "仅烘干机有", "nullable": true },
+          "service_type_id": { "type": "string" },
+          "service_type": { "$ref": "#/components/schemas/ServiceType" },
+          "laundry_room_id": { "type": "string" },
+          "laundry_room": { "$ref": "#/components/schemas/LaundryRoom" },
+          "price": { "type": "integer", "description": "单张价格 HKD" },
+          "bulk_purchase_quantity": { "type": "integer" },
+          "bulk_purchase_price": { "type": "integer" },
+          "payment_method": { "type": "string", "enum": ["wechat_pay", "alipay", "fps", "visa_master", "union_pay", "new_visa_master", "new_union_pay", "free"] },
+          "payment_status": { "type": "string", "example": "paid" },
+          "usage_status": { "type": "string", "enum": ["available", "used"] },
+          "expire_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "redirect_url": { "type": "string", "nullable": true, "description": "支付跳转链接，含网关 token" },
+          "used_at": { "type": "string", "format": "date-time", "description": "仅 used 券有：实际扫码启动时间，Used 列表排序依据" },
+          "selected_machine_at": { "type": "string", "format": "date-time", "description": "仅 used 券有" },
+          "selected_machine_id": { "type": "string", "description": "仅 used 券有" },
+          "selected_machine": { "$ref": "#/components/schemas/Machine", "description": "仅 used 券有，含 device_uid/channel 等硬件字段" },
+          "user": {
+            "type": "object",
+            "properties": {
+              "_id": { "type": "string" },
+              "email": { "type": "string" },
+              "source": { "type": "string", "example": "mercury" },
+              "hall_floors": { "type": "array", "items": { "type": "object" } }
+            }
+          },
+          "user_id": { "type": "string" }
+        }
+      }
+    }
+  }
+}
