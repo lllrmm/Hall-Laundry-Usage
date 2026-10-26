@@ -7,16 +7,25 @@
   "bin": {
     "laundry-dashboard": "./bin/serve.mjs"
   },
-  "files": ["bin", "src", "public", "dashboard.config.example.json", "README.md"],
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "dashboard.config.example.json",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22.5"
   },
   "scripts": {
     "start": "node bin/serve.mjs --config dashboard.config.json",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/queries.test.mjs test/server.test.mjs",
+    "test:in-process": "node --test-isolation=none --test test/queries.test.mjs test/server.test.mjs test/frontend.dom.test.mjs",
     "test:bun": "bun test"
   },
   "license": "MIT",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
 }

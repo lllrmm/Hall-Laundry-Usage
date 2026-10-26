@@ -66,13 +66,17 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 ## 测试
 
 ```bash
-npm run test:in-process     # 数据层 + HTTP API 共 13 个用例（node）
-bun test                    # 同样 13 个用例
+npm run test:in-process     # 14 个用例：数据层 + HTTP API + jsdom 前端渲染（node）
+bun test                    # 13 个用例（jsdom 渲染测试只在 node 下跑）
 
 # 端到端（需要采集服务也在跑）
 node scripts/e2e-check.mjs          # 页面 + 各 API 全量校验
 node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可达性
 ```
+
+`test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`：
+校验状态卡片、四张 SVG 图表、机器勾选/时间跨度切换、页面无 JS 错误。
+（本环境无法启动 Chromium，所以用 jsdom 做 DOM 级验证。）
 
 > 本环境不允许启动子进程，`npm test`（默认多进程）会被 `spawn EPERM` 拦住，用 `test:in-process`；
 > 普通机器上 `npm test` / `bun test` 均可。
