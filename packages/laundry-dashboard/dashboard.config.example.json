@@ -1,0 +1,7 @@
+{
+  "_comment": "前端看板配置。database 指向监控服务写入的 SQLite 文件；相对路径以本文件所在目录为基准。",
+  "database": "../laundry-monitor/data/laundry.sqlite",
+  "host": "127.0.0.1",
+  "port": 8787,
+  "refreshSeconds": 30
+}
