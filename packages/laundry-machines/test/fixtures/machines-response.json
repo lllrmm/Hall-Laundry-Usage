@@ -1,0 +1,237 @@
+{
+  "meta": {
+    "code": 200,
+    "message": "Success"
+  },
+  "data": {
+    "laundry_room_machines": [
+      {
+        "laundry_room_name": "UG Hall IV",
+        "machines": [
+          {
+            "_id": "64d03c75e24330a9fc5692ae",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Dryer (51)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c8be24330a9fc5699d1",
+            "status": "enabled",
+            "state": "in_use",
+            "job": {
+              "created_at": "2026-10-26T16:41:05.666Z",
+              "ticket": {
+                "number_of_minutes": 45
+              }
+            },
+            "name": "UG4 Dryer (52)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c9de24330a9fc56a0fa",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Dryer (53)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03caee24330a9fc56a833",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Dryer (54)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03cbfe24330a9fc56af77",
+            "status": "enabled",
+            "state": "in_use",
+            "job": {
+              "created_at": "2026-10-26T16:36:24.554Z",
+              "ticket": {
+                "number_of_minutes": 60
+              }
+            },
+            "name": "UG4 Dryer (55)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03cd6e24330a9fc56b6c9",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Dryer (56)",
+            "service_type": {
+              "_id": "6482c1c23d71ec4ea60f9752",
+              "machine_type": "dryer",
+              "value": "dryer_machine",
+              "label": "Dry Machine",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.259Z",
+              "updated_at": "2023-07-04T01:52:23.259Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c0ae24330a9fc566886",
+            "status": "enabled",
+            "state": "in_use",
+            "job": {
+              "created_at": "2026-10-26T17:25:02.047Z"
+            },
+            "name": "UG4 Washer (01)",
+            "service_type": {
+              "_id": "6482c1b82fdd325916161e40",
+              "machine_type": "washer",
+              "value": "washing_machine_without_powder",
+              "label": "Washing Machine (Without Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.255Z",
+              "updated_at": "2023-07-04T01:52:23.255Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c19e24330a9fc566f79",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Washer (02)",
+            "service_type": {
+              "_id": "6482c1b82fdd325916161e40",
+              "machine_type": "washer",
+              "value": "washing_machine_without_powder",
+              "label": "Washing Machine (Without Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.255Z",
+              "updated_at": "2023-07-04T01:52:23.255Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c2be24330a9fc56766f",
+            "status": "enabled",
+            "state": "in_use",
+            "job": {
+              "created_at": "2026-10-26T17:00:45.103Z"
+            },
+            "name": "UG4 Washer (03)",
+            "service_type": {
+              "_id": "6482c1b82fdd325916161e40",
+              "machine_type": "washer",
+              "value": "washing_machine_without_powder",
+              "label": "Washing Machine (Without Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.255Z",
+              "updated_at": "2023-07-04T01:52:23.255Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c3ce24330a9fc567d70",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Washer (04)",
+            "service_type": {
+              "_id": "6482c1b82fdd325916161e40",
+              "machine_type": "washer",
+              "value": "washing_machine_without_powder",
+              "label": "Washing Machine (Without Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.255Z",
+              "updated_at": "2023-07-04T01:52:23.255Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c4be24330a9fc56847d",
+            "status": "maintenance",
+            "state": "available",
+            "name": "UG4 Washer (05)",
+            "service_type": {
+              "_id": "6482c1799a133fdced8f61a9",
+              "machine_type": "washer",
+              "value": "washing_machine_with_powder",
+              "label": "Washing Machine (With Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.238Z",
+              "updated_at": "2023-07-04T01:52:23.238Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          },
+          {
+            "_id": "64d03c5be24330a9fc568b97",
+            "status": "enabled",
+            "state": "available",
+            "name": "UG4 Washer (06)",
+            "service_type": {
+              "_id": "6482c1799a133fdced8f61a9",
+              "machine_type": "washer",
+              "value": "washing_machine_with_powder",
+              "label": "Washing Machine (With Washing Powder)",
+              "created_by": "641aceda650b0f2e27ea093d",
+              "updated_by": "641aceda650b0f2e27ea093d",
+              "created_at": "2023-07-04T01:52:23.238Z",
+              "updated_at": "2023-07-04T01:52:23.238Z"
+            },
+            "laundry_room_name": "UG Hall IV"
+          }
+        ]
+      }
+    ]
+  }
+}
