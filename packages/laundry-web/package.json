@@ -1,0 +1,31 @@
+{
+  "name": "hkust-laundry-web",
+  "version": "0.1.0",
+  "description": "Static frontend for the HKUST laundry dashboard, served independently from the read-only API.",
+  "type": "module",
+  "main": "./src/server.js",
+  "bin": {
+    "laundry-web": "./bin/serve.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "web.config.example.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node bin/serve.mjs --config web.config.json",
+    "test": "node --test test/",
+    "test:in-process": "node --test-isolation=none --test test/web.test.mjs test/aggregate.test.mjs test/history.test.mjs test/frontend.dom.test.mjs test/contract.test.mjs"
+  },
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "chart.js": "^4.6.1",
+    "jsdom": "^30.1.3"
+  }
+}

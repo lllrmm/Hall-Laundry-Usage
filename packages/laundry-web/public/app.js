@@ -8,6 +8,9 @@
   const History = window.LaundryHistory;
   if (!History) throw new Error('history.js 未加载');
 
+  /** 独立部署时的 API 基址（默认同源，由 laundry-web / Nginx 反代 /api） */
+  const API_BASE = String(window.__LAUNDRY_API_BASE__ ?? '').replace(/\/+$/, '');
+
   /* ---------------- 主题 ---------------- */
 
   const THEME_KEY = 'laundry.theme';
@@ -78,7 +81,7 @@
   /* ---------------- 工具 ---------------- */
 
   async function api(path) {
-    const response = await fetch(path, { headers: { accept: 'application/json' } });
+    const response = await fetch(`${API_BASE}${path}`, { headers: { accept: 'application/json' } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }

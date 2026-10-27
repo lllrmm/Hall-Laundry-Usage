@@ -1,15 +1,16 @@
-/** 端到端自检：验证看板页面与 API（独立于轮询进程） */
-const BASE = process.env.DASHBOARD_URL || 'http://127.0.0.1:8787';
+/** 端到端自检：前端（laundry-web）+ 只读 API（laundry-dashboard），独立于轮询进程 */
+const API_BASE = process.env.DASHBOARD_URL || 'http://127.0.0.1:8787';
+const WEB_BASE = process.env.WEB_URL || 'http://127.0.0.1:8788';
 
-async function get(path, asJson = true) {
-  const response = await fetch(BASE + path);
+async function get(path, asJson = true, base = API_BASE) {
+  const response = await fetch(base + path);
   const text = await response.text();
   if (!response.ok) throw new Error(`${path} -> HTTP ${response.status}: ${text.slice(0, 120)}`);
   return asJson ? JSON.parse(text) : text;
 }
 
-async function status(path) {
-  const response = await fetch(BASE + path);
+async function status(path, base = API_BASE) {
+  const response = await fetch(base + path);
   await response.text();
   return response.status;
 }
@@ -20,23 +21,29 @@ function check(name, condition, detail) {
   console.log(`${condition ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-const html = await get('/', false);
+const html = await get('/', false, WEB_BASE);
 check(
   '页面 /',
   html.includes('Laundry Monitor') &&
     html.includes('chart-bars') &&
     html.includes('chart-profile') &&
     html.includes('aggregate.js') &&
-    html.includes('history.js'),
+    html.includes('history.js') &&
+    html.includes('/config.js'),
   `${html.length} bytes`,
 );
 check('主题切换控件', html.includes('id="theme-toggle"') && html.includes('data-theme'), '');
 check('Date range 控件', html.includes('Date range') && !html.includes('chart-trend'), '');
+check(
+  'dashboard 只提供 API',
+  (await status('/', API_BASE)) === 404,
+  '页面已移至 laundry-web',
+);
 
-const css = await get('/styles.css', false);
-const appJs = await get('/app.js', false);
-const aggregateJs = await get('/aggregate.js', false);
-const historyJs = await get('/history.js', false);
+const css = await get('/styles.css', false, WEB_BASE);
+const appJs = await get('/app.js', false, WEB_BASE);
+const aggregateJs = await get('/aggregate.js', false, WEB_BASE);
+const historyJs = await get('/history.js', false, WEB_BASE);
 check('响应式样式', css.includes('@media (max-width: 720px)') && css.includes('@media (max-width: 420px)'), '');
 check(
   '浏览器端聚合脚本',
@@ -59,7 +66,7 @@ check(
   '',
 );
 
-const vendor = await get('/vendor/chart.umd.js', false);
+const vendor = await get('/vendor/chart.umd.js', false, WEB_BASE);
 check(
   'Chart.js 本地 vendor',
   html.includes('/vendor/chart.umd.js') && vendor.includes('Chart') && vendor.length > 100_000,
@@ -190,7 +197,7 @@ check(
 );
 
 // gzip：大响应压缩、静态 JS 压缩、小响应不压缩
-const gzDays = await fetch(`${BASE}/api/days?machines=${allIds}&from=${firstDay}&to=${lastDay}`, {
+const gzDays = await fetch(`${API_BASE}/api/days?machines=${allIds}&from=${firstDay}&to=${lastDay}`, {
   headers: { 'accept-encoding': 'gzip' },
 });
 const gzDaysBody = await gzDays.json();
@@ -202,7 +209,7 @@ check(
   `content-encoding=${gzDays.headers.get('content-encoding')} content-length=${gzDays.headers.get('content-length')}`,
 );
 
-const gzScript = await fetch(`${BASE}/app.js`, { headers: { 'accept-encoding': 'gzip' } });
+const gzScript = await fetch(`${WEB_BASE}/app.js`, { headers: { 'accept-encoding': 'gzip' } });
 const gzScriptText = await gzScript.text();
 check(
   'gzip 静态 JS',
@@ -210,7 +217,7 @@ check(
   `content-length=${gzScript.headers.get('content-length')}`,
 );
 
-const plainMeta = await fetch(`${BASE}/api/meta`);
+const plainMeta = await fetch(`${API_BASE}/api/meta`);
 check(
   '小响应不压缩',
   plainMeta.headers.get('content-encoding') === null,

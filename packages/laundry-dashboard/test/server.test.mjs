@@ -82,47 +82,6 @@ async function withServer(fn) {
   }
 }
 
-test('GET / 返回看板页面', async () => {
-  await withServer(async (base) => {
-    const response = await fetch(`${base}/`);
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get('content-type'), /text\/html/);
-    const html = await response.text();
-    assert.match(html, /HKUST Laundry Monitor/);
-    assert.match(html, /Current status/);
-    assert.match(html, /Usage heatmap/);
-    assert.doesNotMatch(html, /weekday × minute/, '热力图标题不应再带 weekday × minute');
-    assert.match(html, /<h2>Inspection<\/h2>/, 'Historical profile 改名为 Inspection');
-    assert.doesNotMatch(html, /Historical profile/, '旧标题 Historical profile 应已移除');
-    assert.match(html, /chart-bars/);
-    assert.match(html, /chart-profile/);
-    assert.doesNotMatch(html, /chart-trend|chart-hourly/, '趋势图与按小时图已移除');
-    assert.match(html, /Date range/, '时间跨度控件改名为 Date range');
-    assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
-    assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
-    assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
-    assert.match(html, /\/aggregate\.js/, '应加载浏览器端聚合脚本');
-    assert.match(html, /\/history\.js/, '应加载浏览器端取数计划脚本');
-    assert.match(html, /Database updated/, '顶栏时间标签应为 Database updated');
-    assert.doesNotMatch(html, />Data updated</, '旧标签 Data updated 应已移除');
-    assert.match(html, /id="bars-range"/, '占比图应显示当前时间范围');
-    assert.doesNotMatch(html, /All machines/, '旧的 All machines 文案应已移除');
-    assert.doesNotMatch(html, /Usage rate by hour/, '按小时图已移除');
-    assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
-  });
-});
-
-test('GET /vendor/chart.umd.js 返回 Chart.js', async () => {
-  await withServer(async (base) => {
-    const response = await fetch(`${base}/vendor/chart.umd.js`);
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get('content-type'), /javascript/);
-    const source = await response.text();
-    assert.ok(source.length > 100_000, 'Chart.js UMD 构建应完整');
-    assert.match(source, /Chart/, '内容应包含 Chart 定义');
-  });
-});
-
 test('GET /api/meta 与 /api/state（latest 已合并进 machines）', async () => {
   await withServer(async (base) => {
     const meta = await (await fetch(`${base}/api/meta`)).json();
@@ -191,7 +150,7 @@ test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', as
   });
 });
 
-test('gzip：大响应压缩、小响应不压缩、静态 JS 也压缩', async () => {
+test('gzip：大响应压缩、小响应不压缩', async () => {
   await withServer(async (base) => {
     // /api/days 返回 1440 字节日序列，JSON > 1KB，应被 gzip
     const compressed = await fetch(`${base}/api/days?${DAYS_QUERY}`, {
@@ -213,17 +172,10 @@ test('gzip：大响应压缩、小响应不压缩、静态 JS 也压缩', async 
     const meta = await fetch(`${base}/api/meta`, { headers: { 'accept-encoding': 'gzip' } });
     assert.equal(meta.status, 200);
     assert.equal(meta.headers.get('content-encoding'), null, '小响应不应压缩');
-
-    // 静态 JS > 1KB，应压缩
-    const script = await fetch(`${base}/app.js`, { headers: { 'accept-encoding': 'gzip' } });
-    assert.equal(script.status, 200);
-    assert.equal(script.headers.get('content-encoding'), 'gzip');
-    const source = await script.text();
-    assert.match(source, /LaundryAggregate/, 'gzip 响应解压后内容完整');
   });
 });
 
-test('未知 API 路由 404，目录穿越被拒绝', async () => {
+test('未知 API 路由 404；非 API 路径提示由 laundry-web 托管', async () => {
   await withServer(async (base) => {
     const notFound = await fetch(`${base}/api/nope`);
     assert.equal(notFound.status, 404);
@@ -233,11 +185,8 @@ test('未知 API 路由 404，目录穿越被拒绝', async () => {
       assert.equal((await fetch(`${base}${route}`)).status, 404, `${route} 应已删除`);
     }
 
-    const traversal = await fetch(`${base}/%2e%2e/package.json`);
-    assert.ok([403, 404].includes(traversal.status));
-
-    const css = await fetch(`${base}/styles.css`);
-    assert.equal(css.status, 200);
-    assert.match(css.headers.get('content-type'), /text\/css/);
+    const page = await fetch(`${base}/`);
+    assert.equal(page.status, 404, 'dashboard 只提供 API，页面由 laundry-web 托管');
+    assert.match((await page.json()).error, /laundry-web/);
   });
 });

@@ -17,7 +17,8 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { normalizeResponse } from '../../laundry-machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
-import { createDashboardServer } from '../src/server.js';
+import { createDashboardServer } from '../../laundry-dashboard/src/server.js';
+import { createWebServer } from '../src/server.js';
 
 const isBun = Boolean(process.versions.bun);
 const T0 = Date.now() - 10 * 60 * 1000;
@@ -156,10 +157,17 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
 
   const errors = [];
   let dom = null;
+  let web = null;
 
   try {
-    const address = await app.listen(0, '127.0.0.1');
-    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const apiAddress = await app.listen(0, '127.0.0.1');
+    const apiUrl = `http://127.0.0.1:${apiAddress.port}`;
+    web = createWebServer({
+      config: { host: '127.0.0.1', port: 0, apiTarget: apiUrl },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    const webAddress = await web.listen(0, '127.0.0.1');
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
 
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', (error) => {
@@ -855,6 +863,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
     if (dom) dom.window.close();
+    if (web) await web.close();
     await app.close();
     try {
       fs.rmSync(dir, { recursive: true, force: true });

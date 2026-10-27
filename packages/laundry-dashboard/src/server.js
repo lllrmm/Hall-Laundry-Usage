@@ -1,19 +1,15 @@
 /**
- * 前端看板 HTTP 服务：静态页面 + 只读 JSON API。
+ * 看板只读 JSON API（不含前端静态资源；前端由 laundry-web 独立托管/反代）。
  *
  * 与轮询服务完全解耦 —— 只读同一个 SQLite 文件，两个进程可分别启停。
  */
 
-import fs from 'node:fs';
 import http from 'node:http';
-import path from 'node:path';
 import zlib from 'node:zlib';
-import { fileURLToPath } from 'node:url';
 
 import { DashboardDatabase } from './queries.js';
 import { DaysDatabase, normalizeDay } from './days.js';
 
-const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const CACHE_MS = 4000;
 
 /** 小于该字节数的响应不压缩（压缩反而更大/不值得） */
@@ -22,43 +18,8 @@ const GZIP_MIN_BYTES = 1024;
 /** /api/days 单次最多查询的天数（防止日期列表无限膨胀） */
 const MAX_DAYS_PER_QUERY = 366;
 
-/** 适合压缩的静态文件类型 */
-const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.svg']);
-
-/** 静态文件 gzip 结果缓存：`path:mtime:size` → Buffer */
-const STATIC_GZIP_CACHE = new Map();
-const STATIC_GZIP_CACHE_LIMIT = 32;
-
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.png': 'image/png',
-};
-
 function acceptsGzip(req) {
   return /\bgzip\b/i.test(String(req?.headers?.['accept-encoding'] ?? ''));
-}
-
-/** 压缩静态文件并缓存结果（按 path + mtime + size 失效） */
-function gzipStatic(filePath, content) {
-  let stat = null;
-  try {
-    stat = fs.statSync(filePath);
-  } catch {
-    // 文件刚被删除等，按内容长度缓存
-  }
-  const key = `${filePath}:${stat?.mtimeMs ?? 0}:${content.length}`;
-  let gzipped = STATIC_GZIP_CACHE.get(key);
-  if (!gzipped) {
-    gzipped = zlib.gzipSync(content);
-    if (STATIC_GZIP_CACHE.size >= STATIC_GZIP_CACHE_LIMIT) STATIC_GZIP_CACHE.clear();
-    STATIC_GZIP_CACHE.set(key, gzipped);
-  }
-  return gzipped;
 }
 
 /**
@@ -156,7 +117,7 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/days') {
       // 历史图表用的原始日序列（每台机器每天 1,440 字节的 base64）。
-      // 聚合全部交给浏览器端 public/aggregate.js，交互不再请求后端。
+      // 聚合全部交给前端（laundry-web 的 aggregate.js），交互不再请求后端。
       // 强约束：machines 必填；日期用 from+to 或 days 列表（互斥），避免无参数拉全库。
       const badRequest = (message) => {
         sendJson(res, 400, { error: message });
@@ -221,43 +182,6 @@ export function createDashboardServer({ config, logger = console }) {
     return false;
   };
 
-  const serveStatic = (urlPath, res) => {
-    const relative = urlPath === '/' ? 'index.html' : decodeURIComponent(urlPath.replace(/^\/+/, ''));
-    const filePath = path.resolve(PUBLIC_DIR, relative);
-
-    // 防目录穿越
-    if (!filePath.startsWith(PUBLIC_DIR)) {
-      sendText(res, 403, 'Forbidden');
-      return;
-    }
-
-    fs.readFile(filePath, (error, content) => {
-      if (error) {
-        sendText(res, 404, 'Not found');
-        return;
-      }
-      const extension = path.extname(filePath).toLowerCase();
-      const type = MIME_TYPES[extension] ?? 'application/octet-stream';
-      const headers = {
-        'content-type': type,
-        'cache-control': 'no-cache',
-        vary: 'accept-encoding',
-      };
-      let body = content;
-      if (
-        COMPRESSIBLE_EXTENSIONS.has(extension) &&
-        content.length >= GZIP_MIN_BYTES &&
-        acceptsGzip(res.req)
-      ) {
-        body = gzipStatic(filePath, content);
-        headers['content-encoding'] = 'gzip';
-      }
-      headers['content-length'] = body.length;
-      res.writeHead(200, headers);
-      res.end(body);
-    });
-  };
-
   const server = http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       sendText(res, 405, 'Method Not Allowed');
@@ -278,7 +202,10 @@ export function createDashboardServer({ config, logger = console }) {
         if (!handled) sendJson(res, 404, { error: `Unknown API route: ${url.pathname}` });
         return;
       }
-      serveStatic(url.pathname, res);
+      // 本服务只提供 API；页面/静态资源由 laundry-web 托管
+      sendJson(res, 404, {
+        error: 'API only. Open the dashboard via laundry-web (default http://127.0.0.1:8788/)',
+      });
     } catch (error) {
       logger.error?.(`请求失败 ${url.pathname}: ${error.message}`);
       if (!res.headersSent) sendJson(res, 500, { error: error.message });

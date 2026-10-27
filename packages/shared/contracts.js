@@ -15,8 +15,8 @@
  *   0xfe unknown                轮询成功但状态无法识别
  *   0xff no_data                该分钟没有成功轮询
  *
- * 浏览器端 public/aggregate.js 是普通 <script>，无法 import 本文件；
- * 它只保留一份只读常量副本，并由 laundry-dashboard/test/contract.test.mjs
+ * 浏览器端（laundry-web 的 public/aggregate.js）是普通 <script>，无法 import 本文件；
+ * 它只保留一份只读常量副本，并由 laundry-web/test/contract.test.mjs
  * 校验与这里完全一致（新增/修改编码时必须同步该副本并跑契约测试）。
  */
 

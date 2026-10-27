@@ -5,8 +5,8 @@
  * 序列库缺失或还没覆盖某天时，回退到原始快照库（`machine_snapshots`）即时生成同样的
  * 日序列 —— 这样只跑过采集、还没 rebuild 的库也能直接用。
  *
- * 看板只负责"发原始序列"：星期 × 分钟热力图、时间剖面、状态占比全部由浏览器端
- * `public/aggregate.js` 计算，交互（选星期、拖时段、勾机器、切日期）不再请求后端。
+ * 看板只负责"发原始序列"：星期 × 分钟热力图、时间剖面、状态占比全部由前端
+ * （laundry-web 的 `public/aggregate.js`）计算，交互（选星期、拖时段、勾机器、切日期）不再请求后端。
  *
  * 字节编码（与 laundry-monitor/src/series.js 保持一致）：
  *   0x00 in_use        0x01 available   0x02 maintenance  0x03 disabled  0x04 offline
