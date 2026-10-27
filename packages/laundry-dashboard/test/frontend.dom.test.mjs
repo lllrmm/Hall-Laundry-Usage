@@ -246,25 +246,22 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '占比图右上角显示开始 – 结束时段',
     );
 
-    // 热力图：纵轴周几（7 行）、横轴小时（24 列），有数据的格子带 usage/samples
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
-      label: '热力图 7×24 格子渲染',
+    // 热力图：Canvas 绘制（7 行 × 1440 分钟），表头 24 个小时刻度
+    await waitFor(() => document.getElementById('heatmap-canvas')?.dataset.minutes === '1440', {
+      label: '热力图 Canvas 渲染',
     });
-    const heatCells = [...document.querySelectorAll('#heatmap .heatmap-cell')];
-    assert.equal(heatCells.length, 10080);
+    assert.ok(document.querySelector('#heatmap canvas'), '热力图应使用 canvas');
+    assert.ok(!document.querySelector('#heatmap .heatmap-cell'), '热力图不再使用 DOM 格子');
     assert.deepEqual(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].map((node) => node.textContent),
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       '纵轴为周一到周日',
     );
-    const filledCells = heatCells.filter((cell) => cell.dataset.samples);
-    assert.ok(filledCells.length >= 1, '至少有一个有数据的格子');
-    assert.ok(Number(filledCells[0].dataset.usage) >= 0);
-    assert.match(filledCells[0].title, /usage \d+% · \d+ samples/);
+    assert.equal(document.querySelectorAll('#heatmap .heatmap-hour').length, 24, '24 个小时表头');
     assert.match(
       document.getElementById('heatmap-hint').textContent,
-      /samples · click a row label or a cell/,
-      '热力图提示说明用全部历史样本并可点行/列',
+      /drag to select a time range/,
+      '热力图提示说明可拖动选择时段',
     );
 
     // 历史剖面：默认 5 分钟线图；点行 → 该周几 5 分钟线图；点列 → 该小时 7 天柱状图
@@ -301,7 +298,6 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ),
       '选中的周几行应高亮',
     );
-    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.row-active').length, 1440, '该行所有格子高亮');
 
     [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
     await waitFor(
@@ -309,13 +305,58 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         charts().profile &&
         charts().profile.data.labels.length === 7 &&
         /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
-      { label: '点击小时列显示一周 7 天剖面' },
+      { label: '点击小时表头显示一周 7 天剖面' },
     );
-    assert.equal(charts().profile.config.type, 'bar', '选中列时剖面用柱状图');
-    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.col-active').length, 7, '该列所有格子高亮');
+    assert.equal(charts().profile.config.type, 'bar', '选中分钟时剖面用柱状图');
     await waitFor(() => /12:00 · all history/.test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 跟随选中的小时',
+      label: 'State breakdown 跟随选中的分钟',
     });
+
+    // 横向拖动选择当前时段（fixture 数据所在分钟）→ 剖面显示每天该时段的使用率
+    const pad2 = (value) => String(value).padStart(2, '0');
+    const hhmm = (minute) => `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
+    const t0 = new Date(T0);
+    const rangeFrom = t0.getHours() * 60 + t0.getMinutes();
+    const rangeTo = Math.min(1439, rangeFrom + 5);
+
+    const canvas = document.getElementById('heatmap-canvas');
+    const dragTo = (fromMinute, toMinute) => {
+      const width = 900;
+      const event = (type, minute) =>
+        new dom.window.MouseEvent(type, {
+          clientX: (minute / 1440) * width,
+          clientY: 30,
+          bubbles: true,
+        });
+      canvas.dispatchEvent(event('mousedown', fromMinute));
+      canvas.dispatchEvent(event('mousemove', toMinute));
+      canvas.dispatchEvent(event('mouseup', toMinute));
+    };
+    dragTo(rangeFrom, rangeTo);
+    const rangeLabel = `${hhmm(rangeFrom)}–${hhmm(rangeTo)}`;
+    await waitFor(
+      () =>
+        charts().profile &&
+        new RegExp(`${rangeLabel} · daily usage`).test(
+          document.getElementById('profile-hint').textContent,
+        ),
+      { label: '拖动选择时段后显示每日使用率' },
+    );
+    assert.equal(charts().profile.config.type, 'line', '每日使用率用线图');
+    assert.ok(charts().profile.data.labels.length >= 1, '至少有一天的数据');
+    await waitFor(() => new RegExp(rangeLabel).test(document.getElementById('bars-range').textContent), {
+      label: 'State breakdown 跟随拖动时段',
+    });
+
+    // 点击单个分钟 → 取消时段选择，回到分钟剖面
+    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.data.labels.length === 7 &&
+        /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
+      { label: '点击分钟恢复单分钟剖面' },
+    );
 
     // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
     [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
@@ -380,7 +421,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => charts().bars && charts().profile, {
       label: '恢复全选后图表重建',
     });
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
+    await waitFor(() => document.getElementById('heatmap-canvas')?.dataset.minutes === '1440', {
       label: '恢复全选后热力图恢复',
     });
 
@@ -398,7 +439,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
 
     // All dates → 恢复全部历史
     document.getElementById('date-all').click();
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
+    await waitFor(() => document.getElementById('heatmap-canvas')?.dataset.minutes === '1440', {
       label: '清除日期后热力图恢复',
     });
     await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {

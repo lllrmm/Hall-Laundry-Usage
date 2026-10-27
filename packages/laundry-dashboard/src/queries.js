@@ -383,8 +383,17 @@ export class DashboardDatabase {
     }
   }
 
-  /** 每台机器的状态占比（柱状图用）；可按日期范围 / 机器 / 星期几 / 分钟筛选 */
-  bars({ since = null, until = null, machineIds = [], weekday = null, hour = null, minute = null } = {}) {
+  /** 每台机器的状态占比（柱状图用）；可按日期范围 / 机器 / 星期几 / 分钟区间筛选 */
+  bars({
+    since = null,
+    until = null,
+    machineIds = [],
+    weekday = null,
+    hour = null,
+    minute = null,
+    fromMinute = null,
+    toMinute = null,
+  } = {}) {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return { available: false, since, until: null, rows: [] };
 
@@ -397,12 +406,23 @@ export class DashboardDatabase {
       scopeFilter += ' AND s.observed_at < ?';
       params.push(until);
     }
+    const minuteExpr = `(CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * 60
+                         + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER))`;
+    const hasRange =
+      Number.isInteger(fromMinute) &&
+      Number.isInteger(toMinute) &&
+      fromMinute >= 0 &&
+      toMinute <= 1439 &&
+      fromMinute <= toMinute;
+    if (hasRange) {
+      scopeFilter += ` AND ${minuteExpr} BETWEEN ? AND ?`;
+      params.push(fromMinute, toMinute);
+    }
     const hasMinute = Number.isInteger(minute) && minute >= 0 && minute <= 1439;
     const hasWeekday = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6;
     const hasHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
     if (hasMinute) {
-      scopeFilter += ` AND (CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * 60
-                         + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER)) = ?`;
+      scopeFilter += ` AND ${minuteExpr} = ?`;
       params.push(minute);
     }
     if (hasWeekday) {
@@ -463,6 +483,8 @@ export class DashboardDatabase {
           weekday: hasWeekday ? weekday : null,
           hour: hasHour ? hour : null,
           minute: hasMinute ? minute : null,
+          fromMinute: hasRange ? fromMinute : null,
+          toMinute: hasRange ? toMinute : null,
         },
         rows,
       };
@@ -670,6 +692,89 @@ export class DashboardDatabase {
       };
     } catch {
       return { available: false, since, until: null, bucketSeconds, slots: [] };
+    }
+  }
+
+  /** 每天在指定分钟区间内的使用率（热力图拖选时段后的"每日剖面"） */
+  dailyProfile({ since = null, until = null, machineIds = [], fromMinute = null, toMinute = null } = {}) {
+    const db = this._ensure();
+    if (!db || !this._hasSchema(db)) return { available: false, since, until: null, days: [] };
+
+    const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
+    const idFilter = filterIds.length > 0 ? `AND s.machine_id IN (${placeholders(filterIds.length)})` : '';
+    const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
+
+    let untilFilter = '';
+    if (until) {
+      untilFilter = 'AND s.observed_at < ?';
+      params.push(until);
+    }
+
+    const minuteExpr = `(CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * 60
+                        + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER))`;
+    let rangeFilter = '';
+    if (
+      Number.isInteger(fromMinute) &&
+      Number.isInteger(toMinute) &&
+      fromMinute >= 0 &&
+      toMinute <= 1439 &&
+      fromMinute <= toMinute
+    ) {
+      rangeFilter = `AND ${minuteExpr} BETWEEN ? AND ?`;
+      params.push(fromMinute, toMinute);
+    }
+
+    try {
+      const rows = db
+        .prepare(
+          `SELECT date(s.observed_at, 'localtime') AS day,
+                  COUNT(*) AS samples,
+                  SUM(CASE WHEN s.state = 'in_use' THEN 1 ELSE 0 END) AS in_use,
+                  SUM(CASE WHEN m.kind = 'washer' THEN 1 ELSE 0 END) AS washer_samples,
+                  SUM(CASE WHEN m.kind = 'washer' AND s.state = 'in_use' THEN 1 ELSE 0 END) AS washer_in_use,
+                  SUM(CASE WHEN m.kind = 'dryer' THEN 1 ELSE 0 END) AS dryer_samples,
+                  SUM(CASE WHEN m.kind = 'dryer' AND s.state = 'in_use' THEN 1 ELSE 0 END) AS dryer_in_use
+           FROM machine_snapshots s
+           LEFT JOIN machines m ON m.id = s.machine_id
+           WHERE s.observed_at >= ? ${idFilter} ${untilFilter} ${rangeFilter}
+           GROUP BY day
+           ORDER BY day`,
+        )
+        .all(...params);
+
+      const days = rows.map((row) => {
+        const samples = Number(row.samples);
+        const washerSamples = Number(row.washer_samples);
+        const dryerSamples = Number(row.dryer_samples);
+        return {
+          day: row.day,
+          samples,
+          usageRatio: samples ? Number(row.in_use) / samples : null,
+          washerSamples,
+          washerUsage: washerSamples ? Number(row.washer_in_use) / washerSamples : null,
+          dryerSamples,
+          dryerUsage: dryerSamples ? Number(row.dryer_in_use) / dryerSamples : null,
+        };
+      });
+
+      const span = db
+        .prepare(
+          `SELECT MIN(s.observed_at) AS first, MAX(s.observed_at) AS last
+           FROM machine_snapshots s
+           WHERE s.observed_at >= ? ${idFilter} ${untilFilter} ${rangeFilter}`,
+        )
+        .get(...params);
+
+      return {
+        available: true,
+        since: since ?? span?.first ?? null,
+        until: span?.last ?? until ?? null,
+        fromMinute,
+        toMinute,
+        days,
+      };
+    } catch {
+      return { available: false, since, until: null, days: [] };
     }
   }
 

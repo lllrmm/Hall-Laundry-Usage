@@ -65,9 +65,12 @@
     hourly: null,
     heatmap: null,
     heatmapFocus: null,
+    heatmapRange: null,
     profile: null,
     profileKey: null,
     profileAt: 0,
+    dailyProfile: null,
+    dailyKey: null,
     charts: { trend: null, bars: null, hourly: null, profile: null },
     auto: true,
     refreshSeconds: 30,
@@ -625,93 +628,188 @@
 
   const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  /** 点击行/列切换剖面焦点（再次点击取消） */
+  /** 点击行/列切换剖面焦点（再次点击取消）；range 焦点由热力图拖动产生 */
   function setHeatmapFocus(kind, value) {
     const focus = state.heatmapFocus;
     state.heatmapFocus = focus && focus.kind === kind && focus.value === value ? null : { kind, value };
+    state.heatmapRange = null;
     if (state.heatmap) renderHeatmap(state.heatmap);
     refreshProfile();
     loadBars();
   }
 
+  function hhmm(minute) {
+    return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
+  }
+
   function renderHeatmap(heatmap, emptyMessage = 'No data yet (waiting for polls)') {
     const container = $('heatmap');
+    const canvas = $('heatmap-canvas');
+    const hoursBox = $('heatmap-hours');
+    const labelBox = $('heatmap-row-labels');
+    const tooltip = $('heatmap-tooltip');
     const hint = $('heatmap-hint');
     const cells = heatmap?.cells ?? [];
     const focus = state.heatmapFocus;
 
+    const cssWidth = Math.max(320, container.clientWidth || 900);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rowH = 20;
+    const top = 4;
+    const height = top + 7 * rowH + 4;
+
+    canvas.style.height = `${height}px`;
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, height);
+
     if (!cells.length) {
       if (hint) hint.textContent = '';
-      container.innerHTML = '';
-      const div = document.createElement('div');
-      div.className = 'empty';
-      div.textContent = emptyMessage;
-      container.appendChild(div);
+      if (tooltip) tooltip.classList.remove('visible');
+      hoursBox.innerHTML = '';
+      labelBox.innerHTML = '';
+      canvas.dataset.minutes = '0';
+      const empty = document.createElement('div');
+      empty.className = 'empty heatmap-empty';
+      empty.textContent = emptyMessage;
+      container.querySelector('.heatmap-empty')?.remove();
+      container.appendChild(empty);
       return;
     }
+    container.querySelector('.heatmap-empty')?.remove();
 
+    const colors = chartColors();
     const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
     const totalSamples = cells.reduce((sum, cell) => sum + cell.samples, 0);
-    const colors = chartColors();
+    const minuteX = (minute) => (minute / 1440) * cssWidth;
+    const cellW = cssWidth / 1440;
+    canvas.dataset.minutes = '1440';
 
-    container.innerHTML = '';
-
-    const corner = document.createElement('div');
-    corner.className = 'heatmap-corner';
-    container.appendChild(corner);
-
+    hoursBox.innerHTML = '';
     for (let hour = 0; hour < 24; hour += 1) {
       const label = document.createElement('div');
       label.className = 'heatmap-hour';
-      label.style.gridColumn = 'span 60';
-      label.textContent = `${pad2(hour)}:00`;
-      label.title = `Inspect ${pad2(hour)}:00 across weekdays`;
+      label.textContent = hour % 3 === 0 ? `${pad2(hour)}:00` : '';
+      label.title = `Select ${pad2(hour)}:00`;
       label.addEventListener('click', () => setHeatmapFocus('minute', hour * 60));
-      container.appendChild(label);
+      hoursBox.appendChild(label);
     }
 
+    labelBox.innerHTML = '';
     for (let weekday = 0; weekday < 7; weekday += 1) {
       const label = document.createElement('div');
       label.className = 'heatmap-row-label';
       label.textContent = WEEKDAY_LABELS[weekday];
-      label.title = `Inspect ${WEEKDAY_LABELS[weekday]} by minute`;
       if (focus && focus.kind === 'weekday' && focus.value === weekday) label.classList.add('active');
       label.addEventListener('click', () => setHeatmapFocus('weekday', weekday));
-      container.appendChild(label);
-
-      for (let minute = 0; minute < 1440; minute += 1) {
-        const cell = byKey.get(`${weekday}-${minute}`);
-        const node = document.createElement('div');
-        node.className = 'heatmap-cell';
-        node.dataset.weekday = String(weekday);
-        node.dataset.minute = String(minute);
-        if (focus && focus.kind === 'weekday' && focus.value === weekday) node.classList.add('row-active');
-        if (focus && focus.kind === 'minute' && focus.value === minute) node.classList.add('col-active');
-
-        const time = `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
-        if (!cell) {
-          node.classList.add('no-data');
-          node.title = `${WEEKDAY_LABELS[weekday]} ${time} · no data`;
-        } else {
-          const percent = Math.round(cell.usageRatio * 100);
-          node.dataset.usage = String(percent);
-          node.dataset.samples = String(cell.samples);
-          node.style.backgroundColor = hexToRgba(colors.busy, 0.08 + 0.9 * (percent / 100));
-          if (cell.samples < 5) node.classList.add('sparse');
-          node.title = `${WEEKDAY_LABELS[weekday]} ${time} · usage ${percent}% · ${cell.samples} samples`;
-        }
-
-        node.addEventListener('click', () => setHeatmapFocus('minute', minute));
-        container.appendChild(node);
-      }
+      labelBox.appendChild(label);
     }
+
+    const draw = (preview) => {
+      ctx.clearRect(0, 0, cssWidth, height);
+      ctx.fillStyle = hexToRgba(colors.busy, 0.05);
+      ctx.fillRect(0, top, cssWidth, 7 * rowH);
+
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        const y = top + weekday * rowH;
+        for (let minute = 0; minute < 1440; minute += 1) {
+          const cell = byKey.get(`${weekday}-${minute}`);
+          if (!cell) continue;
+          ctx.fillStyle = hexToRgba(colors.busy, 0.08 + 0.9 * cell.usageRatio);
+          ctx.fillRect(minuteX(minute), y, Math.max(cellW, 1), rowH - 1);
+        }
+      }
+
+      if (preview) {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.fillRect(minuteX(preview.from), top, minuteX(preview.to + 1) - minuteX(preview.from), 7 * rowH);
+        return;
+      }
+
+      if (focus && focus.kind === 'weekday') {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+        ctx.fillRect(0, top + focus.value * rowH, cssWidth, rowH - 1);
+      } else if (focus && focus.kind === 'minute') {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+        ctx.fillRect(minuteX(focus.value), top, Math.max(cellW, 2), 7 * rowH);
+      } else if (focus && focus.kind === 'range') {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
+        ctx.fillRect(minuteX(focus.from), top, minuteX(focus.to + 1) - minuteX(focus.from), 7 * rowH);
+      }
+    };
+    draw(null);
+
+    const rectOf = () => canvas.getBoundingClientRect();
+    const minuteAt = (event) => {
+      const rect = rectOf();
+      const x = event.clientX - rect.left;
+      const width = rect.width || cssWidth;
+      return Math.max(0, Math.min(1439, Math.floor((x / width) * 1440)));
+    };
+    const weekdayAt = (event) => {
+      const rect = rectOf();
+      const y = ((event.clientY - rect.top) / (rect.height || height)) * height;
+      return Math.max(0, Math.min(6, Math.floor((y - top) / rowH)));
+    };
+
+    let dragStart = null;
+
+    canvas.onmousedown = (event) => {
+      dragStart = minuteAt(event);
+      if (tooltip) tooltip.classList.remove('visible');
+      event.preventDefault();
+    };
+
+    canvas.onmousemove = (event) => {
+      const minute = minuteAt(event);
+      const weekday = weekdayAt(event);
+      if (dragStart !== null && Math.abs(minute - dragStart) >= 1) {
+        draw({ from: Math.min(dragStart, minute), to: Math.max(dragStart, minute) });
+        if (tooltip) tooltip.classList.remove('visible');
+        return;
+      }
+
+      const cell = byKey.get(`${weekday}-${minute}`);
+      if (tooltip) {
+        const rect = rectOf();
+        tooltip.textContent = cell
+          ? `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · usage ${Math.round(cell.usageRatio * 100)}% · ${cell.samples} samples`
+          : `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · no data`;
+        tooltip.style.left = `${event.clientX - rect.left}px`;
+        tooltip.style.top = `${event.clientY - rect.top}px`;
+        tooltip.classList.add('visible');
+      }
+    };
+
+    canvas.onmouseup = (event) => {
+      const end = minuteAt(event);
+      const start = dragStart;
+      dragStart = null;
+      if (start !== null && Math.abs(end - start) >= 2) {
+        state.heatmapRange = { from: Math.min(start, end), to: Math.max(start, end) };
+        state.heatmapFocus = { kind: 'range', from: state.heatmapRange.from, to: state.heatmapRange.to };
+        renderHeatmap(state.heatmap);
+        refreshProfile();
+        loadBars();
+        return;
+      }
+      setHeatmapFocus('minute', end);
+    };
+
+    canvas.onmouseleave = () => {
+      dragStart = null;
+      if (tooltip) tooltip.classList.remove('visible');
+      if (state.heatmap) draw(null);
+    };
 
     if (hint) {
       const covered =
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · click a row label or a cell to inspect`;
+      hint.textContent = `${covered} · ${totalSamples} samples · drag to select a time range`;
     }
   }
 
@@ -815,6 +913,67 @@
       return;
     }
 
+    if (focus && focus.kind === 'range') {
+      const data = state.dailyProfile;
+      if (!data || !data.days?.length) {
+        if (hint) hint.textContent = '';
+        showChartEmpty('profile', container, 'No data in this range');
+        return;
+      }
+
+      const toPercent = (value) => (value === null || value === undefined ? null : round1(value * 100));
+      const days = data.days;
+      const labels = days.map((entry) => entry.day.slice(5));
+      const washerValues = days.map((entry) => toPercent(entry.washerUsage));
+      const dryerValues = days.map((entry) => toPercent(entry.dryerUsage));
+      const washerSamples = days.map((entry) => entry.washerSamples ?? 0);
+      const dryerSamples = days.map((entry) => entry.dryerSamples ?? 0);
+      const period =
+        data.since && data.until
+          ? `${fmtRangeTime(data.since)} – ${fmtRangeTime(data.until)}`
+          : dateRangeLabel();
+      if (hint) hint.textContent = `${hhmm(focus.from)}–${hhmm(focus.to)} · daily usage · ${period}`;
+
+      const datasets = [];
+      if (washerSamples.some((count) => count > 0)) {
+        datasets.push({
+          label: 'Washers in use',
+          data: washerValues,
+          borderColor: colors.washer,
+          backgroundColor: hexToRgba(colors.washer, 0.12),
+          borderWidth: 2,
+          tension: 0.2,
+          fill: false,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          spanGaps: false,
+          samples: washerSamples,
+        });
+      }
+      if (dryerSamples.some((count) => count > 0)) {
+        datasets.push({
+          label: 'Dryers in use',
+          data: dryerValues,
+          borderColor: colors.dryer,
+          backgroundColor: hexToRgba(colors.dryer, 0.12),
+          borderWidth: 2,
+          tension: 0.2,
+          fill: false,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          spanGaps: false,
+          samples: dryerSamples,
+        });
+      }
+
+      mountChart('profile', container, {
+        type: 'line',
+        data: { labels, datasets },
+        options: profileChartOptions(colors, compact, { showLegend: true }),
+      });
+      return;
+    }
+
     const data = state.profile;
     if (!data || !data.slots?.length || !data.slots.some((entry) => entry.samples > 0)) {
       if (hint) hint.textContent = '';
@@ -893,6 +1052,32 @@
       return;
     }
 
+    if (focus && focus.kind === 'range') {
+      const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
+      const machineKey = machineIdsParam();
+      const key = `range${focus.from}-${focus.to}|${dateKey}|${machineKey}`;
+      const fresh =
+        state.dailyKey === key && state.dailyProfile && Date.now() - (state.dailyAt ?? 0) < 60_000;
+      if (fresh) {
+        renderProfile();
+        return;
+      }
+
+      try {
+        const params = chartParams({ fromMinute: focus.from, toMinute: focus.to });
+        const data = await api(`/api/profile/days?${params}`);
+        if (!state.selected.size) return;
+        state.dailyProfile = data;
+        state.dailyKey = key;
+        state.dailyAt = Date.now();
+        renderProfile();
+      } catch (error) {
+        console.error('Failed to load daily profile', error);
+        showChartEmpty('profile', $('chart-profile'), 'Failed to load profile');
+      }
+      return;
+    }
+
     const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
     const machineKey = machineIdsParam();
     const key = `${focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all'}|${dateKey}|${machineKey}`;
@@ -930,7 +1115,11 @@
       label = `${WEEKDAY_LABELS[focus.value]} · ${dateRangeLabel()}`;
     } else if (focus && focus.kind === 'minute') {
       extra.minute = focus.value;
-      label = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)} · ${dateRangeLabel()}`;
+      label = `${hhmm(focus.value)} · ${dateRangeLabel()}`;
+    } else if (focus && focus.kind === 'range') {
+      extra.fromMinute = focus.from;
+      extra.toMinute = focus.to;
+      label = `${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
     }
     return { params: chartParams(extra), label };
   }

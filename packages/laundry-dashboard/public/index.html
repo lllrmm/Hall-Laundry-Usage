@@ -84,7 +84,19 @@
           <span class="hint" id="heatmap-hint"></span>
         </div>
         <div class="heatmap-scroll">
-          <div id="heatmap" class="heatmap"></div>
+          <div id="heatmap" class="heatmap">
+            <div class="heatmap-head">
+              <span class="heatmap-pad"></span>
+              <div id="heatmap-hours" class="heatmap-hours"></div>
+            </div>
+            <div class="heatmap-body">
+              <div id="heatmap-row-labels" class="heatmap-row-labels"></div>
+              <div class="heatmap-canvas-wrap">
+                <canvas id="heatmap-canvas" class="heatmap-canvas"></canvas>
+                <div id="heatmap-tooltip" class="heatmap-tooltip"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

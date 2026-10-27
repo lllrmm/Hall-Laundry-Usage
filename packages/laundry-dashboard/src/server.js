@@ -131,11 +131,24 @@ export function createDashboardServer({ config, logger = console }) {
       const weekday = parseOptionalInt(url.searchParams.get('weekday'), 0, 6);
       const hour = parseOptionalInt(url.searchParams.get('hour'), 0, 23);
       const minute = parseOptionalInt(url.searchParams.get('minute'), 0, 1439);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}:${minute ?? 'all'}`;
+      const fromMinute = parseOptionalInt(url.searchParams.get('fromMinute'), 0, 1439);
+      const toMinute = parseOptionalInt(url.searchParams.get('toMinute'), 0, 1439);
+      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}:${minute ?? 'all'}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
       sendJson(
         res,
         200,
-        cached(key, () => database.bars({ since: range.since, until, machineIds, weekday, hour, minute })),
+        cached(key, () =>
+          database.bars({
+            since: range.since,
+            until,
+            machineIds,
+            weekday,
+            hour,
+            minute,
+            fromMinute,
+            toMinute,
+          }),
+        ),
       );
       return true;
     }
@@ -152,6 +165,22 @@ export function createDashboardServer({ config, logger = console }) {
       const until = parseIsoParam(url.searchParams.get('until'));
       const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}`;
       sendJson(res, 200, cached(key, () => database.heatmap({ since: range.since, until, machineIds })));
+      return true;
+    }
+
+    if (route === '/api/profile/days') {
+      const range = parseRange(sinceParam);
+      const until = parseIsoParam(url.searchParams.get('until'));
+      const fromMinute = parseOptionalInt(url.searchParams.get('fromMinute'), 0, 1439);
+      const toMinute = parseOptionalInt(url.searchParams.get('toMinute'), 0, 1439);
+      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
+      sendJson(
+        res,
+        200,
+        cached(key, () =>
+          database.dailyProfile({ since: range.since, until, machineIds, fromMinute, toMinute }),
+        ),
+      );
       return true;
     }
 

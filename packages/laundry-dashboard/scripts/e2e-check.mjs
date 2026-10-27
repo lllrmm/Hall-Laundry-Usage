@@ -92,6 +92,9 @@ check(
   `${profile.slots?.filter((slot) => slot.samples > 0).length ?? 0} 个有数据槽`,
 );
 
+const daily = await get('/api/profile/days?since=all&fromMinute=720&toMinute=780');
+check('/api/profile/days', Array.isArray(daily.days) && daily.days.length >= 1, `${daily.days?.length} 天`);
+
 const filtered = await get('/api/series?since=1h&machines=' + state.latest.filter((m) => m.kind === 'dryer').map((m) => m.id).join(','));
 check('/api/series 按机器过滤', filtered.machines?.length === 6, `${filtered.machines?.length} 台烘干机`);
 
