@@ -574,16 +574,20 @@
       },
     };
 
-    // 各种状态都参与占比（In use / Free / 维护 / 离线 / 停用 / 暂停 / 未知）
-    const categories = [
-      { key: 'inUseRatio', label: 'In use', color: colors.busy },
-      { key: 'availableRatio', label: 'Free', color: colors.free },
-      { key: 'maintenanceRatio', label: 'Maintenance', color: colors.maintenance },
-      { key: 'offlineRatio', label: 'Offline', color: colors.offline },
-      { key: 'disabledRatio', label: 'Disabled', color: colors.disabled },
-      { key: 'onHoldRatio', label: 'On hold', color: colors.onHold },
-      { key: 'unknownRatio', label: 'Unknown', color: colors.unknown },
-    ].filter((category) => rows.some((row) => (row[category.key] ?? 0) > 0.00001));
+    // 从左到右的堆叠顺序由 aggregate.js 的 STATE_CATEGORIES 定义：
+    // In use → On hold → Maintenance → Offline → Free（Disabled / Unknown 若有样本追加在最后）
+    const colorByKey = {
+      inUseRatio: colors.busy,
+      onHoldRatio: colors.onHold,
+      maintenanceRatio: colors.maintenance,
+      offlineRatio: colors.offline,
+      availableRatio: colors.free,
+      disabledRatio: colors.disabled,
+      unknownRatio: colors.unknown,
+    };
+    const categories = Aggregate.STATE_CATEGORIES.filter((category) =>
+      rows.some((row) => (row[category.key] ?? 0) > 0.00001),
+    ).map((category) => ({ ...category, color: colorByKey[category.key] }));
 
     mountChart('bars', container, {
       type: 'bar',

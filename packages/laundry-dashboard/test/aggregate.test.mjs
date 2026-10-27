@@ -29,6 +29,13 @@ function cellAt(cells, weekday, minute) {
   return cells.find((cell) => cell.weekday === weekday && cell.minute === minute);
 }
 
+test('STATE_CATEGORIES：State breakdown 堆叠柱从左到右的顺序', () => {
+  assert.deepEqual(
+    [...Agg.STATE_CATEGORIES].map((category) => category.label),
+    ['In use', 'On hold', 'Maintenance', 'Offline', 'Free', 'Disabled', 'Unknown'],
+  );
+});
+
 test('weekdayOfDay：0=周一 … 6=周日（与日期所在时区无关）', () => {
   assert.equal(Agg.weekdayOfDay(MONDAY), 0);
   assert.equal(Agg.weekdayOfDay(TUESDAY), 1);

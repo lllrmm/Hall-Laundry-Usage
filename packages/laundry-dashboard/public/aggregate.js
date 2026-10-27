@@ -31,6 +31,20 @@
 
   const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  /**
+   * State breakdown 堆叠柱从左到右的顺序（与 rows 上的 ratio 字段对应）。
+   * Disabled / Unknown 若有样本追加在最后。
+   */
+  const STATE_CATEGORIES = Object.freeze([
+    { key: 'inUseRatio', label: 'In use' },
+    { key: 'onHoldRatio', label: 'On hold' },
+    { key: 'maintenanceRatio', label: 'Maintenance' },
+    { key: 'offlineRatio', label: 'Offline' },
+    { key: 'availableRatio', label: 'Free' },
+    { key: 'disabledRatio', label: 'Disabled' },
+    { key: 'unknownRatio', label: 'Unknown' },
+  ]);
+
   /** 可运营状态：只有"在用/空闲"才计入使用率分母 */
   function isOperational(byte) {
     return byte === BYTE.inUse || byte === BYTE.available;
@@ -267,6 +281,7 @@
   const api = {
     MINUTES_PER_DAY,
     WEEKDAY_LABELS,
+    STATE_CATEGORIES,
     BYTE,
     isOperational,
     weekdayOfDay,
