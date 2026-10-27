@@ -246,13 +246,6 @@ main {
   padding: 10px 2px;
 }
 
-footer {
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 8px 0 28px;
-}
-
 /* ---------- 当前状态卡片 ---------- */
 
 .machine-groups {
@@ -665,11 +658,6 @@ footer {
 
   .chart.tall {
     height: 300px;
-  }
-
-  footer {
-    padding: 4px 0 18px;
-    font-size: 11px;
   }
 }
 

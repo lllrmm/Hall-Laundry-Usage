@@ -208,14 +208,6 @@
         : '—';
       $('last-update').title = meta.lastObservedAt ? fmtDateTime(meta.lastObservedAt) : '';
 
-      let pollText = '—';
-      if (meta.lastPoll) {
-        const ok = meta.lastPoll.ok;
-        pollText = `${ok ? 'ok' : 'failed'} · ${meta.lastPoll.durationMs}ms`;
-        if (!ok && meta.lastPoll.errorCode) pollText += ` · ${meta.lastPoll.errorCode}`;
-        if (meta.pollCount) pollText += ` · ${meta.pollCount} polls`;
-      }
-      $('poll-state').textContent = pollText;
       $('latest-time').textContent = meta.lastObservedAt
         ? `Data time ${fmtDateTime(meta.lastObservedAt)}`
         : '';
@@ -224,8 +216,6 @@
         state.refreshSeconds = state.refreshSeconds || 30;
       }
     }
-
-    $('footer-time').textContent = fmtClock(new Date().toISOString());
   }
 
   function powderText(machine) {
