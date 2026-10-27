@@ -773,10 +773,10 @@
     const snapStart = (minute) => Math.min(1439, Math.floor(minute / SNAP_MINUTES) * SNAP_MINUTES);
     const blockEnd = (start) => Math.min(1439, start + SNAP_MINUTES - 1);
 
-    const axisMinuteAt = (event) => {
+    const axisMinuteAtX = (clientX) => {
       const rect = axis.getBoundingClientRect();
       const width = rect.width || axis.clientWidth || cssWidth;
-      const x = event.clientX - rect.left;
+      const x = clientX - rect.left;
       return Math.max(0, Math.min(1439, Math.floor((x / width) * 1440)));
     };
     const showAxisSelection = (from, to) => {
@@ -788,19 +788,19 @@
     if (focus && focus.kind === 'range') showAxisSelection(focus.from, focus.to);
 
     let axisDragStart = null;
-    axis.onmousedown = (event) => {
-      axisDragStart = snapStart(axisMinuteAt(event));
+
+    const beginAxisDrag = (clientX) => {
+      axisDragStart = snapStart(axisMinuteAtX(clientX));
       showAxisSelection(axisDragStart, blockEnd(axisDragStart));
-      event.preventDefault();
     };
-    axis.onmousemove = (event) => {
+    const moveAxisDrag = (clientX) => {
       if (axisDragStart === null) return;
-      const minute = snapStart(axisMinuteAt(event));
+      const minute = snapStart(axisMinuteAtX(clientX));
       const from = Math.min(axisDragStart, minute);
       showAxisSelection(from, blockEnd(Math.max(axisDragStart, minute)));
     };
-    axis.onmouseup = (event) => {
-      const end = snapStart(axisMinuteAt(event));
+    const endAxisDrag = (clientX) => {
+      const end = snapStart(axisMinuteAtX(clientX));
       const start = axisDragStart;
       axisDragStart = null;
       if (start === null) return;
@@ -813,11 +813,60 @@
       state.weekdaySelection.clear();
       renderViews();
     };
-    axis.onmouseleave = () => {
+    const cancelAxisDrag = () => {
       axisDragStart = null;
       if (focus && focus.kind === 'range') showAxisSelection(focus.from, focus.to);
       else axisSelection.style.opacity = '0';
     };
+
+    // 鼠标拖动
+    axis.onmousedown = (event) => {
+      beginAxisDrag(event.clientX);
+      event.preventDefault();
+    };
+    axis.onmousemove = (event) => moveAxisDrag(event.clientX);
+    axis.onmouseup = (event) => endAxisDrag(event.clientX);
+    axis.onmouseleave = () => cancelAxisDrag();
+
+    // 触摸滑动（移动端）：手指在顶部时间轴上横向滑动也能选择时段
+    const touchClientX = (event) => {
+      const touch = event.touches?.[0] ?? event.changedTouches?.[0];
+      return touch && Number.isFinite(touch.clientX) ? touch.clientX : null;
+    };
+    axis.addEventListener(
+      'touchstart',
+      (event) => {
+        const clientX = touchClientX(event);
+        if (clientX === null) return;
+        beginAxisDrag(clientX);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    axis.addEventListener(
+      'touchmove',
+      (event) => {
+        const clientX = touchClientX(event);
+        if (clientX === null) return;
+        moveAxisDrag(clientX);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    axis.addEventListener(
+      'touchend',
+      (event) => {
+        const clientX = touchClientX(event);
+        if (clientX === null) {
+          cancelAxisDrag();
+          return;
+        }
+        endAxisDrag(clientX);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    axis.addEventListener('touchcancel', () => cancelAxisDrag());
 
     if (hint) {
       hint.textContent =

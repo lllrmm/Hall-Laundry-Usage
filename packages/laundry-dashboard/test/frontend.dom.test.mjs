@@ -466,6 +466,30 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: 'State breakdown 时间范围标注 Mon–Sun + 时段' },
     );
 
+    // 移动端：在时间轴上用手指滑动也能选择时段（touch 事件）
+    const touchEvent = (type, minute) => {
+      const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
+      const touch = { clientX: (minute / 1440) * 900, clientY: 5 };
+      Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [touch] });
+      Object.defineProperty(event, 'changedTouches', { value: [touch] });
+      return event;
+    };
+    axis.dispatchEvent(touchEvent('touchstart', 480));
+    axis.dispatchEvent(touchEvent('touchmove', 540));
+    axis.dispatchEvent(touchEvent('touchend', 540));
+    await waitFor(
+      () => document.getElementById('profile-hint').textContent === '08:00–09:29',
+      { label: '触摸滑动选择时段' },
+    );
+    // 触摸选的是没有数据的时段，恢复回有数据的时段继续后面的测试
+    dragTo(rangeFrom, rangeTo);
+    await waitFor(
+      () =>
+        charts().profile?.config.type === 'bar' &&
+        document.getElementById('profile-hint').textContent === rangeLabel,
+      { label: '恢复鼠标拖选的时段' },
+    );
+
     // Inspection 柱状图点击某根柱子 → 跳到该星期的线图（等效热力图左侧选中那一天）
     const barOptions = charts().profile.options;
     assert.equal(typeof barOptions.onClick, 'function', '柱状图应支持点击');

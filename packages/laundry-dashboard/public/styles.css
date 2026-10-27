@@ -580,7 +580,7 @@ main {
 .heatmap-head {
   display: flex;
   align-items: center;
-  height: 18px;
+  height: 27px; /* 时间轴高度 = 原来的 1.5 倍（18px） */
 }
 
 .heatmap-pad {
@@ -593,6 +593,7 @@ main {
   min-width: 0;
   position: relative;
   cursor: crosshair;
+  touch-action: none; /* 移动端在时间轴上滑动时不触发页面滚动 */
 }
 
 .heatmap-hour {
