@@ -371,6 +371,69 @@ test('洗粉标注：洗衣机 powder 字段（with / without），烘干机为 
   }
 });
 
+test('维护 / 离线样本不计入百分比分母', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-operational-'));
+  const file = path.join(dir, 't.sqlite');
+  const db = new MonitorDatabase(file, { journalMode: 'DELETE' });
+  const at = new Date(T0 + 60_000);
+
+  const washerType = { _id: 'st-w', machine_type: 'washer', value: 'washing_machine_without_powder', label: 'Washer' };
+  const dryerType = { _id: 'st-d', machine_type: 'dryer', value: 'dryer_machine', label: 'Dry Machine' };
+
+  const status = normalizeResponse(
+    {
+      meta: { code: 200, message: 'Success' },
+      data: {
+        laundry_room_machines: [
+          {
+            laundry_room_name: 'UG Hall IV',
+            machines: [
+              { _id: 'ok1', status: 'enabled', state: 'in_use', name: 'OK Washer', service_type: washerType },
+              { _id: 'mt1', status: 'maintenance', state: 'available', name: 'MT Washer', service_type: washerType },
+              { _id: 'of1', status: 'enabled', state: 'offline', name: 'Off Dryer', service_type: dryerType },
+            ],
+          },
+        ],
+      },
+    },
+    at.getTime(),
+  );
+  db.recordSuccessfulPoll(status, { startedAt: at, finishedAt: at, durationMs: 10 });
+  db.close();
+
+  const dashboard = new DashboardDatabase(file);
+  try {
+    const { rows } = dashboard.bars({ since: null });
+    const ok = rows.find((row) => row.id === 'ok1');
+    const mt = rows.find((row) => row.id === 'mt1');
+    assert.equal(ok.samples, 1, '可运营样本计入分母');
+    assert.equal(ok.excludedSamples, 0);
+    assert.equal(ok.inUseRatio, 1);
+    assert.equal(mt.samples, 0, '维护机器不计入分母');
+    assert.equal(mt.excludedSamples, 1);
+
+    const heat = dashboard.heatmap({ since: null });
+    assert.ok(heat.cells.length >= 1);
+    assert.ok(heat.cells.every((cell) => cell.samples === 1), '热力图只统计可运营样本');
+    const heatCell = heat.cells[0];
+    assert.equal(heatCell.usageRatio, 1);
+
+    const prof = dashboard.profile({ since: null, bucketSeconds: 600 });
+    const slot = prof.slots.find((entry) => entry.samples > 0);
+    assert.equal(slot.samples, 1);
+    assert.equal(slot.usageRatio, 1);
+    assert.equal(slot.washerSamples, 1);
+    assert.equal(slot.dryerSamples, 0);
+  } finally {
+    dashboard.close();
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  }
+});
+
 test('数据库不存在时优雅降级', () => {
   const dashboard = new DashboardDatabase(path.join(os.tmpdir(), 'definitely-missing', 'nope.sqlite'));
   try {

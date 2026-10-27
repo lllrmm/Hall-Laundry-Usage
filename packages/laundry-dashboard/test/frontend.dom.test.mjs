@@ -228,7 +228,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       assert.ok(document.querySelector(`#${id} canvas`), `${id} 应渲染出 canvas`);
     }
 
-    // 状态占比：横向堆叠柱，In use → Free → Unavailable
+    // 状态占比：横向堆叠柱，In use → Free（维护/离线不计入分母）
     const bars = charts().bars;
     assert.equal(bars.config.type, 'bar');
     assert.equal(bars.options.indexAxis, 'y');
@@ -236,7 +236,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(bars.options.interaction.mode, 'index');
     assert.equal(bars.options.interaction.intersect, false);
     assert.equal(bars.options.interaction.axis, 'y', '横向柱状图 tooltip 必须按 y 轴定位行');
-    assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free', 'Unavailable']);
+    assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free']);
     assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
     assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');
     const barsRangeText = document.getElementById('bars-range').textContent;

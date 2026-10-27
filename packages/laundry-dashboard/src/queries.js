@@ -449,10 +449,10 @@ export class DashboardDatabase {
           `SELECT s.machine_id AS id,
                   COALESCE(m.name, s.machine_id) AS name,
                   m.kind AS kind,
-                  COUNT(*) AS samples,
-                  AVG(s.available) AS available_ratio,
-                  AVG(CASE WHEN s.state = 'in_use' THEN 1.0 ELSE 0 END) AS in_use_ratio,
-                  AVG(CASE WHEN s.available = 0 AND s.state != 'in_use' THEN 1.0 ELSE 0 END) AS unavailable_ratio,
+                  COUNT(*) AS total_samples,
+                  SUM(CASE WHEN s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS samples,
+                  SUM(CASE WHEN s.available = 1 THEN 1 ELSE 0 END) AS available_count,
+                  SUM(CASE WHEN s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS in_use_count,
                   MIN(s.observed_at) AS first_seen_at,
                   MAX(s.observed_at) AS last_seen_at
            FROM machine_snapshots s
@@ -462,17 +462,23 @@ export class DashboardDatabase {
            ORDER BY m.kind DESC, name`,
         )
         .all(...params)
-        .map((row) => ({
-          id: row.id,
-          name: row.name,
-          kind: row.kind,
-          samples: Number(row.samples),
-          availableRatio: Number(row.available_ratio),
-          inUseRatio: Number(row.in_use_ratio),
-          unavailableRatio: Number(row.unavailable_ratio),
-          firstSeenAt: row.first_seen_at,
-          lastSeenAt: row.last_seen_at,
-        }));
+        .map((row) => {
+          const samples = Number(row.samples);
+          const available = Number(row.available_count);
+          const inUse = Number(row.in_use_count);
+          return {
+            id: row.id,
+            name: row.name,
+            kind: row.kind,
+            samples,
+            excludedSamples: Number(row.total_samples) - samples,
+            // 维护/离线/停用不计入分母
+            availableRatio: samples > 0 ? available / samples : 0,
+            inUseRatio: samples > 0 ? inUse / samples : 0,
+            firstSeenAt: row.first_seen_at,
+            lastSeenAt: row.last_seen_at,
+          };
+        });
 
       const observedSince = rows.length
         ? rows.reduce((earliest, row) => (row.firstSeenAt < earliest ? row.firstSeenAt : earliest), rows[0].firstSeenAt)
@@ -562,11 +568,12 @@ export class DashboardDatabase {
           `SELECT (CAST(strftime('%w', observed_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
                   CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) * 60
                     + CAST(strftime('%M', observed_at, 'localtime') AS INTEGER) AS minute,
-                  COUNT(*) AS samples,
-                  AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
+                  SUM(CASE WHEN status = 'enabled' AND state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS samples,
+                  SUM(CASE WHEN state = 'in_use' AND status = 'enabled' THEN 1 ELSE 0 END) AS in_use
            FROM machine_snapshots
            WHERE observed_at >= ? ${idFilter} ${untilFilter}
            GROUP BY weekday, minute
+           HAVING samples > 0
            ORDER BY weekday, minute`,
         )
         .all(...params);
@@ -575,7 +582,7 @@ export class DashboardDatabase {
         weekday: Number(row.weekday),
         minute: Number(row.minute),
         samples: Number(row.samples),
-        usageRatio: Number(row.usage_ratio),
+        usageRatio: Number(row.samples) > 0 ? Number(row.in_use) / Number(row.samples) : 0,
       }));
 
       const span = db
@@ -634,12 +641,13 @@ export class DashboardDatabase {
           `SELECT CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * ${slotsPerHour}
                   + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER) / ${Math.max(1, Math.round(bucketSeconds / 60))} AS slot,
                   m.kind AS kind,
-                  COUNT(*) AS samples,
-                  AVG(CASE WHEN s.state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
+                  SUM(CASE WHEN s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS samples,
+                  SUM(CASE WHEN s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS in_use
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
            WHERE s.observed_at >= ? ${weekdayFilter} ${untilFilter}
            GROUP BY slot, kind
+           HAVING samples > 0
            ORDER BY slot`,
         )
         .all(...params);
@@ -653,7 +661,7 @@ export class DashboardDatabase {
           bySlot.set(slot, entry);
         }
         const samples = Number(row.samples);
-        const usage = Number(row.usage_ratio);
+        const usage = samples > 0 ? Number(row.in_use) / samples : 0;
         entry.samples += samples;
         entry.weighted += usage * samples;
         if (row.kind === 'washer') {
@@ -743,16 +751,17 @@ export class DashboardDatabase {
       const rows = db
         .prepare(
           `SELECT date(s.observed_at, 'localtime') AS day,
-                  COUNT(*) AS samples,
-                  SUM(CASE WHEN s.state = 'in_use' THEN 1 ELSE 0 END) AS in_use,
-                  SUM(CASE WHEN m.kind = 'washer' THEN 1 ELSE 0 END) AS washer_samples,
-                  SUM(CASE WHEN m.kind = 'washer' AND s.state = 'in_use' THEN 1 ELSE 0 END) AS washer_in_use,
-                  SUM(CASE WHEN m.kind = 'dryer' THEN 1 ELSE 0 END) AS dryer_samples,
-                  SUM(CASE WHEN m.kind = 'dryer' AND s.state = 'in_use' THEN 1 ELSE 0 END) AS dryer_in_use
+                  SUM(CASE WHEN s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS samples,
+                  SUM(CASE WHEN s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS in_use,
+                  SUM(CASE WHEN m.kind = 'washer' AND s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS washer_samples,
+                  SUM(CASE WHEN m.kind = 'washer' AND s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS washer_in_use,
+                  SUM(CASE WHEN m.kind = 'dryer' AND s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS dryer_samples,
+                  SUM(CASE WHEN m.kind = 'dryer' AND s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS dryer_in_use
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
            WHERE s.observed_at >= ? ${idFilter} ${untilFilter} ${rangeFilter}
            GROUP BY day
+           HAVING samples > 0
            ORDER BY day`,
         )
         .all(...params);

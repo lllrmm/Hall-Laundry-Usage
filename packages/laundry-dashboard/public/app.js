@@ -556,6 +556,14 @@
     options.interaction = { mode: 'index', intersect: false, axis: 'y' };
     options.plugins.tooltip.callbacks = {
       label: (item) => `${item.dataset.label}: ${item.formattedValue}%`,
+      footer: (items) => {
+        const row = rows[items[0]?.dataIndex];
+        if (!row) return '';
+        const excluded = row.excludedSamples ?? 0;
+        return excluded > 0
+          ? `${row.samples} operational samples · ${excluded} maintenance/offline excluded`
+          : `${row.samples} operational samples`;
+      },
     };
     options.scales = {
       x: {
@@ -594,14 +602,6 @@
             label: 'Free',
             data: rows.map((row) => round1(row.availableRatio * 100)),
             backgroundColor: colors.free,
-            stack: 'state',
-            borderWidth: 0,
-            borderSkipped: false,
-          },
-          {
-            label: 'Unavailable',
-            data: rows.map((row) => round1(row.unavailableRatio * 100)),
-            backgroundColor: colors.off,
             stack: 'state',
             borderWidth: 0,
             borderSkipped: false,
