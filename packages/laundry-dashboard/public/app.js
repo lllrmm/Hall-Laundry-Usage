@@ -850,7 +850,7 @@
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · drag the top axis to select a time range`;
+      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis to select a time range`;
     }
   }
 
