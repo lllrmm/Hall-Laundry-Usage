@@ -68,6 +68,34 @@ cd packages/laundry-dashboard-webpage && npm start
 里配置允许 Pages 的 `corsOrigins`（例如 `["https://<user>.github.io"]`），并且是可用的 HTTPS 地址。
 采集与 API 仍需一台常开机器，Pages 只负责静态页面。
 
+## Docker 部署
+
+仓库自带 `Dockerfile` + `compose.yaml`，一条命令启动采集 + API + 前端（三个 Node 服务都没有运行时依赖，镜像里无需 `npm install`）：
+
+```bash
+cp .env.example .env      # 填 LDR_TOKEN（网页 localStorage["ldr_student"].token）
+docker compose up -d --build
+# 打开 http://127.0.0.1:8788
+```
+
+- `web`：唯一对外端口（默认 `8788`，可用 `.env` 的 `WEB_PORT` 修改）；
+- `api`：只在 compose 内部网络监听 `8787`，由 `web` 反向代理；
+- `monitor`：写 named volume `hall-laundry-usage_laundry-data`；
+- 容器配置在 `deploy/docker/*.json`，token 由 `.env` 的 `LDR_TOKEN` 注入（monitor 配置里写的是 `${LDR_TOKEN}`）；
+- `TZ` 默认 `Asia/Shanghai`（影响序列按天切分），可在 `.env` 修改；
+- GitHub Pages 需要跨域时，改 `deploy/docker/dashboard-api.config.json` 的 `corsOrigins`。
+
+常用命令：
+
+```bash
+docker compose logs -f monitor
+docker compose down                 # 停止（保留数据）
+docker compose down -v              # 连数据卷一起删除
+
+# 在容器里重建序列库
+docker compose run --rm monitor node packages/laundry-monitor/bin/cli.mjs rebuild --config /config/monitor.config.json
+```
+
 ## 采集与数据
 
 采集服务每 60s 拉一次机器状态，写入两个 SQLite：
@@ -121,6 +149,9 @@ npm run once                                            # 只采一次（手动�
 ## 目录结构
 
 ```
+Dockerfile                    Docker 镜像（三个服务共用）
+compose.yaml                  docker compose 编排
+deploy/docker/                容器内配置（monitor / api / webpage）
 docs/API.md                   站点 API 文档
 docs/openapi.json             OpenAPI 3.0 规格
 packages/laundry-monitor/     采集服务：轮询、原始库、序列库、stats/export/rebuild

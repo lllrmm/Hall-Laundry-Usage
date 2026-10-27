@@ -1,0 +1,53 @@
+name: hall-laundry-usage
+
+x-service: &service
+  image: hall-laundry-usage:local
+  build:
+    context: .
+  restart: unless-stopped
+  environment:
+    TZ: ${TZ:-Asia/Shanghai}
+
+services:
+  monitor:
+    <<: *service
+    command:
+      - node
+      - packages/laundry-monitor/bin/cli.mjs
+      - run
+      - --config
+      - /config/monitor.config.json
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      LDR_TOKEN: ${LDR_TOKEN:?set LDR_TOKEN in .env}
+    volumes:
+      - laundry-data:/data
+      - ./deploy/docker/monitor.config.json:/config/monitor.config.json:ro
+
+  api:
+    <<: *service
+    command:
+      - node
+      - packages/laundry-dashboard-api/bin/serve.mjs
+      - --config
+      - /config/dashboard-api.config.json
+    volumes:
+      - laundry-data:/data
+      - ./deploy/docker/dashboard-api.config.json:/config/dashboard-api.config.json:ro
+    expose:
+      - "8787"
+
+  web:
+    <<: *service
+    command:
+      - node
+      - packages/laundry-dashboard-webpage/bin/serve.mjs
+      - --config
+      - /config/dashboard-webpage.config.json
+    ports:
+      - "${WEB_PORT:-8788}:8788"
+    volumes:
+      - ./deploy/docker/dashboard-webpage.config.json:/config/dashboard-webpage.config.json:ro
+
+volumes:
+  laundry-data:

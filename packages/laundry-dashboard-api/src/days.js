@@ -137,23 +137,16 @@ export class DaysDatabase {
     this.seriesPath = seriesPath;
     this._raw = null;
     this._series = null;
-    this._rawChecked = false;
-    this._seriesChecked = false;
   }
 
+  /** 每次调用都重试打开：API 可能先于采集服务启动（Docker 场景），库稍后才出现 */
   _rawDb() {
-    if (!this._rawChecked) {
-      this._rawChecked = true;
-      this._raw = openReadOnly(this.rawPath);
-    }
+    if (!this._raw) this._raw = openReadOnly(this.rawPath);
     return this._raw;
   }
 
   _seriesDb() {
-    if (!this._seriesChecked) {
-      this._seriesChecked = true;
-      this._series = openReadOnly(this.seriesPath);
-    }
+    if (!this._series) this._series = openReadOnly(this.seriesPath);
     return this._series;
   }
 

@@ -407,29 +407,39 @@ test('GET /api/days：参数校验（machines 必填 + from/to 或 days 必填�
   });
 });
 
-test('GET /api/days：两个库都不存在时优雅降级', async () => {
+test('GET /api/days：两个库都不存在时优雅降级；库稍后出现能自动恢复', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-days-empty-'));
+  const rawPath = path.join(dir, 'missing-raw.sqlite');
+  const seriesPath = path.join(dir, 'missing-series.sqlite');
   const app = createDashboardServer({
-    config: {
-      databasePath: path.join(dir, 'missing-raw.sqlite'),
-      seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
-      host: '127.0.0.1',
-      port: 0,
-    },
+    config: { databasePath: rawPath, seriesDatabasePath: seriesPath, host: '127.0.0.1', port: 0 },
     logger: silentLogger,
   });
+  let fixture = null;
   try {
     const address = await app.listen(0, '127.0.0.1');
-    const response = await fetch(
+    const first = await fetch(
       `http://127.0.0.1:${address.port}/api/days?machines=m-washer&from=2026-01-01&to=2026-01-02`,
     );
-    assert.equal(response.status, 200);
-    const payload = await response.json();
-    assert.equal(payload.available, false);
-    assert.deepEqual(payload.days, []);
-    assert.equal(payload.count, 0);
+    assert.equal(first.status, 200);
+    const empty = await first.json();
+    assert.equal(empty.available, false);
+    assert.deepEqual(empty.days, []);
+    assert.equal(empty.count, 0);
+
+    // 模拟 Docker 启动顺序：API 先起，采集服务稍后才创建 SQLite
+    fixture = buildDatabases('full');
+    fs.copyFileSync(fixture.rawFile, rawPath);
+    fs.copyFileSync(fixture.seriesFile, seriesPath);
+    const second = await fetch(
+      `http://127.0.0.1:${address.port}/api/days?machines=${ALL_IDS}&from=${fixture.timeline.day1}&to=${fixture.timeline.day2}`,
+    );
+    const recovered = await second.json();
+    assert.equal(recovered.available, true);
+    assert.equal(recovered.count, 6, '库出现后无需重启 API 即可读取');
   } finally {
     await app.close();
+    if (fixture) fs.rmSync(fixture.dir, { recursive: true, force: true });
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
