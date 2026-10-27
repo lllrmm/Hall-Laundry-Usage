@@ -297,13 +297,27 @@
 
   /* ---------------- 选择控件 ---------------- */
 
+  /**
+   * 同步日期输入框。
+   * 没选具体范围（All dates）时，用数据实际覆盖的日期填进去，避免浏览器显示 mm/dd/yyyy 占位；
+   * 此时内部仍按“全部历史”处理，只有用户改日期触发 change 才会变成显式范围。
+   */
   function syncDateInputs() {
     const from = $('date-from');
     const to = $('date-to');
     const all = $('date-all');
-    if (from) from.value = state.dateFrom ?? '';
-    if (to) to.value = state.dateTo ?? '';
-    if (all) all.disabled = !state.dateFrom && !state.dateTo;
+    const implicit = !state.dateFrom && !state.dateTo;
+    const fromValue = state.dateFrom ?? (implicit ? state.span?.firstDay ?? '' : '');
+    const toValue = state.dateTo ?? (implicit ? state.span?.lastDay ?? '' : '');
+    if (from) {
+      from.value = fromValue;
+      from.title = implicit ? 'All dates — actual data range' : '';
+    }
+    if (to) {
+      to.value = toValue;
+      to.title = implicit ? 'All dates — actual data range' : '';
+    }
+    if (all) all.disabled = implicit;
   }
 
   function dateRangeLabel() {
@@ -1487,6 +1501,12 @@
     state.meta = data.meta;
     state.machines = data.machines ?? [];
     state.span = data.meta?.span ?? null;
+
+    // 当前是“全部历史”时，日期输入框显示数据实际覆盖范围（避免 mm/dd/yyyy 占位）
+    if (!state.dateFrom && !state.dateTo) {
+      const active = document.activeElement;
+      if (active !== $('date-from') && active !== $('date-to')) syncDateInputs();
+    }
 
     if (state.firstLoad) {
       state.selected = new Set(state.machines.map((machine) => machine.id));

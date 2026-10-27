@@ -592,6 +592,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.ok(document.getElementById('date-to'), '应有结束日期输入');
     assert.ok(document.getElementById('date-all'), '应有 All dates 按钮');
     assert.equal(document.querySelectorAll('#presets').length, 0, 'Presets 已移除');
+    // All dates：日期框显示实际数据范围，而不是 mm/dd/yyyy 占位
+    const dateFromInput = document.getElementById('date-from');
+    const dateToInput = document.getElementById('date-to');
+    assert.match(dateFromInput.value, /^\d{4}-\d{2}-\d{2}$/, 'All dates 时开始日期显示实际日期');
+    assert.match(dateToInput.value, /^\d{4}-\d{2}-\d{2}$/, 'All dates 时结束日期显示实际日期');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(
       document.querySelectorAll('#machine-chips .swatch').length,
@@ -721,6 +726,17 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '清除日期后占比图恢复',
     });
     assert.equal(dayRequests.length, 0, '切回全部历史也没有新请求（缓存已覆盖）');
+    assert.match(
+      document.getElementById('date-from').value,
+      /^\d{4}-\d{2}-\d{2}$/,
+      'All dates 后开始日期显示实际数据范围',
+    );
+    assert.match(
+      document.getElementById('date-to').value,
+      /^\d{4}-\d{2}-\d{2}$/,
+      'All dates 后结束日期显示实际数据范围',
+    );
+    assert.notEqual(document.getElementById('date-from').value, '2020-01-01', '不再停留在旧的手选日期');
 
     // 自动/手动刷新只重取今天、已选机器的序列
     const today = new Date();
