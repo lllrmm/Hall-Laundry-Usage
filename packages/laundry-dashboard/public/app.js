@@ -265,8 +265,8 @@
   }
 
   function renderMachineGrid() {
-    const grid = $('machine-grid');
-    grid.innerHTML = '';
+    const container = $('machine-grid');
+    container.innerHTML = '';
 
     if (!state.latest.length) {
       $('no-data').hidden = false;
@@ -274,40 +274,75 @@
     }
     $('no-data').hidden = true;
 
-    for (const machine of state.latest) {
-      const div = document.createElement('div');
-      div.className = `machine ${stateClass(machine)}`;
+    const groups = [
+      { kind: 'washer', label: 'Washers' },
+      { kind: 'dryer', label: 'Dryers' },
+    ];
+    const knownKinds = new Set(['washer', 'dryer']);
+    const others = state.latest.filter((machine) => !knownKinds.has(machine.kind));
+    if (others.length) groups.push({ kind: 'other', label: 'Others' });
+
+    for (const group of groups) {
+      const machines = group.kind === 'other' ? others : state.latest.filter((machine) => machine.kind === group.kind);
+      if (!machines.length) continue;
+
+      const section = document.createElement('section');
+      section.className = 'machine-group';
+      section.dataset.kind = group.kind;
 
       const head = document.createElement('div');
-      head.className = 'machine-head';
+      head.className = 'machine-group-head';
+      const title = document.createElement('h3');
+      title.textContent = group.label;
+      const free = machines.filter((machine) => machine.available).length;
+      const stat = document.createElement('span');
+      stat.className = 'hint';
+      stat.textContent = `${free}/${machines.length} free`;
+      head.append(title, stat);
 
-      const name = document.createElement('div');
-      name.className = 'name';
-      name.textContent = machine.name;
-      name.title = machine.name;
-      head.appendChild(name);
+      const grid = document.createElement('div');
+      grid.className = 'machine-grid';
+      for (const machine of machines) grid.appendChild(machineCard(machine));
 
-      const powder = powderText(machine);
-      if (powder) {
-        const badge = document.createElement('span');
-        badge.className = `powder ${machine.powder}`;
-        badge.textContent = powder;
-        badge.title = machine.serviceLabel ?? powder;
-        head.appendChild(badge);
-      }
-
-      const st = document.createElement('div');
-      st.className = 'st';
-      st.innerHTML = `<b>${stateLabel(machine)}</b>`;
-
-      const sub = document.createElement('div');
-      sub.className = 'sub';
-      sub.textContent = machineSubText(machine);
-
-      div.append(head, st, sub);
-      div.title = `${machine.name}${powder ? ' · ' + powder : ''}\nObserved: ${fmtDateTime(machine.observedAt)}`;
-      grid.appendChild(div);
+      section.append(head, grid);
+      container.appendChild(section);
     }
+  }
+
+  /** 单台机器的状态卡片 */
+  function machineCard(machine) {
+    const div = document.createElement('div');
+    div.className = `machine ${stateClass(machine)}`;
+
+    const head = document.createElement('div');
+    head.className = 'machine-head';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = machine.name;
+    name.title = machine.name;
+    head.appendChild(name);
+
+    const powder = powderText(machine);
+    if (powder) {
+      const badge = document.createElement('span');
+      badge.className = `powder ${machine.powder}`;
+      badge.textContent = powder;
+      badge.title = machine.serviceLabel ?? powder;
+      head.appendChild(badge);
+    }
+
+    const st = document.createElement('div');
+    st.className = 'st';
+    st.innerHTML = `<b>${stateLabel(machine)}</b>`;
+
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    sub.textContent = machineSubText(machine);
+
+    div.append(head, st, sub);
+    div.title = `${machine.name}${powder ? ' · ' + powder : ''}\nObserved: ${fmtDateTime(machine.observedAt)}`;
+    return div;
   }
 
   /* ---------------- 选择控件 ---------------- */
@@ -359,57 +394,66 @@
     const box = $('machine-chips');
     box.innerHTML = '';
 
-    const groups = [
+    // Washers / Dryers 分两栏显示
+    for (const [kind, label] of [
       ['washer', 'Washers'],
       ['dryer', 'Dryers'],
-    ];
-
-    for (const [kind, label] of groups) {
+    ]) {
       const list = state.machines.filter((machine) => machine.kind === kind);
       if (!list.length) continue;
 
-      const groupLabel = document.createElement('span');
-      groupLabel.className = 'hint';
-      groupLabel.style.alignSelf = 'center';
-      groupLabel.textContent = label;
-      box.appendChild(groupLabel);
+      const column = document.createElement('div');
+      column.className = 'chip-group';
+      column.dataset.kind = kind;
 
-      for (const machine of list) {
-        const active = state.selected.has(machine.id);
-        const powder = powderText(machine);
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `chip${active ? ' active' : ''}`;
-        button.title = `Click to ${active ? 'deselect' : 'select'} ${machine.name}${powder ? ' · ' + powder : ''}`;
+      const heading = document.createElement('div');
+      heading.className = 'chip-group-head';
+      heading.textContent = label;
+      column.appendChild(heading);
 
-        const swatch = document.createElement('span');
-        swatch.className = 'swatch';
-        swatch.style.background = colorFor(machine.id);
-
-        const text = document.createElement('span');
-        text.textContent = machine.name.replace(/^UG\d\s*/, '');
-
-        button.append(swatch, text);
-
-        if (powder) {
-          const tag = document.createElement('span');
-          tag.className = 'chip-tag';
-          tag.textContent = machine.powder === 'with' ? 'det.' : 'no det.';
-          button.appendChild(tag);
-        }
-
-        button.onclick = () => {
-          if (state.selected.has(machine.id)) state.selected.delete(machine.id);
-          else state.selected.add(machine.id);
-          renderMachineChips();
-          loadCharts();
-        };
-        box.appendChild(button);
-      }
+      const chips = document.createElement('div');
+      chips.className = 'chips';
+      for (const machine of list) chips.appendChild(machineChip(machine));
+      column.appendChild(chips);
+      box.appendChild(column);
     }
 
-    const count = $('selected-count');
-    count.textContent = `${state.selected.size}/${state.machines.length} selected`;
+    updateSelectedCount();
+  }
+
+  /** 单台机器的勾选 chip */
+  function machineChip(machine) {
+    const active = state.selected.has(machine.id);
+    const powder = powderText(machine);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `chip${active ? ' active' : ''}`;
+    button.title = `Click to ${active ? 'deselect' : 'select'} ${machine.name}${powder ? ' · ' + powder : ''}`;
+
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = colorFor(machine.id);
+
+    const text = document.createElement('span');
+    text.textContent = machine.name.replace(/^UG\d\s*/, '');
+
+    button.append(swatch, text);
+
+    if (powder) {
+      const tag = document.createElement('span');
+      tag.className = 'chip-tag';
+      tag.textContent = machine.powder === 'with' ? 'det.' : 'no det.';
+      button.appendChild(tag);
+    }
+
+    button.onclick = () => {
+      if (state.selected.has(machine.id)) state.selected.delete(machine.id);
+      else state.selected.add(machine.id);
+      renderMachineChips();
+      loadCharts();
+    };
+
+    return button;
   }
 
   /* ---------------- 图表：折线 ---------------- */

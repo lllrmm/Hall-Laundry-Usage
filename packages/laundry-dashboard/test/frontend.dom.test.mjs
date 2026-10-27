@@ -146,12 +146,19 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     const { document } = dom.window;
     await waitFor(() => document.readyState === 'complete', { label: '页面加载完成' });
 
-    // 1) 当前状态卡片：4 台机器
+    // 1) 当前状态卡片：4 台机器，分为 Washers / Dryers 两块
     await waitFor(() => document.querySelectorAll('.machine').length === 4, { label: '状态卡片渲染' });
     const cards = [...document.querySelectorAll('.machine')];
     assert.equal(cards.length, 4);
     assert.ok(cards.every((card) => card.classList.contains('free')), '最后一轮全部空闲，卡片应为 free');
     assert.match(document.getElementById('last-update').textContent, /\d{2}:\d{2}:\d{2}/);
+
+    const machineGroups = [...document.querySelectorAll('#machine-grid .machine-group')];
+    assert.equal(machineGroups.length, 2, 'Current status 分为 Washers / Dryers 两块');
+    assert.deepEqual(machineGroups.map((group) => group.dataset.kind), ['washer', 'dryer']);
+    assert.deepEqual(machineGroups.map((group) => group.querySelector('h3').textContent), ['Washers', 'Dryers']);
+    assert.deepEqual(machineGroups.map((group) => group.querySelectorAll('.machine').length), [2, 2]);
+    assert.match(machineGroups[0].querySelector('.machine-group-head .hint').textContent, /2\/2 free/);
 
     // 1.1) 洗衣机洗粉标注
     const withPowder = document.querySelectorAll('#machine-grid .powder.with');
@@ -200,6 +207,15 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     assert.deepEqual(presetLabels, ['All', 'Washers only', 'Dryers only'], 'Presets 只保留按机型筛选');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
+
+    const chipGroups = [...document.querySelectorAll('#machine-chips .chip-group')];
+    assert.equal(chipGroups.length, 2, 'Machines 选择分 Washers / Dryers 两栏');
+    assert.deepEqual(chipGroups.map((group) => group.dataset.kind), ['washer', 'dryer']);
+    assert.deepEqual(
+      chipGroups.map((group) => group.querySelector('.chip-group-head').textContent),
+      ['Washers', 'Dryers'],
+    );
+    assert.deepEqual(chipGroups.map((group) => group.querySelectorAll('.chip').length), [2, 2]);
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
     // 4) 交互：取消一台机器 → chip 取消高亮；Preset 按机型筛选；切到 7 天 → chip 高亮
