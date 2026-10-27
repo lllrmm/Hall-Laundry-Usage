@@ -565,7 +565,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 166px;
+  height: 175px;
   padding: 0;
   color: var(--muted);
   font-size: 12px;
@@ -590,6 +590,8 @@ main {
 .heatmap-hours {
   flex: 1;
   display: flex;
+  align-items: center;
+  height: 27px; /* 时间轴本身高度 = 原来的 1.5 倍（18px），拖动热区也一起变高 */
   min-width: 0;
   position: relative;
   cursor: crosshair;

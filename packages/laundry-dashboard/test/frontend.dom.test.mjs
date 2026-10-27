@@ -313,6 +313,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '纵轴为周一到周日',
     );
     assert.equal(document.querySelectorAll('#heatmap .heatmap-hour').length, 24, '24 个小时表头');
+    assert.equal(
+      dom.window.getComputedStyle(document.getElementById('heatmap-hours')).height,
+      '27px',
+      '时间轴高度是原来的 1.5 倍（27px）',
+    );
     assert.deepEqual(
       [...document.querySelectorAll('#heatmap .heatmap-hour')].map((node) => node.textContent),
       Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0')),
