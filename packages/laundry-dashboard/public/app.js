@@ -550,7 +550,8 @@
     };
 
     // 从左到右的堆叠顺序由 aggregate.js 的 STATE_CATEGORIES 定义：
-    // In use → On hold → Maintenance → Offline → Free（Disabled / Unknown 若有样本追加在最后）
+    // In use → On hold → Maintenance → Offline → Free → Disabled → Unknown
+    // 始终展示全部状态图例（没有样本的状态显示为 0）
     const colorByKey = {
       inUseRatio: colors.busy,
       onHoldRatio: colors.onHold,
@@ -560,9 +561,10 @@
       disabledRatio: colors.disabled,
       unknownRatio: colors.unknown,
     };
-    const categories = Aggregate.STATE_CATEGORIES.filter((category) =>
-      rows.some((row) => (row[category.key] ?? 0) > 0.00001),
-    ).map((category) => ({ ...category, color: colorByKey[category.key] }));
+    const categories = Aggregate.STATE_CATEGORIES.map((category) => ({
+      ...category,
+      color: colorByKey[category.key],
+    }));
 
     mountChart('bars', container, {
       type: 'bar',
@@ -1058,12 +1060,11 @@
     // 默认 1 分钟线图：右上角始终显示星期范围（没选时即全部 7 天 → Mon–Sun）
     if (hint) hint.textContent = formatWeekdayRanges(selectedWeekdays());
 
-    // 只画有样本的机型（机器选择变化时图例自动收缩）
-    const datasets = [];
-    if (washerSamples.some((count) => count > 0)) {
-      datasets.push({
+    // 线图始终显示两条机型图例（没有样本的机型数据全为 null，只隐藏线条、不隐藏图例）
+    const datasets = [
+      {
         label: 'Washers in use',
-        data: washerValues,
+        data: washerPoints,
         borderColor: colors.washer,
         backgroundColor: hexToRgba(colors.washer, 0.12),
         borderWidth: 2,
@@ -1073,11 +1074,8 @@
         pointHoverRadius: 4,
         spanGaps: false,
         samples: washerSamples,
-        data: washerPoints,
-      });
-    }
-    if (dryerSamples.some((count) => count > 0)) {
-      datasets.push({
+      },
+      {
         label: 'Dryers in use',
         data: dryerPoints,
         borderColor: colors.dryer,
@@ -1089,8 +1087,8 @@
         pointHoverRadius: 4,
         spanGaps: false,
         samples: dryerSamples,
-      });
-    }
+      },
+    ];
 
     // 横轴刻度固定为 15 / 30 / 60 / 120 分钟间距
     const tickStep = profileTickStep(container.clientWidth || 900);

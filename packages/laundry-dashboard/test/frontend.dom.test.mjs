@@ -271,7 +271,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       assert.ok(document.querySelector(`#${id} canvas`), `${id} 应渲染出 canvas`);
     }
 
-    // 状态占比：横向堆叠柱，In use → Free（维护/离线不计入分母）
+    // 状态占比：横向堆叠柱，始终展示全部状态图例（没有样本的状态为 0）
     const bars = charts().bars;
     assert.equal(bars.config.type, 'bar');
     assert.equal(bars.options.indexAxis, 'y');
@@ -279,7 +279,19 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(bars.options.interaction.mode, 'index');
     assert.equal(bars.options.interaction.intersect, false);
     assert.equal(bars.options.interaction.axis, 'y', '横向柱状图 tooltip 必须按 y 轴定位行');
-    assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free']);
+    assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), [
+      'In use',
+      'On hold',
+      'Maintenance',
+      'Offline',
+      'Free',
+      'Disabled',
+      'Unknown',
+    ]);
+    assert.ok(
+      bars.data.datasets.every((dataset) => dataset.data.every((value) => Number.isFinite(value))),
+      '所有状态图例都有数据（无样本为 0）',
+    );
     assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
     assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');
     const barsRangeText = document.getElementById('bars-range').textContent;
@@ -600,7 +612,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '恢复全选后热力图恢复',
     });
 
-    // 4b) Inspection 跟随机器选择：只选洗衣机 → 只显示洗衣机线
+    // 4b) Inspection 跟随机器选择：只选洗衣机 → 图例仍保留两条线（烘干机线无数据）
     document.getElementById('select-all').click(); // Clear all
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 0, {
       label: '清空选择',
@@ -609,9 +621,14 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.datasets.length === 1 &&
-        charts().profile.data.datasets[0].label === 'Washers in use',
-      { label: 'Profile 只显示勾选的洗衣机' },
+        charts().profile.data.datasets.length === 2 &&
+        charts().profile.data.datasets[0].label === 'Washers in use' &&
+        charts().profile.data.datasets[1].label === 'Dryers in use',
+      { label: 'Profile 图例始终显示两条机型线' },
+    );
+    assert.ok(
+      charts().profile.data.datasets[1].data.every((point) => point.y === null),
+      '未选烘干机时，烘干机线没有数据点',
     );
     assert.match(document.getElementById('selected-count').textContent, /1\/4/);
     assert.equal(dayRequests.length, 0, '新选机器的数据已缓存时不需要请求后端（只补 diff）');
