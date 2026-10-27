@@ -336,6 +336,11 @@
       : 'all history';
   }
 
+  /** 只有显式选了日期范围才显示的日期后缀（"全部历史"不再出现在标签里） */
+  function dateRangeSuffix() {
+    return state.dateFrom || state.dateTo ? ` · ${dateRangeLabel()}` : '';
+  }
+
   /** 读取日期输入并重新加载图表（日期范围变化 → 向后台要当前已选机器在新范围的数据） */
   async function applyDateRange() {
     state.dateFrom = $('date-from')?.value || null;
@@ -937,7 +942,7 @@
 
       const time = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)}`;
       const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
-      if (hint) hint.textContent = `${wdPrefix}${time} · usage by weekday · ${dateRangeLabel()}`;
+      if (hint) hint.textContent = `${wdPrefix}${time} · usage by weekday${dateRangeSuffix()}`;
       mountChart('profile', container, {
         type: 'bar',
         data: {
@@ -987,7 +992,7 @@
 
       const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
       if (hint) {
-        hint.textContent = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday · ${dateRangeLabel()}`;
+        hint.textContent = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday${dateRangeSuffix()}`;
       }
       mountChart('profile', container, {
         type: 'bar',
@@ -1027,14 +1032,8 @@
     const washerPoints = washerValues.map((value, index) => ({ x: index, y: value }));
     const dryerPoints = dryerValues.map((value, index) => ({ x: index, y: value }));
 
-    const coverage = state.heatmap?.coverage;
-    const period =
-      coverage?.since && coverage?.until
-        ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
-        : 'all history';
-    const wdLabel = weekdaySelectionLabel();
-    const title = `${wdLabel ? `${wdLabel} · ` : ''}1-min profile · ${period}`;
-    if (hint) hint.textContent = title;
+    // 默认 1 分钟线图：hint 只保留勾选的星期（不再显示 "1-min profile · 时段"）
+    if (hint) hint.textContent = weekdaySelectionLabel();
 
     // 只画有样本的机型（机器选择变化时图例自动收缩）
     const datasets = [];
@@ -1322,14 +1321,16 @@
   function barsScopeLabel() {
     const focus = state.heatmapFocus;
     const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
-    const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
+    const weekdaySpan = `${WEEKDAY_LABELS[0]}–${WEEKDAY_LABELS[6]}`;
     if (focus && focus.kind === 'minute') {
-      return `${wdPrefix}${hhmm(focus.value)} · ${dateRangeLabel()}`;
+      // 时间筛选跨周一到周日
+      return `${weekdaySpan} · ${hhmm(focus.value)}${dateRangeSuffix()}`;
     }
     if (focus && focus.kind === 'range') {
-      return `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
+      // 时间范围筛选跨周一到周日
+      return `${weekdaySpan} · ${hhmm(focus.from)}–${hhmm(focus.to)}${dateRangeSuffix()}`;
     }
-    if (weekdays.length) return `${wdPrefix}${dateRangeLabel()}`;
+    if (weekdays.length) return `${weekdaySelectionLabel()}${dateRangeSuffix()}`;
     return null;
   }
 

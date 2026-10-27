@@ -318,7 +318,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ['Washers in use', 'Dryers in use'],
       '时间剖面按机型分两条线',
     );
-    assert.match(document.getElementById('profile-hint').textContent, /1-min profile · /);
+    assert.equal(
+      document.getElementById('profile-hint').textContent,
+      '',
+      '默认 1 分钟线图不再显示 "1-min profile · 时段"',
+    );
 
     // 横轴刻度间距只能是 15 / 30 / 60 / 120 分钟（线性时间轴）
     const xOptions = charts().profile.options.scales.x;
@@ -349,12 +353,12 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       () =>
         charts().profile &&
         charts().profile.data.datasets[0]?.data.length === 1440 &&
-        /Tue · 1-min profile/.test(document.getElementById('profile-hint').textContent),
+        document.getElementById('profile-hint').textContent === 'Tue',
       { label: '点击周几行显示该天的 5 分钟剖面' },
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
     assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
-    await waitFor(() => /Tue · all history/.test(document.getElementById('bars-range').textContent), {
+    await waitFor(() => /^Tue$/.test(document.getElementById('bars-range').textContent), {
       label: 'State breakdown 跟随选中的星期几',
     });
     assert.ok(
@@ -373,10 +377,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 2 &&
-        /Mon, Tue · 1-min profile/.test(document.getElementById('profile-hint').textContent),
+        document.getElementById('profile-hint').textContent === 'Mon, Tue',
       { label: '同时勾选 Mon + Tue' },
     );
-    await waitFor(() => /Mon, Tue · /.test(document.getElementById('bars-range').textContent), {
+    await waitFor(() => /^Mon, Tue$/.test(document.getElementById('bars-range').textContent), {
       label: 'State breakdown 跟随多选的星期',
     });
 
@@ -410,6 +414,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: '拖动时段后清空星期选择并显示周几柱状图' },
     );
     assert.doesNotMatch(document.getElementById('profile-hint').textContent, /Mon, Tue/, '时段选择与星期互斥');
+    // State breakdown 为时间范围时，标注这是周一到周日
+    await waitFor(() => /^Mon–Sun · /.test(document.getElementById('bars-range').textContent), {
+      label: 'State breakdown 时间范围标注 Mon–Sun',
+    });
     assert.equal(dayRequests.length, 0, '点分钟 / 选星期 / 拖时段都只在本地重算，不请求后端');
 
     // 互斥：时段已选时点星期 → 时段选择被清空（选 fixture 当天，保证有数据）
@@ -421,13 +429,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         charts().profile &&
         charts().profile.config.type === 'line' &&
         charts().profile.data.datasets[0]?.data.length === 1440 &&
-        new RegExp(`${todayLabel} · 1-min profile`).test(
-          document.getElementById('profile-hint').textContent,
-        ),
+        document.getElementById('profile-hint').textContent === todayLabel,
       { label: '点星期后清空时段选择' },
     );
     await waitFor(
-      () => new RegExp(`${todayLabel} · `).test(document.getElementById('bars-range').textContent),
+      () => document.getElementById('bars-range').textContent === todayLabel,
       { label: 'State breakdown 跟随星期' },
     );
     assert.equal(document.querySelector('.axis-selection')?.style.opacity, '0', '时段选区已清除');
@@ -439,7 +445,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
         charts().profile &&
         charts().profile.data.datasets[0]?.data.length === 1440 &&
-        /1-min profile · /.test(document.getElementById('profile-hint').textContent),
+        document.getElementById('profile-hint').textContent === '',
       { label: '取消星期后回到默认剖面' },
     );
 
