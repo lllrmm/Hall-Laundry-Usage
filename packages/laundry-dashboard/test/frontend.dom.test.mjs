@@ -162,8 +162,9 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     assert.equal(withoutPowder[0].textContent, 'No detergent');
     assert.equal(document.querySelectorAll('#machine-grid .powder').length, 2, 'dryers should not show detergent badges');
 
-    // 2) 四张图表都渲染出 SVG
-    for (const id of ['chart-trend', 'chart-series', 'chart-bars', 'chart-hourly']) {
+    // 2) 三张图表都渲染出 SVG（每台机器空闲率图已移除）
+    assert.equal(document.querySelector('#chart-series'), null, '不再渲染每台机器空闲率图');
+    for (const id of ['chart-trend', 'chart-bars', 'chart-hourly']) {
       await waitFor(() => document.querySelector(`#${id} svg`), { label: `${id} 图表渲染` });
     }
 
@@ -175,7 +176,6 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
       ['#f59e0b', '#fbbf24'].includes(trendLines[0].getAttribute('stroke')),
       `趋势线应为 in-use 颜色，实际 ${trendLines[0].getAttribute('stroke')}`,
     );
-    assert.equal(document.querySelectorAll('#chart-series path.series-line').length, 4, '每台机器一条折线');
     assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
     // 小时图：只有有数据的那个小时会画柱子（测试数据集中在几分钟内）
     assert.ok(document.querySelectorAll('#chart-hourly svg rect').length >= 1, '小时图应有柱子');
@@ -188,11 +188,11 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
-    // 4) 交互：取消一台机器 → 折线减少；切到 7 天 → chip 高亮
+    // 4) 交互：取消一台机器 → chip 取消高亮；切到 7 天 → chip 高亮
     const firstMachineChip = document.querySelector('#machine-chips .chip');
     firstMachineChip.click();
-    await waitFor(() => document.querySelectorAll('#chart-series path.series-line').length === 3, {
-      label: '取消勾选后折线减少',
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 3, {
+      label: '取消勾选后只选中 3 台',
     });
     assert.match(document.getElementById('selected-count').textContent, /3\/4/);
 
@@ -208,7 +208,7 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     );
     assert.ok(document.querySelector('#chart-trend svg'), '切换时间跨度后图表仍存在');
 
-    // 5) 主题：Auto → Light → Dark → Auto，深色时图表换深色色板
+    // 5) 主题：Auto → Light → Dark → Auto
     const root = document.documentElement;
     assert.ok(['light', 'dark'].includes(root.dataset.theme), '首屏应已确定 data-theme');
     assert.equal(document.getElementById('theme-label').textContent, 'Auto');
@@ -223,11 +223,7 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
     assert.equal(document.getElementById('theme-label').textContent, 'Dark');
     assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'dark');
     assert.ok(document.querySelector('#chart-trend svg'), '切换深色后图表仍存在');
-    assert.equal(
-      document.querySelector('#chart-series path.series-line').getAttribute('stroke'),
-      '#60a5fa',
-      '深色主题应使用深色色板',
-    );
+    assert.ok(document.querySelector('#chart-hourly svg'), '切换深色后小时图仍存在');
 
     themeButton.click(); // Dark -> Auto
     await waitFor(() => document.getElementById('theme-label').textContent === 'Auto', { label: '回到 Auto' });

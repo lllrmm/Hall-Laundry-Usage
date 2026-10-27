@@ -535,27 +535,6 @@ footer {
   border-radius: 50%;
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.legend .item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend .line {
-  width: 16px;
-  height: 3px;
-  border-radius: 2px;
-}
-
 .bar-label {
   fill: var(--text);
   font-size: 11px;

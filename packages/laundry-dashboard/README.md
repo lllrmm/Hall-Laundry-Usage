@@ -29,7 +29,6 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择 Presets：All / Washers only / Dryers only / Free now / In use now |
 | Overall trend | 折线图：所选机器中 in use 台数随时间变化（只画在用一条线，Y 轴按峰值自适应） |
-| Free rate per machine | 多系列折线图：每台机器在时间桶内的空闲采样占比（阶梯线），颜色与 chip 一致 |
 | State breakdown in window | 横向堆叠柱状图：每台机器 Free / In use / Unavailable 的时间占比 |
 | Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
 
@@ -51,7 +50,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 - 默认 **Auto**：跟随浏览器/系统的 `prefers-color-scheme`，系统切换时页面实时跟随；
 - 顶栏按钮循环切换 **Auto → Light → Dark**，选择写入 `localStorage["laundry.theme"]`，刷新后保持；
 - 首屏由 `<head>` 内联脚本先确定主题，避免深色系统下闪白；
-- 图表颜色也跟主题走：深色主题使用更亮的机器色板，网格/坐标轴/状态颜色均取自 CSS 变量。
+- 图表颜色也跟主题走：深色主题下机器 chip 使用更亮的色板，网格/坐标轴/状态颜色均取自 CSS 变量。
 
 ## 配置
 

@@ -783,9 +783,7 @@
     if (!state.selected.size) {
       $('trend-hint').textContent = 'No machines selected';
       renderEmpty($('chart-trend'), 'Select at least one machine');
-      renderEmpty($('chart-series'), 'Select at least one machine');
       renderEmpty($('chart-bars'), 'Select at least one machine');
-      $('legend-series').innerHTML = '';
       return;
     }
 
@@ -811,7 +809,6 @@
       state.hourly = hourly;
 
       renderTrend(series);
-      renderSeriesChart(series);
       renderBarsChart();
       drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
     } catch (error) {
@@ -852,44 +849,6 @@
         { label: 'In use', color: cssVar('--busy', '#f59e0b'), values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
       ],
     });
-  }
-
-  function renderSeriesChart(series) {
-    const machines = series.machines ?? [];
-    const buckets = series.buckets ?? [];
-    const bucketSeconds = series.bucketSeconds;
-
-    $('series-hint').textContent = machines.length
-      ? `${machines.length} machines · free rate = share of polls in the "available" state`
-      : '';
-
-    const lines = machines.map((machine) => ({
-      label: machine.name,
-      color: colorFor(machine.id),
-      values: (series.series[machine.id]?.availableRatio ?? []).map((ratio) => (ratio === null ? null : Math.round(ratio * 1000) / 10)),
-      step: true,
-      valueFormat: (value) => `${value.toFixed(0)}%`,
-    }));
-
-    drawLineChart($('chart-series'), {
-      buckets,
-      bucketSeconds,
-      yMax: 100,
-      yFormat: (value) => `${Math.round(value)}%`,
-      lines,
-    });
-
-    const legend = $('legend-series');
-    legend.innerHTML = '';
-    for (const machine of machines) {
-      const item = document.createElement('span');
-      item.className = 'item';
-      const line = document.createElement('span');
-      line.className = 'line';
-      line.style.background = colorFor(machine.id);
-      item.append(line, document.createTextNode(machine.name));
-      legend.appendChild(item);
-    }
   }
 
   /* ---------------- 数据刷新 ---------------- */
@@ -977,10 +936,7 @@
 
   function redrawCharts() {
     renderMachineChips();
-    if (state.series) {
-      renderTrend(state.series);
-      renderSeriesChart(state.series);
-    }
+    if (state.series) renderTrend(state.series);
     if (state.bars) renderBarsChart();
     if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
   }
@@ -1027,7 +983,6 @@
       'resize',
       debounce(() => {
         if (state.series) renderTrend(state.series);
-        if (state.series) renderSeriesChart(state.series);
         if (state.bars) renderBarsChart();
         if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
       }, 200),
