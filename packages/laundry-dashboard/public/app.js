@@ -1068,12 +1068,8 @@
     const washerPoints = washerValues.map((value, index) => ({ x: index, y: value }));
     const dryerPoints = dryerValues.map((value, index) => ({ x: index, y: value }));
 
-    // 默认 1 分钟线图：hint 只保留勾选的星期（连续的天合并成区间；没选则不显示）
-    if (hint) {
-      hint.textContent = state.weekdaySelection.size
-        ? formatWeekdayRanges([...state.weekdaySelection])
-        : '';
-    }
+    // 默认 1 分钟线图：右上角始终显示星期范围（没选时即全部 7 天 → Mon–Sun）
+    if (hint) hint.textContent = formatWeekdayRanges(selectedWeekdays());
 
     // 只画有样本的机型（机器选择变化时图例自动收缩）
     const datasets = [];

@@ -320,8 +320,8 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.equal(
       document.getElementById('profile-hint').textContent,
-      '',
-      '默认 1 分钟线图不再显示 "1-min profile · 时段"',
+      'Mon–Sun',
+      '首次进入时默认显示 Mon–Sun（不再显示 "1-min profile · 时段"）',
     );
 
     // 横轴刻度间距只能是 15 / 30 / 60 / 120 分钟（线性时间轴）
@@ -454,7 +454,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
-        document.getElementById('profile-hint').textContent === '',
+        document.getElementById('profile-hint').textContent === 'Mon–Sun',
       { label: '取消该天选择' },
     );
 
@@ -485,7 +485,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
         charts().profile &&
         charts().profile.data.datasets[0]?.data.length === 1440 &&
-        document.getElementById('profile-hint').textContent === '',
+        document.getElementById('profile-hint').textContent === 'Mon–Sun',
       { label: '取消星期后回到默认剖面' },
     );
 
@@ -508,7 +508,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0, {
       label: '取消全选',
     });
-    assert.equal(document.getElementById('profile-hint').textContent, '');
+    assert.equal(document.getElementById('profile-hint').textContent, 'Mon–Sun');
 
     // 3) 选择控件：Date range 输入 + 机器 chips
     assert.equal(document.querySelectorAll('#ranges').length, 0, '旧的相对窗口 chips 已移除');
