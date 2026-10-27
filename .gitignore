@@ -5,7 +5,6 @@ node_modules/
 
 # 敏感信息 / 凭据
 token.txt
-browser/.token
 packages/laundry-machines/token.txt
 packages/laundry-monitor/monitor.config.json
 
@@ -15,23 +14,13 @@ packages/laundry-monitor/data/
 *.sqlite-wal
 *.sqlite-shm
 
-# 调查产物：SPA 打包文件、原始响应抓取
-dump/
+# 逆向调查产物：浏览器抓包、探测脚本、SPA 打包/原始响应 dump 等，全部只留本地
+/reverse/
 
 # 运行日志
 logs/
 *.log
 
-# 浏览器抓包尝试的本地文件（只保留 summary.md 与 cdp_capture.mjs）
-browser/profile/
-browser/profile_*/
-browser/*.out
-browser/network.json
-browser/whoami_groups.txt
-
 # 系统杂项
 .DS_Store
 Thumbs.db
-
-# 一次性逆向探测脚本（内嵌本机 token，不入库）
-/scripts/
