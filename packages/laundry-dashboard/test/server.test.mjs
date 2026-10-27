@@ -78,6 +78,7 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /chart-trend/);
     assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
     assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
+    assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
   });
 });
 

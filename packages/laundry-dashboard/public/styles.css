@@ -752,8 +752,4 @@ footer {
   .machine-head {
     flex-wrap: wrap;
   }
-
-  .legend-inline .hint {
-    display: none;
-  }
 }
