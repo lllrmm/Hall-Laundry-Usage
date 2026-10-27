@@ -1,7 +1,0 @@
-{
-  "database": "../laundry-monitor/data/laundry.sqlite",
-  "seriesDatabase": "../laundry-monitor/data/laundry-series.sqlite",
-  "host": "127.0.0.1",
-  "port": 8787,
-  "corsOrigins": ["https://lllrmm.github.io"]
-}

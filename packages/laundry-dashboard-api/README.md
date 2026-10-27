@@ -83,13 +83,13 @@ npm start                       # http://127.0.0.1:8787
 
 ## 配置
 
-`dashboard-api.config.json`（模板见 `dashboard-api.config.example.json`）：
+`dashboard-api.config.json`（本地文件，已被 git 忽略；模板见 `dashboard-api.config.example.json`）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `database` | `../laundry-monitor/data/laundry.sqlite` | 原始快照库路径（必需） |
 | `seriesDatabase` | `../laundry-monitor/data/laundry-series.sqlite` | 日序列库路径；缺失时回退 raw |
-| `host` | `127.0.0.1`（默认值；仓库配置也是 `127.0.0.1`） | 监听地址；本服务只提供 API |
+| `host` | `127.0.0.1` | 监听地址；本服务只提供 API，一般只让本机前端反代访问 |
 | `port` | `8787` | 监听端口 |
 | `corsOrigins` | `[]` | 允许跨域访问 API 的浏览器 origin 列表；同源/反代部署留空，GitHub Pages 填 `["https://<user>.github.io"]` 或 `["*"]` |
 

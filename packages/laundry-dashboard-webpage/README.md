@@ -19,11 +19,11 @@ npm start                       # http://127.0.0.1:8788
 
 ## 配置
 
-`dashboard-webpage.config.json`（模板见 `dashboard-webpage.config.example.json`）：
+`dashboard-webpage.config.json`（本地文件，已被 git 忽略；模板见 `dashboard-webpage.config.example.json`）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `host` | `127.0.0.1`（默认值）；仓库配置为 `0.0.0.0` | 前端监听地址（浏览器访问这个） |
+| `host` | `127.0.0.1` | 前端监听地址（浏览器访问这个）；局域网访问改为 `0.0.0.0` |
 | `port` | `8788` | 前端端口 |
 | `apiTarget` | `http://127.0.0.1:8787` | `/api/*` 反向代理到的 dashboard 地址；设 `null` 则不代理 |
 

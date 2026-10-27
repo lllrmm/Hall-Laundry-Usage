@@ -19,11 +19,14 @@ token 会在网页重新登录后失效；失效时看板会显示错误，重�
 
 ### 2. 启动
 
-首次运行先准备采集配置：
+首次运行先准备本地配置（都不会入库，模板见各目录 `*.config.example.json`）：
 
 ```bash
 cp packages/laundry-monitor/monitor.config.example.json packages/laundry-monitor/monitor.config.json
+cp packages/laundry-dashboard-api/dashboard-api.config.example.json packages/laundry-dashboard-api/dashboard-api.config.json
+cp packages/laundry-dashboard-webpage/dashboard-webpage.config.example.json packages/laundry-dashboard-webpage/dashboard-webpage.config.json
 # 编辑 monitor.config.json，把 bearer 换成 token；或在启动前设置 LDR_TOKEN 环境变量
+# dashboard-api / dashboard-webpage 一般用默认配置即可；局域网或 Pages 时再改 host / corsOrigins / apiTarget
 cd packages/laundry-monitor && npm install
 ```
 
