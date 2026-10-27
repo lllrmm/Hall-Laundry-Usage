@@ -4,7 +4,6 @@ node_modules/
 *.tgz
 
 # 敏感信息 / 凭据
-token.txt
 packages/laundry-monitor/monitor.config.json
 
 # 监控数据库（含采集数据）
