@@ -29,7 +29,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite \
 | 顶栏 | **Database updated**（数据库最后更新时间，绝对 + 相对）、Refresh now、自动刷新倒计时 |
 | 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
 | Date range | 选择开始 / 结束日期（本地日期，含首尾两天），留空 = 全部历史；**热力图 / Inspection / State breakdown 都跟随**；变化时只向后台补还没缓存的「机器·天」 |
-| 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空；**热力图 / 剖面 / State breakdown 都跟随**（清空选择时显示占位）；新勾选的机器只补它缺的天 |
+| 机器筛选 | 每台机器一个可勾选 chip，**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空；**热力图 / 剖面 / State breakdown 都跟随**（清空选择时显示占位）；新勾选的机器只补它缺的天 |
 | State breakdown | 横向堆叠柱状图：每台机器**各种状态的占比**，**从左到右顺序为 In use → On hold → Maintenance → Offline → Free**（Disabled / Unknown 若有样本则追加在最后），分母为该机器的全部已观测分钟；tooltip 显示总样本数；样本范围 = Date range + Machines selected + 勾选的星期 + 热力图选中的时段；**右上角始终显示「星期 · 时段」**（如 `Mon–Sun · 06:00–11:59`；没选星期时显示全部 `Mon–Sun`，没选时段时显示 `00:00–23:59`；星期连续时合并为 `Mon–Wed`，不连续则分开写 `Mon, Wed, Fri`；显式选了 Date range 才追加日期范围）；**在浏览器端计算** |
 | Usage heatmap | Canvas 绘制的 7 行（周一…周日）× **1440 列（1 分钟）** 热力图，**压缩到视口宽度、无需滚动**；颜色 = 该星期几该分钟的平均使用率（只统计可运营样本）；跟随 Date range 与机器选择；点行标签可多选星期；**热力图内部点击/悬停只弹标签显示该点信息（不改变选择）**；**顶部时间轴拖动选择时段，选择粒度 30 分钟**；**在浏览器端计算** |
 | Inspection | 热力图剖面：勾选一个或多个星期 → 合并的 1 分钟使用率线图（洗衣机 / 烘干机各一条，按样本加权；**横轴标签间距限定为 15 / 30 / 60 / 120 分钟**，按容器宽度自动选择）；点分钟 / 拖选时段 → 仅按**勾选的星期**统计的柱状图；**点击柱状图的某根柱子 → 等效于在热力图左侧选中该星期，切换到那一天的 1 分钟线图**；跟随 Date range 与机器选择；百分比同样**只统计可运营样本**；**在浏览器端计算**；默认线图的右上角**始终显示星期范围**（默认 `Mon–Sun`，连续的天合并为 `Mon–Wed`，不连续分开写） |
@@ -107,7 +107,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 - 默认 **Auto**：跟随浏览器/系统的 `prefers-color-scheme`，系统切换时页面实时跟随；
 - 顶栏按钮循环切换 **Auto → Light → Dark**，选择写入 `localStorage["laundry.theme"]`，刷新后保持；
 - 首屏由 `<head>` 内联脚本先确定主题，避免深色系统下闪白；
-- 图表颜色也跟主题走：深色主题下机器 chip 使用更亮的色板，网格/坐标轴/状态颜色均取自 CSS 变量。
+- 图表颜色也跟主题走：网格/坐标轴/状态颜色均取自 CSS 变量。
 
 ## 配置
 

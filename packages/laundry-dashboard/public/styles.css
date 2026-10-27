@@ -491,18 +491,6 @@ main {
   color: var(--brand-contrast);
 }
 
-.chip .swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
-}
-
-.chip.plain .swatch {
-  display: none;
-}
-
 .chip:disabled {
   opacity: 0.45;
   cursor: default;

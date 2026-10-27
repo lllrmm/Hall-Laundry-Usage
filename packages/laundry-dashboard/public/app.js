@@ -15,26 +15,6 @@
   const THEME_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
   const THEME_ICONS = { auto: '◐', light: '☀', dark: '☾' };
 
-  /** 每台机器的线条颜色：深色主题用更亮的色板，保证深底可读 */
-  const COLOR_PALETTES = {
-    light: [
-      '#1b4dc1', '#e11d48', '#0d9488', '#7c3aed', '#c2410c', '#0891b2',
-      '#4d7c0f', '#be185d', '#4338ca', '#a16207', '#0f766e', '#9d174d',
-    ],
-    dark: [
-      '#60a5fa', '#f472b6', '#2dd4bf', '#a78bfa', '#fb923c', '#22d3ee',
-      '#a3e635', '#f9a8d4', '#818cf8', '#facc15', '#34d399', '#f87171',
-    ],
-  };
-
-  function currentTheme() {
-    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-  }
-
-  function palette() {
-    return COLOR_PALETTES[currentTheme()] ?? COLOR_PALETTES.light;
-  }
-
   function cssVar(name, fallback = '') {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return value || fallback;
@@ -155,12 +135,6 @@
   /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏图表标签用短名 */
   function shortMachineName(name) {
     return String(name ?? '').replace(/^UG\d+\s+/i, '');
-  }
-
-  function colorFor(machineId) {
-    const index = state.machines.findIndex((machine) => machine.id === machineId);
-    const colors = palette();
-    return colors[(index >= 0 ? index : 0) % colors.length];
   }
 
   function stateClass(machine) {
@@ -402,14 +376,10 @@
     button.className = `chip${active ? ' active' : ''}`;
     button.title = `Click to ${active ? 'deselect' : 'select'} ${machine.name}${powder ? ' · ' + powder : ''}`;
 
-    const swatch = document.createElement('span');
-    swatch.className = 'swatch';
-    swatch.style.background = colorFor(machine.id);
-
     const text = document.createElement('span');
     text.textContent = machine.name.replace(/^UG\d\s*/, '');
 
-    button.append(swatch, text);
+    button.append(text);
 
     if (powder) {
       const tag = document.createElement('span');

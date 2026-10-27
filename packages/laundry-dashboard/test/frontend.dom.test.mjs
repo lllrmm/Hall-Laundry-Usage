@@ -517,6 +517,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.ok(document.getElementById('date-all'), '应有 All dates 按钮');
     assert.equal(document.querySelectorAll('#presets').length, 0, 'Presets 已移除');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
+    assert.equal(
+      document.querySelectorAll('#machine-chips .swatch').length,
+      0,
+      '机器 chip 不再显示颜色标签',
+    );
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
 
     const chipGroups = [...document.querySelectorAll('#machine-chips .chip-group')];
