@@ -600,6 +600,7 @@
   }
 
   const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6];
 
   function hhmm(minute) {
     return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
@@ -981,6 +982,9 @@
    */
   function barChartOptions(colors, compact, weekdayList) {
     const options = profileChartOptions(colors, compact);
+    // 柱状图横轴始终显示 Mon–Sun 全部 7 个标签（不随宽度抽稀）
+    options.scales.x.ticks.autoSkip = false;
+    delete options.scales.x.ticks.maxTicksLimit;
     options.onClick = (event, elements) => {
       const index = elements?.[0]?.index;
       const weekday = index === undefined || index === null ? undefined : weekdayList[index];
@@ -1015,7 +1019,7 @@
       }
 
       const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
-      const weekdayList = selectedWeekdays();
+      const weekdayList = WEEKDAY_INDEXES;
       const labels = [];
       const values = [];
       const samples = [];
@@ -1059,7 +1063,7 @@
       }
 
       // 拖选的分钟区间 → 按周几统计（柱状图，仅显示勾选的星期）
-      const weekdayList = selectedWeekdays();
+      const weekdayList = WEEKDAY_INDEXES;
       const labels = weekdayList.map((weekday) => WEEKDAY_LABELS[weekday]);
       const values = [];
       const samples = [];

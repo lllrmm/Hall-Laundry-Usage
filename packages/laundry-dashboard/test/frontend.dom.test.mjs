@@ -470,6 +470,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       () => document.getElementById('bars-range').textContent === `Mon–Sun · ${rangeLabel}`,
       { label: 'State breakdown 时间范围标注 Mon–Sun + 时段' },
     );
+    assert.deepEqual(
+      Array.from(charts().profile.scales.x.ticks, (tick) => tick.label),
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      '柱状图横轴始终显示 Mon–Sun 7 个标签',
+    );
 
     // 移动端：在时间轴上用手指滑动也能选择时段（touch 事件）
     const touchEvent = (type, minute) => {
@@ -800,6 +805,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         charts().profile?.config.type === 'bar' &&
         document.getElementById('profile-hint').textContent === mobileLabel,
       { label: '移动端按 1 小时粒度选择时段' },
+    );
+    assert.deepEqual(
+      Array.from(charts().profile.scales.x.ticks, (tick) => tick.label),
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      '窄屏下柱状图仍显示 Mon–Sun 7 个标签',
     );
     assert.match(
       document.getElementById('bars-range').textContent,
