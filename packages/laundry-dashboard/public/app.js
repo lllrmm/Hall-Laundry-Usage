@@ -69,8 +69,6 @@
     profile: null,
     profileKey: null,
     profileAt: 0,
-    dailyProfile: null,
-    dailyKey: null,
     charts: { trend: null, bars: null, hourly: null, profile: null },
     auto: true,
     refreshSeconds: 30,
@@ -692,8 +690,7 @@
       const label = document.createElement('div');
       label.className = 'heatmap-hour';
       label.textContent = hour % 3 === 0 ? `${pad2(hour)}:00` : '';
-      label.title = `Select ${pad2(hour)}:00`;
-      label.addEventListener('click', () => setHeatmapFocus('minute', hour * 60));
+      label.title = `Drag here to select a time range`;
       hoursBox.appendChild(label);
     }
 
@@ -754,23 +751,14 @@
       return Math.max(0, Math.min(6, Math.floor((y - top) / rowH)));
     };
 
-    let dragStart = null;
-
-    canvas.onmousedown = (event) => {
-      dragStart = minuteAt(event);
-      if (tooltip) tooltip.classList.remove('visible');
-      event.preventDefault();
+    // 热力图内：单击选分钟 + hover tooltip（时段选择在顶部时间轴完成）
+    canvas.onclick = (event) => {
+      setHeatmapFocus('minute', minuteAt(event));
     };
 
     canvas.onmousemove = (event) => {
       const minute = minuteAt(event);
       const weekday = weekdayAt(event);
-      if (dragStart !== null && Math.abs(minute - dragStart) >= 1) {
-        draw({ from: Math.min(dragStart, minute), to: Math.max(dragStart, minute) });
-        if (tooltip) tooltip.classList.remove('visible');
-        return;
-      }
-
       const cell = byKey.get(`${weekday}-${minute}`);
       if (tooltip) {
         const rect = rectOf();
@@ -783,13 +771,52 @@
       }
     };
 
-    canvas.onmouseup = (event) => {
-      const end = minuteAt(event);
-      const start = dragStart;
-      dragStart = null;
-      if (start !== null && Math.abs(end - start) >= 2) {
-        state.heatmapRange = { from: Math.min(start, end), to: Math.max(start, end) };
-        state.heatmapFocus = { kind: 'range', from: state.heatmapRange.from, to: state.heatmapRange.to };
+    canvas.onmouseleave = () => {
+      if (tooltip) tooltip.classList.remove('visible');
+    };
+
+    // ---- 顶部时间轴：横向拖动选择时段 ----
+    const axis = hoursBox;
+    const axisSelection = document.createElement('div');
+    axisSelection.className = 'axis-selection';
+    axisSelection.style.opacity = '0';
+    axis.appendChild(axisSelection);
+
+    const axisMinuteAt = (event) => {
+      const rect = axis.getBoundingClientRect();
+      const width = rect.width || axis.clientWidth || cssWidth;
+      const x = event.clientX - rect.left;
+      return Math.max(0, Math.min(1439, Math.floor((x / width) * 1440)));
+    };
+    const showAxisSelection = (from, to) => {
+      axisSelection.style.left = `${(from / 1440) * 100}%`;
+      axisSelection.style.width = `${((to - from + 1) / 1440) * 100}%`;
+      axisSelection.style.opacity = '1';
+    };
+
+    if (focus && focus.kind === 'range') showAxisSelection(focus.from, focus.to);
+
+    let axisDragStart = null;
+    axis.onmousedown = (event) => {
+      axisDragStart = axisMinuteAt(event);
+      showAxisSelection(axisDragStart, axisDragStart);
+      event.preventDefault();
+    };
+    axis.onmousemove = (event) => {
+      if (axisDragStart === null) return;
+      const minute = axisMinuteAt(event);
+      showAxisSelection(Math.min(axisDragStart, minute), Math.max(axisDragStart, minute));
+    };
+    axis.onmouseup = (event) => {
+      const end = axisMinuteAt(event);
+      const start = axisDragStart;
+      axisDragStart = null;
+      if (start === null) return;
+      if (Math.abs(end - start) >= 2) {
+        const from = Math.min(start, end);
+        const to = Math.max(start, end);
+        state.heatmapRange = { from, to };
+        state.heatmapFocus = { kind: 'range', from, to };
         renderHeatmap(state.heatmap);
         refreshProfile();
         loadBars();
@@ -797,11 +824,10 @@
       }
       setHeatmapFocus('minute', end);
     };
-
-    canvas.onmouseleave = () => {
-      dragStart = null;
-      if (tooltip) tooltip.classList.remove('visible');
-      if (state.heatmap) draw(null);
+    axis.onmouseleave = () => {
+      axisDragStart = null;
+      if (focus && focus.kind === 'range') showAxisSelection(focus.from, focus.to);
+      else axisSelection.style.opacity = '0';
     };
 
     if (hint) {
@@ -809,7 +835,7 @@
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · drag to select a time range`;
+      hint.textContent = `${covered} · ${totalSamples} samples · drag the top axis to select a time range`;
     }
   }
 
@@ -914,62 +940,50 @@
     }
 
     if (focus && focus.kind === 'range') {
-      const data = state.dailyProfile;
-      if (!data || !data.days?.length) {
+      const cells = state.heatmap?.cells ?? [];
+      if (!cells.length) {
         if (hint) hint.textContent = '';
         showChartEmpty('profile', container, 'No data in this range');
         return;
       }
 
-      const toPercent = (value) => (value === null || value === undefined ? null : round1(value * 100));
-      const days = data.days;
-      const labels = days.map((entry) => entry.day.slice(5));
-      const washerValues = days.map((entry) => toPercent(entry.washerUsage));
-      const dryerValues = days.map((entry) => toPercent(entry.dryerUsage));
-      const washerSamples = days.map((entry) => entry.washerSamples ?? 0);
-      const dryerSamples = days.map((entry) => entry.dryerSamples ?? 0);
-      const period =
-        data.since && data.until
-          ? `${fmtRangeTime(data.since)} – ${fmtRangeTime(data.until)}`
-          : dateRangeLabel();
-      if (hint) hint.textContent = `${hhmm(focus.from)}–${hhmm(focus.to)} · daily usage · ${period}`;
-
-      const datasets = [];
-      if (washerSamples.some((count) => count > 0)) {
-        datasets.push({
-          label: 'Washers in use',
-          data: washerValues,
-          borderColor: colors.washer,
-          backgroundColor: hexToRgba(colors.washer, 0.12),
-          borderWidth: 2,
-          tension: 0.2,
-          fill: false,
-          pointRadius: 2,
-          pointHoverRadius: 4,
-          spanGaps: false,
-          samples: washerSamples,
-        });
-      }
-      if (dryerSamples.some((count) => count > 0)) {
-        datasets.push({
-          label: 'Dryers in use',
-          data: dryerValues,
-          borderColor: colors.dryer,
-          backgroundColor: hexToRgba(colors.dryer, 0.12),
-          borderWidth: 2,
-          tension: 0.2,
-          fill: false,
-          pointRadius: 2,
-          pointHoverRadius: 4,
-          spanGaps: false,
-          samples: dryerSamples,
-        });
+      // 拖选的分钟区间 → 按周几统计（柱状图）
+      const labels = [...WEEKDAY_LABELS];
+      const values = [];
+      const samples = [];
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        let weighted = 0;
+        let weight = 0;
+        for (const cell of cells) {
+          if (cell.weekday !== weekday) continue;
+          if (cell.minute < focus.from || cell.minute > focus.to) continue;
+          weighted += cell.usageRatio * cell.samples;
+          weight += cell.samples;
+        }
+        values.push(weight > 0 ? round1((weighted / weight) * 100) : null);
+        samples.push(weight);
       }
 
+      if (hint) {
+        hint.textContent = `${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday · ${dateRangeLabel()}`;
+      }
       mountChart('profile', container, {
-        type: 'line',
-        data: { labels, datasets },
-        options: profileChartOptions(colors, compact, { showLegend: true }),
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Usage rate',
+              data: values,
+              backgroundColor: colors.busy,
+              borderRadius: 3,
+              borderWidth: 0,
+              maxBarThickness: compact ? 14 : 30,
+              samples,
+            },
+          ],
+        },
+        options: profileChartOptions(colors, compact),
       });
       return;
     }
@@ -1052,29 +1066,9 @@
       return;
     }
 
+    // 时段选择与"选时间点"一致：直接用热力图数据按周几聚合
     if (focus && focus.kind === 'range') {
-      const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
-      const machineKey = machineIdsParam();
-      const key = `range${focus.from}-${focus.to}|${dateKey}|${machineKey}`;
-      const fresh =
-        state.dailyKey === key && state.dailyProfile && Date.now() - (state.dailyAt ?? 0) < 60_000;
-      if (fresh) {
-        renderProfile();
-        return;
-      }
-
-      try {
-        const params = chartParams({ fromMinute: focus.from, toMinute: focus.to });
-        const data = await api(`/api/profile/days?${params}`);
-        if (!state.selected.size) return;
-        state.dailyProfile = data;
-        state.dailyKey = key;
-        state.dailyAt = Date.now();
-        renderProfile();
-      } catch (error) {
-        console.error('Failed to load daily profile', error);
-        showChartEmpty('profile', $('chart-profile'), 'Failed to load profile');
-      }
+      renderProfile();
       return;
     }
 

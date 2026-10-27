@@ -560,7 +560,7 @@ main {
 .heatmap-head {
   display: flex;
   align-items: center;
-  height: 14px;
+  height: 18px;
 }
 
 .heatmap-pad {
@@ -571,6 +571,8 @@ main {
   flex: 1;
   display: flex;
   min-width: 0;
+  position: relative;
+  cursor: crosshair;
 }
 
 .heatmap-hour {
@@ -580,8 +582,18 @@ main {
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
-  cursor: pointer;
   line-height: 1;
+  pointer-events: none;
+}
+
+.axis-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(245, 158, 11, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: opacity 0.1s;
 }
 
 .heatmap-body {

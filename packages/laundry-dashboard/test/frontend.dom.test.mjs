@@ -260,11 +260,20 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(document.querySelectorAll('#heatmap .heatmap-hour').length, 24, '24 个小时表头');
     assert.match(
       document.getElementById('heatmap-hint').textContent,
-      /drag to select a time range/,
+      /drag the top axis/,
       '热力图提示说明可拖动选择时段',
     );
 
-    // 历史剖面：默认 5 分钟线图；点行 → 该周几 5 分钟线图；点列 → 该小时 7 天柱状图
+    // 顶部时间轴交互（拖选时段 / 单击选分钟）
+    const axis = document.getElementById('heatmap-hours');
+    const axisEvent = (type, minute) =>
+      new dom.window.MouseEvent(type, { clientX: (minute / 1440) * 900, clientY: 5, bubbles: true });
+    const clickAxis = (minute) => {
+      axis.dispatchEvent(axisEvent('mousedown', minute));
+      axis.dispatchEvent(axisEvent('mouseup', minute));
+    };
+
+    // 历史剖面：默认 1 分钟线图；点行 → 该周几 1 分钟线图；点分钟 → 该分钟 7 天柱状图
     await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {
       label: '默认剖面（1 分钟 × 1440 槽）',
     });
@@ -299,7 +308,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '选中的周几行应高亮',
     );
 
-    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
+    clickAxis(720);
     await waitFor(
       () =>
         charts().profile &&
@@ -319,37 +328,34 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     const rangeFrom = t0.getHours() * 60 + t0.getMinutes();
     const rangeTo = Math.min(1439, rangeFrom + 5);
 
-    const canvas = document.getElementById('heatmap-canvas');
     const dragTo = (fromMinute, toMinute) => {
-      const width = 900;
-      const event = (type, minute) =>
-        new dom.window.MouseEvent(type, {
-          clientX: (minute / 1440) * width,
-          clientY: 30,
-          bubbles: true,
-        });
-      canvas.dispatchEvent(event('mousedown', fromMinute));
-      canvas.dispatchEvent(event('mousemove', toMinute));
-      canvas.dispatchEvent(event('mouseup', toMinute));
+      axis.dispatchEvent(axisEvent('mousedown', fromMinute));
+      axis.dispatchEvent(axisEvent('mousemove', toMinute));
+      axis.dispatchEvent(axisEvent('mouseup', toMinute));
     };
     dragTo(rangeFrom, rangeTo);
     const rangeLabel = `${hhmm(rangeFrom)}–${hhmm(rangeTo)}`;
     await waitFor(
       () =>
         charts().profile &&
-        new RegExp(`${rangeLabel} · daily usage`).test(
+        charts().profile.config.type === 'bar' &&
+        charts().profile.data.labels.length === 7 &&
+        new RegExp(`${rangeLabel} · usage by weekday`).test(
           document.getElementById('profile-hint').textContent,
         ),
-      { label: '拖动选择时段后显示每日使用率' },
+      { label: '拖动选择时段后显示按周几统计的柱状图' },
     );
-    assert.equal(charts().profile.config.type, 'line', '每日使用率用线图');
-    assert.ok(charts().profile.data.labels.length >= 1, '至少有一天的数据');
+    assert.deepEqual(
+      Array.from(charts().profile.data.labels),
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      '时段剖面横轴为周几',
+    );
     await waitFor(() => new RegExp(rangeLabel).test(document.getElementById('bars-range').textContent), {
       label: 'State breakdown 跟随拖动时段',
     });
 
     // 点击单个分钟 → 取消时段选择，回到分钟剖面
-    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
+    clickAxis(720);
     await waitFor(
       () =>
         charts().profile &&
@@ -359,7 +365,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
 
     // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
-    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
+    clickAxis(720);
     await waitFor(
       () =>
         charts().profile &&
