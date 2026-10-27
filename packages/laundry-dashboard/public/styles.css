@@ -561,6 +561,29 @@ main {
   background: var(--heat-empty);
 }
 
+.heatmap-row-label,
+.heatmap-hour {
+  cursor: pointer;
+  user-select: none;
+}
+
+.heatmap-row-label:hover,
+.heatmap-hour:hover {
+  color: var(--text);
+}
+
+.heatmap-row-label.active,
+.heatmap-hour.active {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.heatmap-cell.row-active,
+.heatmap-cell.col-active {
+  outline: 2px solid var(--busy);
+  outline-offset: -2px;
+}
+
 .heatmap-cell.sparse {
   opacity: 0.5;
 }

@@ -280,7 +280,56 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.ok(filledCells.length >= 1, '至少有一个有数据的格子');
     assert.ok(Number(filledCells[0].dataset.usage) >= 0);
     assert.match(filledCells[0].title, /usage \d+% · \d+ samples/);
-    assert.match(document.getElementById('heatmap-hint').textContent, /samples\/cell/);
+    assert.match(
+      document.getElementById('heatmap-hint').textContent,
+      /samples · click a row or column/,
+      '热力图提示说明用全部历史样本并可点行/列',
+    );
+
+    // 历史剖面：默认全部按小时；点行 → 该周几的 24 小时剖面；点列 → 该小时的 7 天剖面
+    await waitFor(() => charts().profile && charts().profile.data.labels.length === 24, {
+      label: '默认剖面（24 小时）',
+    });
+    assert.match(document.getElementById('profile-hint').textContent, /All days · usage by hour/);
+
+    const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
+      (node) => node.textContent === 'Tue',
+    );
+    tueLabel.click();
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.data.labels.length === 24 &&
+        /Tue · usage by hour/.test(document.getElementById('profile-hint').textContent),
+      { label: '点击周几行显示该天的小时剖面' },
+    );
+    assert.ok(
+      [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
+        (node) => node.classList.contains('active') && node.textContent === 'Tue',
+      ),
+      '选中的周几行应高亮',
+    );
+    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.row-active').length, 24, '该行所有格子高亮');
+
+    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.data.labels.length === 7 &&
+        /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
+      { label: '点击小时列显示一周 7 天剖面' },
+    );
+    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.col-active').length, 7, '该列所有格子高亮');
+
+    // 再次点击同一列 → 取消选择，回到默认剖面
+    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.data.labels.length === 24 &&
+        /All days/.test(document.getElementById('profile-hint').textContent),
+      { label: '再次点击取消选择' },
+    );
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
@@ -316,20 +365,23 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     });
     assert.match(document.getElementById('selected-count').textContent, /0\/4/);
 
-    // 清空选择后：趋势图/小时图/热力图显示占位，状态占比仍是 4 台机器
+    // 清空选择后：趋势图/小时图显示占位；状态占比与热力图（全部历史）不受影响
     await waitFor(() => document.querySelector('#chart-trend .empty'), { label: '趋势图空状态' });
     assert.equal(charts().trend, null, '清空选择后趋势图实例应销毁');
-    await waitFor(() => document.querySelector('#heatmap .empty'), { label: '热力图空状态' });
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
       label: '状态占比始终显示全部 4 台机器',
     });
+    assert.ok(
+      document.querySelectorAll('#heatmap .heatmap-cell[data-samples]').length >= 1,
+      '热力图用全部历史样本，不随机器选择清空',
+    );
 
     document.getElementById('select-all').click(); // 恢复全选
     await waitFor(() => charts().trend && charts().bars && charts().hourly, {
       label: '恢复全选后图表重建',
     });
     await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
-      label: '恢复全选后热力图重建',
+      label: '恢复全选后热力图仍在',
     });
 
     // 5) 时间跨度切换
@@ -346,6 +398,13 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '占比图时段跟随时间跨度更新',
     });
     assert.match(document.getElementById('bars-range').textContent, /^\d{2}-\d{2} \d{2}:\d{2} – /);
+
+    // 热力图与剖面基于全部历史样本，不随时间跨度变化
+    assert.equal(
+      document.querySelectorAll('#heatmap .heatmap-cell[data-samples]').length,
+      filledCells.length,
+      '热力图不随时间跨度变化',
+    );
 
     // 6) 主题：Auto → Light → Dark，图表用深色色板重建
     const root = document.documentElement;

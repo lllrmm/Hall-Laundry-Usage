@@ -31,7 +31,8 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | Overall trend | 折线图：**Washers / Dryers 各一条线**，显示所选机器中在用台数随时间变化（Y 轴按峰值自适应） |
 | State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器，只跟随时间范围变化**，右上角显示实际时段（开始 – 结束，如 `10-26 13:30 – 10-27 13:30`） |
 | Usage rate by hour | 24 根柱状图（本地时间），每小时 in use 机器占比，柱子越高代表该时段越忙 |
-| Usage heatmap · weekday × hour | 7 行（周一…周日）× 24 列热力图，格子颜色 = 该星期几该小时的平均使用率；空格为无数据，样本过少的格子会变淡，悬停显示百分比与样本数 |
+| Usage heatmap · weekday × hour | 7 行（周一…周日）× 24 列热力图，格子颜色 = 该星期几该小时的平均使用率；**始终基于全部历史样本**（不随时间跨度 / 机器筛选变化），空格为无数据，样本过少的格子变淡，悬停显示百分比与样本数；点击行或列可查看剖面 |
+| Historical profile | 热力图的剖面图：点周几行 → 该天 24 小时使用率；点小时列 → 该小时一周 7 天的使用率；都不选时显示全部历史按小时（样本加权）的剖面；再点一次取消选择 |
 
 图表使用 **Chart.js 4**（本地 vendor，`public/vendor/chart.umd.js`，MIT），折线/堆叠柱/柱状图都由 Chart.js 渲染；悬停/触摸 tooltip、图例由库提供，主题颜色取自 CSS 变量。数据每 30 秒自动刷新，窗口尺寸变化时按新宽度重建图表。
 
