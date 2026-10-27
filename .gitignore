@@ -13,7 +13,6 @@ packages/laundry-monitor/data/
 *.sqlite-wal
 *.sqlite-shm
 
-# 逆向调查产物：浏览器抓包、探测脚本、SPA 打包/原始响应 dump 等，全部只留本地
 /reverse/
 
 # 运行日志

@@ -1,34 +1,16 @@
 /**
  * 真实接口冒烟测试（不打进 npm test，避免依赖网络/token）
  *
- *   node test/live-smoke.mjs        # 或 npm run smoke
+ *   node test/machines-live-smoke.mjs   # 或 npm run smoke
  *
- * token 来源：环境变量 LDR_TOKEN，否则 workspace 根目录的 token.txt。
- * 找不到 token 时跳过（退出码 0）。
+ * token 来源：环境变量 LDR_TOKEN；没有则跳过（退出码 0）。
  */
-
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { createClient, formatRemaining } from '../src/machines/index.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const rootTokenFile = path.resolve(here, '../../../token.txt');
-
-function loadToken() {
-  const fromEnv = process.env.LDR_TOKEN?.trim();
-  if (fromEnv) return fromEnv;
-  try {
-    return fs.readFileSync(rootTokenFile, 'utf8').trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-const token = loadToken();
+const token = process.env.LDR_TOKEN?.trim();
 if (!token) {
-  console.log('SKIP: 没有 token（设置 LDR_TOKEN 或创建 token.txt）');
+  console.log('SKIP: 没有 token（设置环境变量 LDR_TOKEN）');
   process.exit(0);
 }
 

@@ -31,7 +31,7 @@ laundry-dashboard-webpage（静态前端）◄── 浏览器
 
 ```bash
 cd packages/laundry-dashboard-api
-npm start                       # http://127.0.0.1:8787（只读 API）
+npm start                       # http://127.0.0.1:8787
 # 或：node bin/serve.mjs --config dashboard-api.config.json
 ```
 
@@ -83,7 +83,7 @@ npm start                       # http://127.0.0.1:8787（只读 API）
 
 ## 配置
 
-`dashboard-api.config.json`（已被 git 忽略；模板见 `dashboard-api.config.example.json`）：
+`dashboard-api.config.json`（模板见 `dashboard-api.config.example.json`）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|

@@ -517,13 +517,13 @@ print("available tickets:", len(available), "used tickets:", len(used))
 ### 7.4 本仓库自带 CLI
 
 ```bash
-node laundry.mjs machines        # 机器状态（表格，含倒计时）
-node laundry.mjs available       # Available Tickets
-node laundry.mjs used 10         # Used Tickets（最近 10 张）
-node laundry.mjs machines --json # 原始 JSON，便于管道处理
+cd packages/laundry-monitor
+node bin/machines.mjs          # 机器状态（表格，含倒计时）
+node bin/machines.mjs --json   # 原始 JSON，便于管道处理
 ```
 
-Token 读取顺序：环境变量 `LDR_TOKEN` → 当前目录 `token.txt`。
+Token：优先 `--token`，其次是环境变量 `LDR_TOKEN`；采集服务则使用 `monitor.config.json` 的 bearer。
+tickets / rooms 没有内置 CLI，请直接按上面的 HTTP 示例调用。
 
 ---
 

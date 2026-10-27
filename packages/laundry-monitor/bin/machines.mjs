@@ -4,7 +4,7 @@
  *
  *   laundry-machines                 表格输出
  *   laundry-machines --json          输出 JSON（去掉 raw 原始对象）
- *   laundry-machines --token <token> 指定 token（否则读 LDR_TOKEN / ./token.txt）
+ *   laundry-machines --token <token> 指定 token（否则读环境变量 LDR_TOKEN）
  */
 
 import { LaundryClient, formatRemaining } from '../src/machines/index.js';
@@ -13,7 +13,7 @@ const HELP = `用法: laundry-machines [选项]
 
 选项:
   -j, --json              输出 JSON（不含 raw 字段）
-      --token <token>     Bearer token（默认读环境变量 LDR_TOKEN 或 ./token.txt）
+      --token <token>     Bearer token（默认读环境变量 LDR_TOKEN）
       --base-url <url>    API 基址（默认 https://laundry.ust.hk/ldr/api）
       --timeout <ms>      请求超时，默认 15000
   -h, --help              显示帮助
@@ -126,7 +126,7 @@ main().then(
   (error) => {
     console.error(`${red('错误:')} ${error.message}`);
     if (error.code === 4032 || error.code === 4031) {
-      console.error(dim('token 失效或缺失：重新登录网页，复制 localStorage["ldr_student"].token 到 token.txt'));
+      console.error(dim('token 失效或缺失：重新登录网页，复制 localStorage["ldr_student"].token，设置 LDR_TOKEN 或使用 --token'));
     }
     process.exitCode = 1;
   },
