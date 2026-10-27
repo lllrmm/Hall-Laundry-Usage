@@ -423,6 +423,41 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       () => document.getElementById('bars-range').textContent === `Mon–Sun · ${rangeLabel}`,
       { label: 'State breakdown 时间范围标注 Mon–Sun + 时段' },
     );
+
+    // Inspection 柱状图点击某根柱子 → 跳到该星期的线图（等效热力图左侧选中那一天）
+    const barOptions = charts().profile.options;
+    assert.equal(typeof barOptions.onClick, 'function', '柱状图应支持点击');
+    // 点数据类型当天（fixture 只有那一天有数据）
+    const barIndex = (t0.getDay() + 6) % 7;
+    const dataWeekdayLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].map(
+      (node) => node.textContent,
+    )[barIndex];
+    barOptions.onClick({ native: {} }, [{ index: barIndex }]);
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.config.type === 'line' &&
+        charts().profile.data.datasets[0]?.data.length === 1440 &&
+        document.getElementById('profile-hint').textContent === dataWeekdayLabel &&
+        document.getElementById('bars-range').textContent === `${dataWeekdayLabel} · 00:00–23:59`,
+      { label: '点击柱子跳到该星期的线图' },
+    );
+    assert.equal(document.querySelector('.axis-selection')?.style.opacity, '0', '时间段选择已清除');
+    assert.ok(
+      [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
+        (node) => node.classList.contains('active') && node.textContent === dataWeekdayLabel,
+      ),
+      '等效于在热力图左侧选中该天',
+    );
+    // 还原为空选择，继续后面的互斥测试
+    findRow(dataWeekdayLabel).click();
+    await waitFor(
+      () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
+        document.getElementById('profile-hint').textContent === '',
+      { label: '取消该天选择' },
+    );
+
     assert.equal(dayRequests.length, 0, '点分钟 / 选星期 / 拖时段都只在本地重算，不请求后端');
 
     // 互斥：时段已选时点星期 → 时段选择被清空（选 fixture 当天，保证有数据）

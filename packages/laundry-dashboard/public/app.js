@@ -927,6 +927,29 @@
     return parts.join(', ');
   }
 
+  /**
+   * Inspection 柱状图：点击某根柱子 → 选中该星期（等效点击热力图左侧行标签），
+   * 切换到该星期的 1 分钟线图。
+   */
+  function barChartOptions(colors, compact, weekdayList) {
+    const options = profileChartOptions(colors, compact);
+    options.onClick = (event, elements) => {
+      const index = elements?.[0]?.index;
+      const weekday = index === undefined || index === null ? undefined : weekdayList[index];
+      if (weekday === undefined) return;
+      state.weekdaySelection = new Set([weekday]);
+      state.heatmapFocus = null;
+      state.heatmapRange = null;
+      // 等 Chart.js 退出本次事件处理后再重绘
+      setTimeout(renderViews, 0);
+    };
+    options.onHover = (event, elements) => {
+      const target = event?.native?.target;
+      if (target?.style) target.style.cursor = elements?.length ? 'pointer' : 'default';
+    };
+    return options;
+  }
+
   /** 历史剖面：行/默认 → 1 分钟线图；列（分钟）→ 一周 7 天柱状图 */
   function renderProfile() {
     const container = $('chart-profile');
@@ -974,7 +997,7 @@
             },
           ],
         },
-        options: profileChartOptions(colors, compact),
+        options: barChartOptions(colors, compact, weekdayList),
       });
       return;
     }
@@ -1023,7 +1046,7 @@
             },
           ],
         },
-        options: profileChartOptions(colors, compact),
+        options: barChartOptions(colors, compact, weekdayList),
       });
       return;
     }
