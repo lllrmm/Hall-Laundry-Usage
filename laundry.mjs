@@ -2,7 +2,7 @@
  * HKUST Laundry System — 只读信息获取 CLI
  * 配套文档: docs/API.md
  *
- * 机器状态的 HTTP 调用/鉴权/归一化复用 `packages/laundry-machines`，
+ * 机器状态的 HTTP 调用/鉴权/归一化复用 `packages/laundry-monitor/src/machines/`，
  * 本文件只保留 tickets / rooms 接口与命令行输出。
  *
  * 用法:
