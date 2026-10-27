@@ -20,6 +20,11 @@
   --busy: #f59e0b;
   --busy-strong: #b45309;
   --busy-tint: #fffaf1;
+  --maintenance: #a855f7;
+  --disabled: #94a3b8;
+  --offline: #64748b;
+  --on-hold: #fb923c;
+  --unknown: #cbd5e1;
   --chart-washer: #0891b2;
   --chart-dryer: #d97706;
   --off: #94a3b8;
@@ -56,6 +61,11 @@
   --busy: #fbbf24;
   --busy-strong: #fcd34d;
   --busy-tint: #2a2110;
+  --maintenance: #c084fc;
+  --disabled: #94a3b8;
+  --offline: #cbd5e1;
+  --on-hold: #fdba74;
+  --unknown: #475569;
   --chart-washer: #22d3ee;
   --chart-dryer: #fbbf24;
   --off: #64748b;

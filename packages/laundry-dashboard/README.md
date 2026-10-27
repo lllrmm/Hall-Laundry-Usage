@@ -28,7 +28,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
 | Date range | 选择开始 / 结束日期（本地日期，含首尾两天），留空 = 全部历史；**热力图 / Historical profile / State breakdown 都跟随** |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空；**热力图 / 剖面 / State breakdown 都跟随**（清空选择时显示占位） |
-| State breakdown | 横向堆叠柱状图：每台机器 **In use / Free** 占比（维护 / 离线 / 停用样本**不计入分母**，tooltip 显示被排除的样本数）；样本范围 = Date range + Machines selected + 勾选的星期 + 热力图选中的时段 |
+| State breakdown | 横向堆叠柱状图：每台机器**各种状态的占比**（In use / Free / Maintenance / Offline / Disabled / On hold / Unknown），分母为该机器的全部样本；tooltip 显示总样本数；样本范围 = Date range + Machines selected + 勾选的星期 + 热力图选中的时段 |
 | Usage heatmap · weekday × minute | Canvas 绘制的 7 行（周一…周日）× **1440 列（1 分钟）** 热力图，**压缩到视口宽度、无需滚动**；颜色 = 该星期几该分钟的平均使用率（只统计可运营样本）；跟随 Date range 与机器选择；点行标签可多选星期；**热力图内部点击/悬停只弹标签显示该点信息（不改变选择）**；**顶部时间轴拖动选择时段，选择粒度 30 分钟** |
 | Historical profile | 热力图剖面：勾选一个或多个星期 → 合并的 1 分钟使用率线图（洗衣机 / 烘干机各一条，按样本加权；**横轴标签间距限定为 15 / 30 / 60 / 120 分钟**，按容器宽度自动选择）；点分钟 / 拖选时段 → 仅按**勾选的星期**统计的柱状图；跟随 Date range 与机器选择；百分比同样**只统计可运营样本** |
 
@@ -80,7 +80,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
 | `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
 | `GET /api/series?since=24h&machines=id1,id2` | 时间序列（自动分桶，返回 `buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`） |
-| `GET /api/bars?since=all&weekday=0&weekdays=0,2&minute=720` | 每台机器状态占比（`samples` 为可运营样本数，`excludedSamples` 为被排除的维护/离线样本）；`weekday` / `weekdays`、`hour`、`minute`、`fromMinute`/`toMinute` 组合筛选，返回 `scope` |
+| `GET /api/bars?since=all&weekday=0&weekdays=0,2&minute=720` | 每台机器各状态占比（In use / Free / Maintenance / Offline / Disabled / On hold / Unknown，分母为全部样本）；`weekday` / `weekdays`、`hour`、`minute`、`fromMinute`/`toMinute` 组合筛选，返回 `scope` |
 | `GET /api/hourly?since=7d&machines=...` | 按本地小时聚合的使用率 / 空闲率（24 桶，含 `usageRatio` / `freeRatio`） |
 | `GET /api/heatmap?since=...&until=...&machines=...` | 星期 × 分钟热力图：`cells[]`（`weekday` 0=周一 … 6=周日、`minute` 0–1439、`samples`（可运营样本）、`usageRatio`）+ 覆盖时段 |
 | `GET /api/profile?since=...&until=...&machines=...&weekday=...&weekdays=0,2&bucketSeconds=60` | 时间剖面：默认 5 分钟（288 槽），`bucketSeconds=60` 时 1 分钟（1440 槽）；`weekday`/`weekdays` 可多选；`machines` 过滤机器；含总/洗衣机/烘干机的 `usageRatio` 与 `samples` |

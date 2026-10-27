@@ -415,11 +415,13 @@ test('维护 / 离线样本不计入百分比分母', () => {
     const { rows } = dashboard.bars({ since: null });
     const ok = rows.find((row) => row.id === 'ok1');
     const mt = rows.find((row) => row.id === 'mt1');
-    assert.equal(ok.samples, 1, '可运营样本计入分母');
-    assert.equal(ok.excludedSamples, 0);
+    assert.equal(ok.samples, 1);
     assert.equal(ok.inUseRatio, 1);
-    assert.equal(mt.samples, 0, '维护机器不计入分母');
-    assert.equal(mt.excludedSamples, 1);
+    // State breakdown 现在展示各种状态：维护机器占比 100% 维护
+    assert.equal(mt.samples, 1, '维护样本计入状态占比');
+    assert.equal(mt.maintenanceRatio, 1, '维护状态单独统计');
+    assert.equal(mt.inUseRatio, 0);
+    assert.equal(mt.availableRatio, 0);
 
     const heat = dashboard.heatmap({ since: null });
     assert.ok(heat.cells.length >= 1);

@@ -449,10 +449,19 @@ export class DashboardDatabase {
           `SELECT s.machine_id AS id,
                   COALESCE(m.name, s.machine_id) AS name,
                   m.kind AS kind,
-                  COUNT(*) AS total_samples,
-                  SUM(CASE WHEN s.status = 'enabled' AND s.state IN ('available', 'in_use') THEN 1 ELSE 0 END) AS samples,
+                  COUNT(*) AS samples,
                   SUM(CASE WHEN s.available = 1 THEN 1 ELSE 0 END) AS available_count,
                   SUM(CASE WHEN s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS in_use_count,
+                  SUM(CASE WHEN s.status = 'maintenance' THEN 1 ELSE 0 END) AS maintenance_count,
+                  SUM(CASE WHEN s.status = 'disabled' THEN 1 ELSE 0 END) AS disabled_count,
+                  SUM(CASE WHEN s.status = 'on_hold' THEN 1 ELSE 0 END) AS on_hold_count,
+                  SUM(CASE WHEN s.state = 'offline' THEN 1 ELSE 0 END) AS offline_count,
+                  SUM(CASE
+                        WHEN s.available = 1
+                          OR (s.state = 'in_use' AND s.status = 'enabled')
+                          OR s.status IN ('maintenance', 'disabled', 'on_hold')
+                          OR s.state = 'offline'
+                        THEN 0 ELSE 1 END) AS unknown_count,
                   MIN(s.observed_at) AS first_seen_at,
                   MAX(s.observed_at) AS last_seen_at
            FROM machine_snapshots s
@@ -463,18 +472,20 @@ export class DashboardDatabase {
         )
         .all(...params)
         .map((row) => {
-          const samples = Number(row.samples);
-          const available = Number(row.available_count);
-          const inUse = Number(row.in_use_count);
+          const samples = Number(row.samples) || 0;
+          const ratio = (count) => (samples > 0 ? Number(count) / samples : 0);
           return {
             id: row.id,
             name: row.name,
             kind: row.kind,
             samples,
-            excludedSamples: Number(row.total_samples) - samples,
-            // 维护/离线/停用不计入分母
-            availableRatio: samples > 0 ? available / samples : 0,
-            inUseRatio: samples > 0 ? inUse / samples : 0,
+            availableRatio: ratio(row.available_count),
+            inUseRatio: ratio(row.in_use_count),
+            maintenanceRatio: ratio(row.maintenance_count),
+            disabledRatio: ratio(row.disabled_count),
+            onHoldRatio: ratio(row.on_hold_count),
+            offlineRatio: ratio(row.offline_count),
+            unknownRatio: ratio(row.unknown_count),
             firstSeenAt: row.first_seen_at,
             lastSeenAt: row.last_seen_at,
           };

@@ -457,6 +457,11 @@
       free: cssVar('--free', '#22c55e'),
       freeStrong: cssVar('--free-strong', '#15803d'),
       busy: cssVar('--busy', '#f59e0b'),
+      maintenance: cssVar('--maintenance', '#a855f7'),
+      disabled: cssVar('--disabled', '#94a3b8'),
+      offline: cssVar('--offline', '#64748b'),
+      onHold: cssVar('--on-hold', '#fb923c'),
+      unknown: cssVar('--unknown', '#cbd5e1'),
       off: cssVar('--off', '#94a3b8'),
       washer: cssVar('--chart-washer', '#0891b2'),
       dryer: cssVar('--chart-dryer', '#d97706'),
@@ -558,11 +563,7 @@
       label: (item) => `${item.dataset.label}: ${item.formattedValue}%`,
       footer: (items) => {
         const row = rows[items[0]?.dataIndex];
-        if (!row) return '';
-        const excluded = row.excludedSamples ?? 0;
-        return excluded > 0
-          ? `${row.samples} operational samples · ${excluded} maintenance/offline excluded`
-          : `${row.samples} operational samples`;
+        return row ? `${row.samples} samples` : '';
       },
     };
     options.scales = {
@@ -585,28 +586,29 @@
       },
     };
 
+    // 各种状态都参与占比（In use / Free / 维护 / 离线 / 停用 / 暂停 / 未知）
+    const categories = [
+      { key: 'inUseRatio', label: 'In use', color: colors.busy },
+      { key: 'availableRatio', label: 'Free', color: colors.free },
+      { key: 'maintenanceRatio', label: 'Maintenance', color: colors.maintenance },
+      { key: 'offlineRatio', label: 'Offline', color: colors.offline },
+      { key: 'disabledRatio', label: 'Disabled', color: colors.disabled },
+      { key: 'onHoldRatio', label: 'On hold', color: colors.onHold },
+      { key: 'unknownRatio', label: 'Unknown', color: colors.unknown },
+    ].filter((category) => rows.some((row) => (row[category.key] ?? 0) > 0.00001));
+
     mountChart('bars', container, {
       type: 'bar',
       data: {
         labels: rows.map((row) => (compact ? shortMachineName(row.name) : row.name)),
-        datasets: [
-          {
-            label: 'In use',
-            data: rows.map((row) => round1(row.inUseRatio * 100)),
-            backgroundColor: colors.busy,
-            stack: 'state',
-            borderWidth: 0,
-            borderSkipped: false,
-          },
-          {
-            label: 'Free',
-            data: rows.map((row) => round1(row.availableRatio * 100)),
-            backgroundColor: colors.free,
-            stack: 'state',
-            borderWidth: 0,
-            borderSkipped: false,
-          },
-        ],
+        datasets: categories.map((category) => ({
+          label: category.label,
+          data: rows.map((row) => round1((row[category.key] ?? 0) * 100)),
+          backgroundColor: category.color,
+          stack: 'state',
+          borderWidth: 0,
+          borderSkipped: false,
+        })),
       },
       options,
     });
