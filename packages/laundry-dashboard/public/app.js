@@ -152,12 +152,6 @@
     return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
-  /** 时段展示用：MM-DD HH:mm（本地时间） */
-  function fmtRangeTime(iso) {
-    const d = new Date(iso);
-    return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  }
-
   /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏图表标签用短名 */
   function shortMachineName(name) {
     return String(name ?? '').replace(/^UG\d+\s+/i, '');
@@ -907,9 +901,30 @@
     return [...state.weekdaySelection].sort((a, b) => a - b);
   }
 
-  function weekdaySelectionLabel() {
-    const list = selectedWeekdays();
-    return list.length === 7 ? '' : list.map((value) => WEEKDAY_LABELS[value]).join(', ');
+  /**
+   * 星期列表 → 紧凑标签：连续的天合并成区间。
+   * 例：[0,1,2] → "Mon–Wed"；[0,1,4,5,6] → "Mon–Tue, Fri–Sun"；7 天 → "Mon–Sun"。
+   */
+  function formatWeekdayRanges(weekdayList) {
+    const sorted = [...new Set(weekdayList)].sort((a, b) => a - b);
+    if (!sorted.length) return '';
+    const parts = [];
+    let start = sorted[0];
+    let previous = sorted[0];
+    const flush = () => {
+      parts.push(start === previous ? WEEKDAY_LABELS[start] : `${WEEKDAY_LABELS[start]}–${WEEKDAY_LABELS[previous]}`);
+    };
+    for (const weekday of sorted.slice(1)) {
+      if (weekday === previous + 1) {
+        previous = weekday;
+        continue;
+      }
+      flush();
+      start = weekday;
+      previous = weekday;
+    }
+    flush();
+    return parts.join(', ');
   }
 
   /** 历史剖面：行/默认 → 1 分钟线图；列（分钟）→ 一周 7 天柱状图 */
@@ -941,8 +956,8 @@
       }
 
       const time = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)}`;
-      const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
-      if (hint) hint.textContent = `${wdPrefix}${time} · usage by weekday${dateRangeSuffix()}`;
+      // 柱状图模式只显示时间段
+      if (hint) hint.textContent = time;
       mountChart('profile', container, {
         type: 'bar',
         data: {
@@ -990,10 +1005,8 @@
         samples.push(weight);
       }
 
-      const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
-      if (hint) {
-        hint.textContent = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday${dateRangeSuffix()}`;
-      }
+      // 柱状图模式只显示时间段
+      if (hint) hint.textContent = `${hhmm(focus.from)}–${hhmm(focus.to)}`;
       mountChart('profile', container, {
         type: 'bar',
         data: {
@@ -1032,8 +1045,12 @@
     const washerPoints = washerValues.map((value, index) => ({ x: index, y: value }));
     const dryerPoints = dryerValues.map((value, index) => ({ x: index, y: value }));
 
-    // 默认 1 分钟线图：hint 只保留勾选的星期（不再显示 "1-min profile · 时段"）
-    if (hint) hint.textContent = weekdaySelectionLabel();
+    // 默认 1 分钟线图：hint 只保留勾选的星期（连续的天合并成区间；没选则不显示）
+    if (hint) {
+      hint.textContent = state.weekdaySelection.size
+        ? formatWeekdayRanges([...state.weekdaySelection])
+        : '';
+    }
 
     // 只画有样本的机型（机器选择变化时图例自动收缩）
     const datasets = [];
@@ -1317,21 +1334,21 @@
       );
   }
 
-  /** State breakdown 的筛选范围标签（热力图选中的分钟 / 时段 / 星期） */
+  /** State breakdown 的筛选范围标签：始终显示「星期 · 时段」 */
   function barsScopeLabel() {
     const focus = state.heatmapFocus;
-    const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
-    const weekdaySpan = `${WEEKDAY_LABELS[0]}–${WEEKDAY_LABELS[6]}`;
+    const weekdays = state.weekdaySelection.size
+      ? [...state.weekdaySelection].sort((a, b) => a - b)
+      : [0, 1, 2, 3, 4, 5, 6];
+    const dayLabel = formatWeekdayRanges(weekdays);
     if (focus && focus.kind === 'minute') {
-      // 时间筛选跨周一到周日
-      return `${weekdaySpan} · ${hhmm(focus.value)}${dateRangeSuffix()}`;
+      return `${dayLabel} · ${hhmm(focus.value)}${dateRangeSuffix()}`;
     }
     if (focus && focus.kind === 'range') {
-      // 时间范围筛选跨周一到周日
-      return `${weekdaySpan} · ${hhmm(focus.from)}–${hhmm(focus.to)}${dateRangeSuffix()}`;
+      return `${dayLabel} · ${hhmm(focus.from)}–${hhmm(focus.to)}${dateRangeSuffix()}`;
     }
-    if (weekdays.length) return `${weekdaySelectionLabel()}${dateRangeSuffix()}`;
-    return null;
+    // 没有时间筛选时，时段按整天显示
+    return `${dayLabel} · 00:00–23:59${dateRangeSuffix()}`;
   }
 
   function clearCharts(message = 'No data yet (waiting for polls)') {
@@ -1383,13 +1400,7 @@
     renderProfile();
     renderBarsChart();
 
-    const scopeLabel = barsScopeLabel();
-    $('bars-range').textContent = state.bars.rows.length
-      ? scopeLabel ??
-        (coverage.since && coverage.until
-          ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
-          : '')
-      : '';
+    $('bars-range').textContent = state.bars.rows.length ? barsScopeLabel() : '';
   }
 
   /* ---------------- 数据刷新 ---------------- */

@@ -267,10 +267,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
     assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');
     const barsRangeText = document.getElementById('bars-range').textContent;
-    assert.match(
+    assert.equal(
       barsRangeText,
-      /^\d{2}-\d{2} \d{2}:\d{2} – \d{2}-\d{2} \d{2}:\d{2}$/,
-      '占比图右上角显示开始 – 结束时段',
+      'Mon–Sun · 00:00–23:59',
+      '占比图右上角始终显示「星期 · 时段」（无时间筛选时为全天）',
     );
 
     // 热力图：Canvas 绘制（7 行 × 1440 分钟），表头 24 个小时刻度
@@ -358,9 +358,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
     assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
-    await waitFor(() => /^Tue$/.test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 跟随选中的星期几',
-    });
+    await waitFor(
+      () => document.getElementById('bars-range').textContent === 'Tue · 00:00–23:59',
+      { label: 'State breakdown 跟随选中的星期几' },
+    );
     assert.ok(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
         (node) => node.classList.contains('active') && node.textContent === 'Tue',
@@ -377,12 +378,13 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 2 &&
-        document.getElementById('profile-hint').textContent === 'Mon, Tue',
+        document.getElementById('profile-hint').textContent === 'Mon–Tue',
       { label: '同时勾选 Mon + Tue' },
     );
-    await waitFor(() => /^Mon, Tue$/.test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 跟随多选的星期',
-    });
+    await waitFor(
+      () => document.getElementById('bars-range').textContent === 'Mon–Tue · 00:00–23:59',
+      { label: 'State breakdown 跟随多选的星期（连续合并为 Mon–Tue）' },
+    );
 
     // 互斥：已选星期时拖动时段 → 星期选择被清空
     const pad2 = (value) => String(value).padStart(2, '0');
@@ -408,16 +410,19 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         charts().profile &&
         charts().profile.config.type === 'bar' &&
         charts().profile.data.labels.length === 7 &&
-        new RegExp(`${rangeLabel} · usage by weekday`).test(
-          document.getElementById('profile-hint').textContent,
-        ),
+        document.getElementById('profile-hint').textContent === rangeLabel,
       { label: '拖动时段后清空星期选择并显示周几柱状图' },
     );
-    assert.doesNotMatch(document.getElementById('profile-hint').textContent, /Mon, Tue/, '时段选择与星期互斥');
-    // State breakdown 为时间范围时，标注这是周一到周日
-    await waitFor(() => /^Mon–Sun · /.test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 时间范围标注 Mon–Sun',
-    });
+    assert.doesNotMatch(
+      document.getElementById('profile-hint').textContent,
+      /Mon–Tue|usage by weekday/,
+      '柱状图只显示时间段，且时段选择与星期互斥',
+    );
+    // State breakdown 为时间范围时，标注 Mon–Sun + 时间段
+    await waitFor(
+      () => document.getElementById('bars-range').textContent === `Mon–Sun · ${rangeLabel}`,
+      { label: 'State breakdown 时间范围标注 Mon–Sun + 时段' },
+    );
     assert.equal(dayRequests.length, 0, '点分钟 / 选星期 / 拖时段都只在本地重算，不请求后端');
 
     // 互斥：时段已选时点星期 → 时段选择被清空（选 fixture 当天，保证有数据）
@@ -433,7 +438,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: '点星期后清空时段选择' },
     );
     await waitFor(
-      () => document.getElementById('bars-range').textContent === todayLabel,
+      () => document.getElementById('bars-range').textContent === `${todayLabel} · 00:00–23:59`,
       { label: 'State breakdown 跟随星期' },
     );
     assert.equal(document.querySelector('.axis-selection')?.style.opacity, '0', '时段选区已清除');
@@ -448,6 +453,27 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         document.getElementById('profile-hint').textContent === '',
       { label: '取消星期后回到默认剖面' },
     );
+
+    // Bug 回归：7 天全选时标签不能消失（连续合并为 Mon–Sun）
+    const allLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    for (const label of allLabels) findRow(label).click();
+    await waitFor(
+      () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 7 &&
+        document.getElementById('bars-range').textContent === 'Mon–Sun · 00:00–23:59',
+      { label: '7 天全选时 State breakdown 显示 Mon–Sun' },
+    );
+    assert.equal(
+      document.getElementById('profile-hint').textContent,
+      'Mon–Sun',
+      '7 天全选时 Inspection 也显示 Mon–Sun',
+    );
+    // 还原为空选择
+    for (const label of allLabels) findRow(label).click();
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0, {
+      label: '取消全选',
+    });
+    assert.equal(document.getElementById('profile-hint').textContent, '');
 
     // 3) 选择控件：Date range 输入 + 机器 chips
     assert.equal(document.querySelectorAll('#ranges').length, 0, '旧的相对窗口 chips 已移除');
