@@ -3,12 +3,10 @@ node_modules/
 .npm-cache/
 *.tgz
 
-# 本地运行配置（示例文件已入库）
+# 本地运行配置（可能含 敏感信息 / 凭据）
+packages/laundry-monitor/monitor.config.json
 packages/laundry-dashboard-api/dashboard-api.config.json
 packages/laundry-dashboard-webpage/dashboard-webpage.config.json
-
-# 敏感信息 / 凭据
-packages/laundry-monitor/monitor.config.json
 
 # 监控数据库（含采集数据）
 packages/laundry-monitor/data/
