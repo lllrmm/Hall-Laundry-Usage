@@ -34,7 +34,6 @@
   "scripts": {
     "test": "node --test test/",
     "test:in-process": "node --test-isolation=none --test test/normalize.test.mjs test/client.test.mjs",
-    "test:bun": "bun test",
     "typecheck": "tsc -p tsconfig.json",
     "smoke": "node test/live-smoke.mjs"
   },

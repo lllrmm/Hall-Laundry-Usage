@@ -10,7 +10,7 @@
 
 ## 快速开始
 
-要求：**Node.js ≥ 22.5**（`node:sqlite`）。
+要求：**Node.js ≥ 22.5**（`node:sqlite`），包管理器用 **npm**。
 
 ### 1. 准备 token
 

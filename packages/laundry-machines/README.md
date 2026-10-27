@@ -9,8 +9,6 @@ HKUST 洗衣房**机器状态**查询库（只读）。零依赖，ESM，自带 
 
 ```bash
 npm install hkust-laundry-machines
-# 或
-bun add hkust-laundry-machines
 ```
 
 本地开发（当前仓库内）：

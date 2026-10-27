@@ -7,7 +7,12 @@
   "bin": {
     "laundry-monitor": "./bin/cli.mjs"
   },
-  "files": ["bin", "src", "monitor.config.example.json", "README.md"],
+  "files": [
+    "bin",
+    "src",
+    "monitor.config.example.json",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22.5"
   },
@@ -16,8 +21,7 @@
     "once": "node bin/cli.mjs once --config monitor.config.json",
     "stats": "node bin/cli.mjs stats --config monitor.config.json",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/db.test.mjs test/collector.test.mjs test/series.test.mjs",
-    "test:bun": "bun test"
+    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/db.test.mjs test/collector.test.mjs test/series.test.mjs"
   },
   "dependencies": {
     "hkust-laundry-machines": "file:../laundry-machines"

@@ -145,8 +145,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 ## 测试
 
 ```bash
-npm test                    # node：数据层 + HTTP API + 聚合/取数纯函数 + jsdom 前端
-bun test                    # jsdom 渲染测试只在 node 下跑，其余用例在 bun 下同样执行
+npm test                    # 数据层 + HTTP API + 聚合/取数纯函数 + jsdom 前端
 
 # 端到端（需要采集服务也在跑）
 node scripts/e2e-check.mjs          # 页面 + 各 API 全量校验
