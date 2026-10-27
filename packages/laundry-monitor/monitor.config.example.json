@@ -2,7 +2,7 @@
   "_comment": "复制为 monitor.config.json 后填入 bearer。字符串支持 ${ENV_VAR} 展开。",
   "bearer": "<YOUR_BEARER_TOKEN>",
   "baseUrl": "https://laundry.ust.hk/ldr/api",
-  "pollIntervalSeconds": 60,
+  "pollPeriodSeconds": 60,
   "timeoutMs": 15000,
   "database": "./data/laundry.sqlite",
   "seriesDatabase": "./data/laundry-series.sqlite",

@@ -49,7 +49,7 @@ token 获取：登录 <https://laundry.ust.hk/ldr/app/> → DevTools → Applica
 | `bearer` | *必填* | Bearer token；可写 `${LDR_TOKEN}` 引用环境变量 |
 | `bearerEnv` | — | 环境变量名，`bearer` 为空时使用 |
 | `baseUrl` | `https://laundry.ust.hk/ldr/api` | API 基址 |
-| `pollIntervalSeconds` | `60` | 采集周期（上一轮开始 → 下一轮开始），最小 5，建议 ≥ 15（站点未公开限流） |
+| `pollPeriodSeconds` | `60` | 采集周期（上一轮开始 → 下一轮开始），最小 5，建议 ≥ 15（站点未公开限流） |
 | `timeoutMs` | `15000` | 单次请求超时 |
 | `database` | `./data/laundry.sqlite` | 原始库路径；相对路径以**配置文件所在目录**为基准 |
 | `seriesDatabase` | `./data/laundry-series.sqlite` | 序列库路径（日级压缩派生层） |
@@ -224,7 +224,7 @@ db.close();
 ## 注意
 
 - token 过期后 `poll_runs` 会持续记录 `4032` 失败，重新登录网页换 `token` 后即可恢复（历史数据不受影响）；
-- 长期运行建议 `pollIntervalSeconds >= 60`，一个月的快照量约 12 台 × 1440 次/天 × 30 ≈ 52 万行，SQLite 完全够用。
+- 长期运行建议 `pollPeriodSeconds >= 60`，一个月的快照量约 12 台 × 1440 次/天 × 30 ≈ 52 万行，SQLite 完全够用。
 
 ## License
 

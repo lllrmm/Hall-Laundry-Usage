@@ -16,12 +16,12 @@ import { pollOnce } from './collector.js';
  * @param {number} [options.purgeEveryPolls] 每多少次轮询做一次历史清理
  */
 export async function startMonitor({ client, db, series, config, logger, signal, purgeEveryPolls = 120 }) {
-  const intervalMs = config.pollIntervalMs;
+  const intervalMs = config.pollPeriodMs;
   const retention = config.retentionDays;
   let polls = 0;
 
   logger.info(
-    `开始监控：间隔 ${config.pollIntervalSeconds}s，数据库 ${config.databasePath}` +
+    `开始监控：间隔 ${config.pollPeriodSeconds}s，数据库 ${config.databasePath}` +
       (series ? `，序列库 ${series.filePath}` : '') +
       `，保留 ${retention === null ? '全部历史' : `${retention} 天`}`,
   );
@@ -45,7 +45,7 @@ export async function startMonitor({ client, db, series, config, logger, signal,
     }
 
     if (signal?.aborted) break;
-    // 固定节拍：从本轮开始计时，扣掉本轮耗时，保证 start-to-start ≈ pollIntervalMs
+    // 固定节拍：从本轮开始计时，扣掉本轮耗时，保证 start-to-start ≈ pollPeriodMs
     await delay(computeSleepMs(intervalMs, Date.now() - startedAt), signal);
   }
 

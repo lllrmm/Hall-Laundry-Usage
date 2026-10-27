@@ -18,7 +18,7 @@ export const RECOMMENDED_POLL_INTERVAL_SECONDS = 15;
 
 export const DEFAULTS = {
   baseUrl: 'https://laundry.ust.hk/ldr/api',
-  pollIntervalSeconds: 60,
+  pollPeriodSeconds: 60,
   timeoutMs: 15_000,
   database: './data/laundry.sqlite',
   seriesDatabase: './data/laundry-series.sqlite',
@@ -81,13 +81,13 @@ export function normalizeConfig(
     throw new Error(`baseUrl 必须是 http(s) 地址${where}，当前为 ${JSON.stringify(baseUrl)}`);
   }
 
-  const pollIntervalSeconds = Number(input.pollIntervalSeconds ?? DEFAULTS.pollIntervalSeconds);
-  if (!Number.isFinite(pollIntervalSeconds) || pollIntervalSeconds <= 0) {
-    throw new Error(`pollIntervalSeconds 必须是正数${where}`);
+  const pollPeriodSeconds = Number(input.pollPeriodSeconds ?? DEFAULTS.pollPeriodSeconds);
+  if (!Number.isFinite(pollPeriodSeconds) || pollPeriodSeconds <= 0) {
+    throw new Error(`pollPeriodSeconds 必须是正数${where}`);
   }
-  if (pollIntervalSeconds < MIN_POLL_INTERVAL_SECONDS) {
+  if (pollPeriodSeconds < MIN_POLL_INTERVAL_SECONDS) {
     throw new Error(
-      `pollIntervalSeconds 不能小于 ${MIN_POLL_INTERVAL_SECONDS} 秒${where}；` +
+      `pollPeriodSeconds 不能小于 ${MIN_POLL_INTERVAL_SECONDS} 秒${where}；` +
         `站点未公开限流，建议 >= ${RECOMMENDED_POLL_INTERVAL_SECONDS} 秒`,
     );
   }
@@ -126,17 +126,17 @@ export function normalizeConfig(
   if (!bearer) {
     warnings.push('配置里没有 bearer：stats/export 不需要，但 run/once 必须有');
   }
-  if (pollIntervalSeconds < RECOMMENDED_POLL_INTERVAL_SECONDS) {
+  if (pollPeriodSeconds < RECOMMENDED_POLL_INTERVAL_SECONDS) {
     warnings.push(
-      `pollIntervalSeconds=${pollIntervalSeconds} 偏小；站点没有公开限流策略，建议 >= ${RECOMMENDED_POLL_INTERVAL_SECONDS} 秒`,
+      `pollPeriodSeconds=${pollPeriodSeconds} 偏小；站点没有公开限流策略，建议 >= ${RECOMMENDED_POLL_INTERVAL_SECONDS} 秒`,
     );
   }
 
   return {
     bearer,
     baseUrl,
-    pollIntervalSeconds,
-    pollIntervalMs: Math.round(pollIntervalSeconds * 1000),
+    pollPeriodSeconds,
+    pollPeriodMs: Math.round(pollPeriodSeconds * 1000),
     timeoutMs,
     databasePath,
     seriesDatabasePath,

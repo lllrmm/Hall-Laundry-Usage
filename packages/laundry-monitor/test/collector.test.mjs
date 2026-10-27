@@ -102,7 +102,7 @@ test('startMonitor：按间隔循环采集，abort 后优雅停止', async () =>
   await withTempDb(async (db) => {
     const client = fakeClient();
     const controller = new AbortController();
-    const config = { pollIntervalSeconds: 0.01, pollIntervalMs: 10, databasePath: db.filePath, retentionDays: null };
+    const config = { pollPeriodSeconds: 0.01, pollPeriodMs: 10, databasePath: db.filePath, retentionDays: null };
 
     const run = startMonitor({ client, db, config, logger: silentLogger, signal: controller.signal });
     setTimeout(() => controller.abort(), 60);
@@ -126,7 +126,7 @@ test('startMonitor：采集失败不中断循环', async () => {
     };
 
     const controller = new AbortController();
-    const config = { pollIntervalSeconds: 0.01, pollIntervalMs: 10, databasePath: db.filePath, retentionDays: null };
+    const config = { pollPeriodSeconds: 0.01, pollPeriodMs: 10, databasePath: db.filePath, retentionDays: null };
 
     const run = startMonitor({ client, db, config, logger: silentLogger, signal: controller.signal });
     setTimeout(() => controller.abort(), 60);
