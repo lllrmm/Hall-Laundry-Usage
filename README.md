@@ -132,7 +132,7 @@ start-all.cmd          一键启动采集 + 看板两个窗口（也可分别用
 laundry.mjs            只读 API 客户端 + CLI（可直接 import 复用）
 packages/laundry-machines/  npm 包：机器状态查询库（ESM + TS 类型 + CLI + 测试）
 packages/laundry-monitor/   采集服务：按配置周期轮询并写入 SQLite（stats/export/run）
-packages/laundry-dashboard/ 看板服务：只读 SQLite，图表 + 当前状态（零依赖 HTTP）
+packages/laundry-dashboard/ 看板服务：只读 SQLite，Chart.js 图表 + 当前状态（服务端零依赖 HTTP）
 token.txt              Bearer token（勿提交到 git）
 docs/API.md            API 文档
 docs/openapi.json      OpenAPI 3.0 规格

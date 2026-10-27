@@ -1,8 +1,6 @@
-/* 洗衣房看板前端（无框架，直接 SVG 画图） */
+/* 洗衣房看板前端（无框架，图表用 Chart.js） */
 (() => {
   'use strict';
-
-  const SVG_NS = 'http://www.w3.org/2000/svg';
 
   /* ---------------- 主题 ---------------- */
 
@@ -64,6 +62,8 @@
     ['all', 'All'],
   ];
 
+  const HOURLY_HINT = 'Taller bar = easier to find a free machine';
+
   const state = {
     range: '24h',
     selected: new Set(),
@@ -73,6 +73,7 @@
     series: null,
     bars: null,
     hourly: null,
+    charts: { trend: null, bars: null, hourly: null },
     auto: true,
     refreshSeconds: 30,
     countdown: 30,
@@ -144,25 +145,9 @@
     return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
-  function fmtTickTime(iso) {
-    const d = new Date(iso);
-    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-  }
-
-  function el(tag, attrs = {}, children = []) {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value === null || value === undefined) continue;
-      node.setAttribute(key, String(value));
-    }
-    for (const child of children) node.appendChild(child);
-    return node;
-  }
-
-  function svgText(content, attrs = {}) {
-    const node = el('text', attrs);
-    node.textContent = content;
-    return node;
+  /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏图表标签用短名 */
+  function shortMachineName(name) {
+    return String(name ?? '').replace(/^UG\d+\s+/i, '');
   }
 
   function colorFor(machineId) {
@@ -198,14 +183,6 @@
     }
     if (machine.available) return machine.kind === 'dryer' ? 'Ready to dry' : 'Ready to wash';
     return machine.status && machine.status !== 'enabled' ? machine.status : '';
-  }
-
-  function renderEmpty(container, message) {
-    container.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = 'empty';
-    div.textContent = message;
-    container.appendChild(div);
   }
 
   /* ---------------- 顶栏 / 状态卡片 ---------------- */
@@ -434,365 +411,319 @@
     return button;
   }
 
-  /* ---------------- 图表：折线 ---------------- */
+  /* ---------------- 图表（Chart.js） ---------------- */
 
-  function drawLineChart(container, options) {
-    const width = Math.max(280, container.clientWidth || 900);
-    const compact = width < 520;
-    const height = options.height ?? (compact ? 200 : 260);
-    const margin = compact
-      ? { top: 12, right: 10, bottom: 22, left: 34 }
-      : { top: 14, right: 18, bottom: 26, left: 44 };
-    const plotW = width - margin.left - margin.right;
-    const plotH = height - margin.top - margin.bottom;
-    const { buckets, lines } = options;
-    const n = buckets.length;
+  const CHART_FONT_FAMILY =
+    'system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 
-    container.innerHTML = '';
-    if (!n) {
-      renderEmpty(container, 'No data yet (waiting for polls)');
-      return;
-    }
-
-    const yMax = Math.max(1, options.yMax ?? 1);
-    const xs = (index) => (n === 1 ? margin.left + plotW / 2 : margin.left + (index / (n - 1)) * plotW);
-    const yFor = (value) => margin.top + plotH - (Math.min(Math.max(value, 0), yMax) / yMax) * plotH;
-
-    const svg = el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img' });
-
-    const yTicks = compact ? 3 : 4;
-    for (let t = 0; t <= yTicks; t += 1) {
-      const value = (yMax / yTicks) * t;
-      const y = yFor(value);
-      svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: y, y2: y, class: 'grid-line' }));
-      svg.appendChild(svgText(options.yFormat(value), {
-        x: margin.left - 8,
-        y: y + 4,
-        'text-anchor': 'end',
-        class: 'axis-text',
-      }));
-    }
-
-    const xLabelCount = Math.min(compact ? 4 : 6, n);
-    for (let k = 0; k < xLabelCount; k += 1) {
-      const index = Math.round((k / Math.max(1, xLabelCount - 1)) * (n - 1));
-      svg.appendChild(svgText(fmtAxisTime(buckets[index], options.bucketSeconds), {
-        x: xs(index),
-        y: height - 8,
-        'text-anchor': k === 0 ? 'start' : k === xLabelCount - 1 ? 'end' : 'middle',
-        class: 'axis-text',
-      }));
-    }
-
-    for (const line of lines) {
-      let path = '';
-      let open = false;
-      for (let i = 0; i < n; i += 1) {
-        const value = line.values[i];
-        if (value === null || value === undefined) {
-          open = false;
-          continue;
-        }
-        const x = xs(i).toFixed(1);
-        const y = yFor(value).toFixed(1);
-        if (!open) {
-          path += `M${x},${y}`;
-          open = true;
-        } else if (line.step) {
-          path += `H${x}V${y}`;
-        } else {
-          path += `L${x},${y}`;
-        }
-      }
-      if (path) svg.appendChild(el('path', { d: path, class: 'series-line', stroke: line.color }));
-
-      if (n <= 80) {
-        for (let i = 0; i < n; i += 1) {
-          const value = line.values[i];
-          if (value === null || value === undefined) continue;
-          svg.appendChild(el('circle', { cx: xs(i), cy: yFor(value), r: 2.4, fill: line.color, class: 'point' }));
-        }
-      }
-    }
-
-    container.appendChild(svg);
-    attachHover(container, svg, {
-      buckets,
-      lines,
-      xs,
-      width,
-      height,
-      margin,
-      plotW,
-      plotH,
-      yFormat: options.yFormat,
-      bucketSeconds: options.bucketSeconds,
-    });
+  /** 从 CSS 变量取当前主题的颜色 */
+  function chartColors() {
+    return {
+      text: cssVar('--text', '#16213a'),
+      muted: cssVar('--muted', '#6b7893'),
+      grid: cssVar('--grid', '#eef1f7'),
+      free: cssVar('--free', '#22c55e'),
+      freeStrong: cssVar('--free-strong', '#15803d'),
+      busy: cssVar('--busy', '#f59e0b'),
+      off: cssVar('--off', '#94a3b8'),
+      washer: cssVar('--chart-washer', '#0891b2'),
+      dryer: cssVar('--chart-dryer', '#d97706'),
+      tooltipBg: cssVar('--tooltip-bg', 'rgba(15, 23, 42, 0.92)'),
+      tooltipText: cssVar('--tooltip-text', '#ffffff'),
+    };
   }
 
-  function attachHover(container, svg, ctx) {
-    const tooltip = document.createElement('div');
-    tooltip.className = 'tooltip';
-    container.appendChild(tooltip);
+  function chartFont(size) {
+    return { family: CHART_FONT_FAMILY, size };
+  }
 
-    const hoverLine = el('line', {
-      y1: ctx.margin.top,
-      y2: ctx.margin.top + ctx.plotH,
-      class: 'hover-line',
-      opacity: 0,
-    });
-    const overlay = el('rect', {
-      x: ctx.margin.left,
-      y: ctx.margin.top,
-      width: ctx.plotW,
-      height: ctx.plotH,
-      fill: 'transparent',
-      style: 'cursor: crosshair; touch-action: pan-y',
-    });
-    svg.appendChild(hoverLine);
-    svg.appendChild(overlay);
+  function round1(value) {
+    return Math.round(value * 10) / 10;
+  }
 
-    const count = ctx.buckets.length;
+  function destroyChart(key) {
+    const chart = state.charts[key];
+    if (chart) chart.destroy();
+    state.charts[key] = null;
+  }
 
-    const show = (event) => {
-      const rect = svg.getBoundingClientRect();
-      if (!rect.width) return;
-      const scale = ctx.width / rect.width;
-      const localX = (event.clientX - rect.left) * scale;
-      const ratio = (localX - ctx.margin.left) / ctx.plotW;
-      const index = Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))));
+  /** 清空容器并显示占位文案（无数据时用） */
+  function showChartEmpty(key, container, message) {
+    destroyChart(key);
+    container.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'empty';
+    div.textContent = message;
+    container.appendChild(div);
+  }
 
-      const x = ctx.xs(index);
-      hoverLine.setAttribute('x1', x);
-      hoverLine.setAttribute('x2', x);
-      hoverLine.setAttribute('opacity', 1);
+  /** 在容器里创建（或重建）Chart.js 实例 */
+  function mountChart(key, container, config) {
+    destroyChart(key);
+    container.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+    state.charts[key] = new Chart(canvas, config);
+    window.__laundryCharts = state.charts; // 方便调试与测试
+    return state.charts[key];
+  }
 
-      const rows = ctx.lines
-        .filter((line) => line.values[index] !== null && line.values[index] !== undefined)
-        .map((line) => {
-          const value = line.values[index];
-          const shown = line.valueFormat ? line.valueFormat(value) : String(value);
-          return `<div class="t-row"><span class="t-dot" style="background:${line.color}"></span>${line.label}: <b>${shown}</b></div>`;
-        })
-        .join('');
-
-      tooltip.innerHTML = `<div class="t-title">${fmtTickTime(ctx.buckets[index])}</div>${rows || '<div class="t-row">No data</div>'}`;
-
-      const containerRect = container.getBoundingClientRect();
-      const cssX = (x / scale);
-      tooltip.style.left = `${Math.max(50, Math.min(cssX, containerRect.width - 50))}px`;
-      tooltip.style.top = `${ctx.margin.top + 30}px`;
-      tooltip.classList.add('visible');
-    };
-
-    const hide = () => {
-      tooltip.classList.remove('visible');
-      hoverLine.setAttribute('opacity', 0);
-    };
-
-    overlay.addEventListener('mousemove', show);
-    overlay.addEventListener('mouseleave', hide);
-
-    // 触摸屏：按住/拖动显示数值，抬手 2 秒后自动隐藏
-    let hideTimer = null;
-    const showTouch = (event) => {
-      const touch = event.touches?.[0] ?? event.changedTouches?.[0];
-      if (!touch) return;
-      clearTimeout(hideTimer);
-      show({ clientX: touch.clientX, clientY: touch.clientY });
-    };
-    overlay.addEventListener('touchstart', showTouch, { passive: true });
-    overlay.addEventListener('touchmove', showTouch, { passive: true });
-    overlay.addEventListener(
-      'touchend',
-      () => {
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(hide, 2000);
+  /** 公共配置：响应式、无动画、主题化图例/提示框 */
+  function baseChartOptions(colors, compact) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: colors.text,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            boxWidth: compact ? 8 : 10,
+            boxHeight: compact ? 8 : 10,
+            font: chartFont(compact ? 10 : 11),
+          },
+        },
+        tooltip: {
+          backgroundColor: colors.tooltipBg,
+          titleColor: colors.tooltipText,
+          bodyColor: colors.tooltipText,
+          borderColor: colors.grid,
+          borderWidth: 1,
+          padding: 8,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
+          titleFont: chartFont(11),
+          bodyFont: chartFont(11),
+        },
       },
-      { passive: true },
-    );
-    overlay.addEventListener('touchcancel', hide, { passive: true });
+    };
   }
 
-  /* ---------------- 图表：堆叠柱状 ---------------- */
+  function renderTrendChart(series) {
+    const container = $('chart-trend');
+    const buckets = series?.buckets ?? [];
 
-  /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏标签用短名 */
-  function shortMachineName(name) {
-    return String(name ?? '').replace(/^UG\d+\s+/i, '');
+    if (!buckets.length) {
+      $('trend-hint').textContent = '';
+      showChartEmpty('trend', container, 'No data yet (waiting for polls)');
+      return;
+    }
+
+    const colors = chartColors();
+    const compact = container.clientWidth > 0 && container.clientWidth < 520;
+    const byKind = series.totalsByKind ?? {};
+
+    $('trend-hint').textContent = `from ${fmtDateTime(series.since)} · ${
+      series.bucketSeconds >= 60
+        ? `${Math.round(series.bucketSeconds / 60)} min`
+        : `${series.bucketSeconds} s`
+    }/point · ${buckets.length} points`;
+
+    const options = baseChartOptions(colors, compact);
+    options.plugins.tooltip.callbacks = {
+      label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
+    };
+    options.scales = {
+      x: {
+        ticks: {
+          color: colors.muted,
+          font: chartFont(compact ? 9 : 10),
+          maxTicksLimit: compact ? 4 : 6,
+          maxRotation: 0,
+          autoSkip: true,
+        },
+        grid: { color: colors.grid },
+        border: { color: colors.grid },
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { color: colors.muted, font: chartFont(compact ? 9 : 10), precision: 0 },
+        grid: { color: colors.grid },
+        border: { color: colors.grid },
+      },
+    };
+
+    mountChart('trend', container, {
+      type: 'line',
+      data: {
+        labels: buckets.map((iso) => fmtAxisTime(iso, series.bucketSeconds)),
+        datasets: [
+          {
+            label: 'Washers in use',
+            data: byKind.washer?.inUse ?? [],
+            borderColor: colors.washer,
+            backgroundColor: colors.washer,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 2,
+            tension: 0.25,
+          },
+          {
+            label: 'Dryers in use',
+            data: byKind.dryer?.inUse ?? [],
+            borderColor: colors.dryer,
+            backgroundColor: colors.dryer,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 2,
+            tension: 0.25,
+          },
+        ],
+      },
+      options,
+    });
   }
 
-  function drawStackedBars(container, rows) {
-    const width = Math.max(300, container.clientWidth || 900);
-    const compact = width < 520;
-    container.innerHTML = '';
+  function renderBarsChart() {
+    const container = $('chart-bars');
+    const rows = state.bars?.rows ?? [];
+
     if (!rows.length) {
-      renderEmpty(container, 'No data yet (waiting for polls)');
+      showChartEmpty('bars', container, 'No data yet (waiting for polls)');
       return;
     }
 
-    const rowHeight = compact ? 22 : 26;
-    const rowGap = compact ? 6 : 8;
-    const labelWidth = compact ? 84 : 132;
-    const valueWidth = compact ? 56 : 96;
-    const height = rows.length * (rowHeight + rowGap) + 32;
-    const plotW = Math.max(80, width - labelWidth - valueWidth - 8);
+    const colors = chartColors();
+    const compact = container.clientWidth > 0 && container.clientWidth < 520;
+    container.style.height = `${Math.max(compact ? 220 : 260, rows.length * (compact ? 24 : 30) + 48)}px`;
 
-    const svg = el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img' });
+    const options = baseChartOptions(colors, compact);
+    options.indexAxis = 'y';
+    options.plugins.tooltip.callbacks = {
+      label: (item) => `${item.dataset.label}: ${item.formattedValue}%`,
+    };
+    options.scales = {
+      x: {
+        stacked: true,
+        min: 0,
+        max: 100,
+        ticks: {
+          color: colors.muted,
+          font: chartFont(compact ? 9 : 10),
+          callback: (value) => `${value}%`,
+        },
+        grid: { color: colors.grid },
+        border: { color: colors.grid },
+      },
+      y: {
+        stacked: true,
+        ticks: { color: colors.text, font: chartFont(compact ? 10 : 11), autoSkip: false },
+        grid: { display: false },
+      },
+    };
 
-    const colorFree = cssVar('--free', '#22c55e');
-    const colorBusy = cssVar('--busy', '#f59e0b');
-    const colorOff = cssVar('--off', '#94a3b8');
-
-    const legendY = height - 12;
-    // 堆叠顺序：In use → Free → Unavailable
-    const legend = [
-      ['In use', colorBusy],
-      ['Free', colorFree],
-      ['Unavailable', colorOff],
-    ];
-    let legendX = labelWidth;
-    for (const [label, color] of legend) {
-      svg.appendChild(el('rect', { x: legendX, y: legendY - 8, width: 10, height: 10, rx: 2, fill: color }));
-      svg.appendChild(svgText(label, { x: legendX + 14, y: legendY + 1, class: 'bar-value' }));
-      legendX += 14 + label.length * (compact ? 7 : 12) + (compact ? 12 : 18);
-    }
-
-    rows.forEach((row, index) => {
-      const y = index * (rowHeight + rowGap);
-      svg.appendChild(svgText(compact ? shortMachineName(row.name) : row.name, {
-        x: labelWidth - 10,
-        y: y + rowHeight / 2 + 4,
-        'text-anchor': 'end',
-        class: 'bar-label',
-      }));
-
-      svg.appendChild(el('rect', {
-        x: labelWidth,
-        y,
-        width: plotW,
-        height: rowHeight,
-        rx: 5,
-        fill: cssVar('--track', '#f1f5f9'),
-      }));
-
-      const segments = [
-        [row.inUseRatio, colorBusy],
-        [row.availableRatio, colorFree],
-        [row.unavailableRatio, colorOff],
-      ];
-      let offset = 0;
-      const segmentGroup = el('g', {});
-      for (const [ratio, color] of segments) {
-        const w = Math.max(0, (ratio ?? 0) * plotW);
-        if (w > 0.4) {
-          segmentGroup.appendChild(el('rect', {
-            x: labelWidth + offset,
-            y,
-            width: w,
-            height: rowHeight,
-            fill: color,
-          }));
-        }
-        offset += w;
-      }
-      const title = el('title', {});
-      title.textContent = `${row.name}: free ${(row.availableRatio * 100).toFixed(1)}%, in use ${(row.inUseRatio * 100).toFixed(1)}%, unavailable ${(row.unavailableRatio * 100).toFixed(1)}% (${row.samples} samples)`;
-      segmentGroup.appendChild(title);
-      svg.appendChild(segmentGroup);
-
-      svg.appendChild(svgText(`${Math.round(row.availableRatio * 100)}%${compact ? '' : ' free'}`, {
-        x: labelWidth + plotW + 8,
-        y: y + rowHeight / 2 + 4,
-        class: 'bar-value',
-      }));
+    mountChart('bars', container, {
+      type: 'bar',
+      data: {
+        labels: rows.map((row) => (compact ? shortMachineName(row.name) : row.name)),
+        datasets: [
+          {
+            label: 'In use',
+            data: rows.map((row) => round1(row.inUseRatio * 100)),
+            backgroundColor: colors.busy,
+            stack: 'state',
+            borderWidth: 0,
+            borderSkipped: false,
+          },
+          {
+            label: 'Free',
+            data: rows.map((row) => round1(row.availableRatio * 100)),
+            backgroundColor: colors.free,
+            stack: 'state',
+            borderWidth: 0,
+            borderSkipped: false,
+          },
+          {
+            label: 'Unavailable',
+            data: rows.map((row) => round1(row.unavailableRatio * 100)),
+            backgroundColor: colors.off,
+            stack: 'state',
+            borderWidth: 0,
+            borderSkipped: false,
+          },
+        ],
+      },
+      options,
     });
-
-    container.appendChild(svg);
   }
 
-  /* ---------------- 图表：按小时 ---------------- */
-
-  function drawHourlyBars(container, hours) {
-    const width = Math.max(300, container.clientWidth || 900);
-    const compact = width < 520;
-    const height = compact ? 190 : 240;
-    const margin = compact
-      ? { top: 12, right: 8, bottom: 22, left: 32 }
-      : { top: 14, right: 12, bottom: 26, left: 44 };
-    const plotW = width - margin.left - margin.right;
-    const plotH = height - margin.top - margin.bottom;
-
-    container.innerHTML = '';
+  function renderHourlyChart(hourly) {
+    const container = $('chart-hourly');
+    const hours = hourly?.hours ?? [];
+    const hint = $('hourly-hint');
     const withData = hours.filter((entry) => entry.freeRatio !== null);
+
     if (!withData.length) {
-      renderEmpty(container, 'No data yet (waiting for polls)');
+      if (hint) hint.textContent = HOURLY_HINT;
+      showChartEmpty('hourly', container, 'No data yet (waiting for polls)');
       return;
     }
 
-    const maxRatio = Math.max(...withData.map((entry) => entry.freeRatio));
-    const bestHour = withData.reduce((best, entry) => (entry.freeRatio > best.freeRatio ? entry : best), withData[0]);
+    const colors = chartColors();
+    const compact = container.clientWidth > 0 && container.clientWidth < 520;
+    const best = withData.reduce((a, b) => (b.freeRatio > a.freeRatio ? b : a), withData[0]);
 
-    const svg = el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img' });
-
-    for (let t = 0; t <= 4; t += 1) {
-      const ratio = t / 4;
-      const y = margin.top + plotH - ratio * plotH;
-      svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: y, y2: y, class: 'grid-line' }));
-      svg.appendChild(svgText(`${Math.round(ratio * 100)}%`, {
-        x: margin.left - 8,
-        y: y + 4,
-        'text-anchor': 'end',
-        class: 'axis-text',
-      }));
+    if (hint) {
+      hint.textContent = `Best time ${pad2(best.hour)}:00 (${Math.round(best.freeRatio * 100)}% free)`;
     }
 
-    const slot = plotW / 24;
-    const barWidth = Math.max(6, slot * 0.62);
+    const options = baseChartOptions(colors, compact);
+    options.plugins.legend.display = false;
+    options.interaction = { mode: 'index', intersect: false };
+    options.plugins.tooltip.callbacks = {
+      title: (items) => items[0]?.label ?? '',
+      label: (item) => (item.raw === null ? 'No data' : `Free: ${item.formattedValue}%`),
+    };
+    options.scales = {
+      x: {
+        ticks: {
+          color: colors.muted,
+          font: chartFont(9),
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: compact ? 8 : 12,
+        },
+        grid: { display: false },
+        border: { color: colors.grid },
+      },
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: {
+          color: colors.muted,
+          font: chartFont(compact ? 9 : 10),
+          callback: (value) => `${value}%`,
+        },
+        grid: { color: colors.grid },
+        border: { color: colors.grid },
+      },
+    };
 
-    hours.forEach((entry, index) => {
-      const x = margin.left + slot * index + (slot - barWidth) / 2;
-      if (entry.freeRatio === null) {
-        svg.appendChild(svgText('·', { x: x + barWidth / 2, y: margin.top + plotH - 4, 'text-anchor': 'middle', class: 'hour-label' }));
-        return;
-      }
-      const h = Math.max(2, entry.freeRatio * plotH);
-      const y = margin.top + plotH - h;
-      const isBest = entry.hour === bestHour.hour;
-      const bar = el('rect', {
-        x,
-        y,
-        width: barWidth,
-        height: h,
-        rx: 3,
-        fill: isBest ? cssVar('--free-strong', '#15803d') : cssVar('--free', '#22c55e'),
-        opacity: entry.freeRatio === 0 ? 0.35 : 0.75,
-      });
-      const title = el('title', {});
-      title.textContent = `${pad2(entry.hour)}:00 free rate ${(entry.freeRatio * 100).toFixed(1)}% (${entry.samples} samples)`;
-      bar.appendChild(title);
-      svg.appendChild(bar);
-
-      if (index % (compact ? 6 : 3) === 0) {
-        svg.appendChild(svgText(`${pad2(entry.hour)}`, {
-          x: x + barWidth / 2,
-          y: height - 8,
-          'text-anchor': 'middle',
-          class: 'hour-label',
-        }));
-      }
+    mountChart('hourly', container, {
+      type: 'bar',
+      data: {
+        labels: hours.map((entry) => `${pad2(entry.hour)}:00`),
+        datasets: [
+          {
+            label: 'Free rate',
+            data: hours.map((entry) => (entry.freeRatio === null ? null : round1(entry.freeRatio * 100))),
+            backgroundColor: hours.map((entry) =>
+              entry.hour === best.hour ? colors.freeStrong : colors.free,
+            ),
+            borderRadius: 3,
+            borderWidth: 0,
+            maxBarThickness: compact ? 12 : 26,
+          },
+        ],
+      },
+      options,
     });
-
-    const bestLabel = compact
-      ? `Best ${pad2(bestHour.hour)}:00`
-      : `Best time ${pad2(bestHour.hour)}:00 (${Math.round(bestHour.freeRatio * 100)}% free)`;
-    svg.appendChild(svgText(bestLabel, {
-      x: margin.left + plotW,
-      y: 10,
-      'text-anchor': 'end',
-      class: 'axis-text',
-    }));
-
-    container.appendChild(svg);
   }
 
   /* ---------------- 图表数据装载 ---------------- */
@@ -812,8 +743,8 @@
 
     if (!hasSelection) {
       $('trend-hint').textContent = 'No machines selected';
-      renderEmpty($('chart-trend'), 'Select at least one machine');
-      renderEmpty($('chart-hourly'), 'Select at least one machine');
+      showChartEmpty('trend', $('chart-trend'), 'Select at least one machine');
+      showChartEmpty('hourly', $('chart-hourly'), 'Select at least one machine');
     }
 
     try {
@@ -830,14 +761,14 @@
 
       if (series) {
         state.series = series;
-        renderTrend(series);
+        renderTrendChart(series);
       } else {
         state.series = null;
       }
 
       if (hourly) {
         state.hourly = hourly;
-        drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
+        renderHourlyChart(hourly);
       } else {
         state.hourly = null;
       }
@@ -846,55 +777,6 @@
       $('db-badge').textContent = `Load failed: ${error.message}`;
       $('db-badge').className = 'badge error';
     }
-  }
-
-  /** 用缓存的数据重画"状态占比"柱状图（主题切换/窗口缩放时复用） */
-  function renderBarsChart() {
-    drawStackedBars($('chart-bars'), (state.bars?.rows ?? []).map((row) => ({
-      name: row.name,
-      samples: row.samples,
-      availableRatio: row.availableRatio,
-      inUseRatio: row.inUseRatio,
-      unavailableRatio: row.unavailableRatio,
-    })));
-  }
-
-  function renderTrend(series) {
-    // 按机型各画一条线：washer / dryer 的在用台数
-    const byKind = series.totalsByKind ?? {};
-    const washerInUse = byKind.washer?.inUse ?? [];
-    const dryerInUse = byKind.dryer?.inUse ?? [];
-
-    const values = [...washerInUse, ...dryerInUse].filter((value) => value !== null);
-    const peak = values.length ? Math.max(...values) : 0;
-    const yMax = Math.max(1, Math.ceil(peak));
-
-    $('trend-hint').textContent = series.buckets?.length
-      ? `from ${fmtDateTime(series.since)} · ${series.bucketSeconds >= 60 ? `${Math.round(series.bucketSeconds / 60)} min` : `${series.bucketSeconds} s`}/point · ${series.buckets.length} points`
-      : '';
-
-    drawLineChart($('chart-trend'), {
-      buckets: series.buckets ?? [],
-      bucketSeconds: series.bucketSeconds,
-      yMax,
-      yFormat: (value) => `${Math.round(value)}`,
-      lines: [
-        {
-          label: 'Washers in use',
-          color: cssVar('--chart-washer', '#0891b2'),
-          values: washerInUse,
-          step: false,
-          valueFormat: (value) => `${value.toFixed(1)}`,
-        },
-        {
-          label: 'Dryers in use',
-          color: cssVar('--chart-dryer', '#f59e0b'),
-          values: dryerInUse,
-          step: false,
-          valueFormat: (value) => `${value.toFixed(1)}`,
-        },
-      ],
-    });
   }
 
   /* ---------------- 数据刷新 ---------------- */
@@ -989,9 +871,9 @@
 
   function redrawCharts() {
     renderMachineChips();
-    if (state.series) renderTrend(state.series);
+    if (state.series) renderTrendChart(state.series);
     if (state.bars) renderBarsChart();
-    if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
+    if (state.hourly) renderHourlyChart(state.hourly);
   }
 
   /** 监听系统深浅色变化（仅 Auto 模式下跟随） */
@@ -1036,10 +918,11 @@
     window.addEventListener(
       'resize',
       debounce(() => {
-        if (state.series) renderTrend(state.series);
+        // 容器宽度变化会影响紧凑模式（刻度密度等），按新宽度重建图表
+        if (state.series) renderTrendChart(state.series);
         if (state.bars) renderBarsChart();
-        if (state.hourly) drawHourlyBars($('chart-hourly'), state.hourly.hours ?? []);
-      }, 200),
+        if (state.hourly) renderHourlyChart(state.hourly);
+      }, 250),
     );
 
     document.addEventListener('visibilitychange', () => {

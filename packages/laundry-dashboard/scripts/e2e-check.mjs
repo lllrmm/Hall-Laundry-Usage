@@ -22,7 +22,18 @@ const css = await get('/styles.css', false);
 const appJs = await get('/app.js', false);
 check('响应式样式', css.includes('@media (max-width: 720px)') && css.includes('@media (max-width: 420px)'), '');
 check('移动端图表逻辑', appJs.includes('compact') && appJs.includes('shortMachineName'), '');
-check('触摸 tooltip', appJs.includes('touchstart') && appJs.includes('touchmove'), '');
+
+const vendor = await get('/vendor/chart.umd.js', false);
+check(
+  'Chart.js 本地 vendor',
+  html.includes('/vendor/chart.umd.js') && vendor.includes('Chart') && vendor.length > 100_000,
+  `${Math.round(vendor.length / 1024)} KB`,
+);
+check(
+  'Chart.js 图表代码',
+  appJs.includes('new Chart(') && appJs.includes("type: 'line'") && appJs.includes("type: 'bar'"),
+  '',
+);
 
 const state = await get('/api/state');
 check('/api/state meta', state.meta?.available === true, `lastObserved=${state.meta?.lastObservedAt}`);

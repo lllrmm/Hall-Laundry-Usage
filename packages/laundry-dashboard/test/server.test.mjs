@@ -78,7 +78,19 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /chart-trend/);
     assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
     assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
+    assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
     assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
+  });
+});
+
+test('GET /vendor/chart.umd.js 返回 Chart.js', async () => {
+  await withServer(async (base) => {
+    const response = await fetch(`${base}/vendor/chart.umd.js`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /javascript/);
+    const source = await response.text();
+    assert.ok(source.length > 100_000, 'Chart.js UMD 构建应完整');
+    assert.match(source, /Chart/, '内容应包含 Chart 定义');
   });
 });
 

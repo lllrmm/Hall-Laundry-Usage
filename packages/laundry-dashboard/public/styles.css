@@ -511,102 +511,28 @@ footer {
   margin-bottom: 5px;
 }
 
-/* ---------- 图表 ---------- */
+/* ---------- 图表（Chart.js canvas） ---------- */
 
 .chart {
   position: relative;
-  min-height: 240px;
+  height: 260px;
 }
 
 .chart.tall {
-  min-height: 320px;
+  height: 360px;
 }
 
-.chart svg {
+.chart canvas {
   display: block;
-  width: 100%;
-  overflow: visible;
 }
 
-.chart .grid-line {
-  stroke: var(--grid);
-  stroke-width: 1;
-}
-
-.chart .axis-text {
-  fill: var(--muted);
-  font-size: 11px;
-}
-
-.chart .series-line {
-  fill: none;
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-.chart .point {
-  cursor: pointer;
-}
-
-.chart .hover-line {
-  stroke: var(--muted);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-  pointer-events: none;
-}
-
-.tooltip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--tooltip-bg);
-  color: var(--tooltip-text);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: nowrap;
-  transform: translate(-50%, -110%);
-  opacity: 0;
-  transition: opacity 0.1s;
-  z-index: 6;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
-}
-
-.tooltip.visible {
-  opacity: 1;
-}
-
-.tooltip .t-title {
-  font-weight: 700;
-  margin-bottom: 3px;
-}
-
-.tooltip .t-row {
+.chart .empty {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.tooltip .t-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.bar-label {
-  fill: var(--text);
-  font-size: 11px;
-}
-
-.bar-value {
-  fill: var(--muted);
-  font-size: 11px;
-}
-
-.hour-label {
-  fill: var(--muted);
-  font-size: 10px;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 @media (max-width: 720px) {
@@ -734,29 +660,11 @@ footer {
   }
 
   .chart {
-    min-height: 200px;
+    height: 200px;
   }
 
   .chart.tall {
-    min-height: 260px;
-  }
-
-  .chart .axis-text {
-    font-size: 10px;
-  }
-
-  .chart .bar-label,
-  .chart .bar-value {
-    font-size: 10px;
-  }
-
-  .chart .hour-label {
-    font-size: 9px;
-  }
-
-  .tooltip {
-    font-size: 11px;
-    padding: 6px 8px;
+    height: 300px;
   }
 
   footer {

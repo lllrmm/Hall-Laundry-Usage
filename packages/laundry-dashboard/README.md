@@ -2,7 +2,7 @@
 
 HKUST 洗衣房监控的**只读前端服务**：读取采集服务写入的 SQLite，展示当前状态与历史图表。
 
-- **零依赖**：只用 `node:http` + `node:sqlite`，没有构建步骤、没有 npm 依赖。
+- **服务端零依赖**：只用 `node:http` + `node:sqlite`，没有构建步骤；前端唯一运行时脚本是本地 vendor 的 Chart.js（MIT），不需要 CDN、不需要打包。
 - **与采集服务解耦**：不调用采集服务的任何接口，只读同一个数据库文件；两个进程可分别启停。
 - 数据库不存在或还没数据时也能启动（页面显示"等待数据"）。
 
@@ -32,14 +32,22 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器，只跟随时间范围变化** |
 | Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
 
-图表全部用原生 SVG 手绘（无图表库），鼠标悬停显示该时刻数值；数据每 30 秒自动刷新，窗口 resize 自动重绘。
+图表使用 **Chart.js 4**（本地 vendor，`public/vendor/chart.umd.js`，MIT），折线/堆叠柱/柱状图都由 Chart.js 渲染；悬停/触摸 tooltip、图例由库提供，主题颜色取自 CSS 变量。数据每 30 秒自动刷新，窗口尺寸变化时按新宽度重建图表。
+
+### 图表库（Chart.js）
+
+- 版本与许可见 `public/vendor/VERSION.txt`（当前为 Chart.js 4.6.1，MIT），许可证全文在 `public/vendor/CHARTJS-LICENSE.md`；
+- 使用 `scripts/vendor-chartjs.mjs` 从 `node_modules` 复制 UMD 构建到 `public/vendor/`，**不依赖外部 CDN**，局域网/离线可用；
+- 升级方式：`npm update chart.js && node scripts/vendor-chartjs.mjs`；
+- 文件约 205 KB（未压缩），页面里通过 `<script src="/vendor/chart.umd.js">` 加载；
+- 三张图的配置都在 `public/app.js` 的 `renderTrendChart()` / `renderBarsChart()` / `renderHourlyChart()` 里。
 
 ### 移动端适配
 
-- `≤ 720px`：顶栏改为静态（不吸顶）、控件竖排、机器卡片两列起、图表自动切窄屏参数（更小边距、更少刻度标签、更矮画布）；
+- `≤ 720px`：顶栏改为静态（不吸顶）、控件竖排、机器卡片两列起、图表自动切紧凑参数（更少刻度标签、更矮画布、更短机器名）；
 - `≤ 420px`：机器卡片固定两列，洗粉徽标换行显示；
-- 图表在 `resize`/横竖屏切换时按容器实际宽度重绘；窄屏下"状态占比"柱状图使用短机器名（去掉 `UG4` 前缀）；
-- 触摸屏：在趋势图上按住/拖动可查看对应时刻数值，抬手 2 秒后自动隐藏（鼠标悬停行为不变）。
+- 图表在 `resize`/横竖屏切换时按容器实际宽度重建；窄屏下"状态占比"柱状图使用短机器名（去掉 `UG4` 前缀）；
+- 触摸屏：Chart.js 自带触摸 tooltip，按住/滑动图表即可查看对应数值。
 
 **手机上打开**：默认只监听 `127.0.0.1`，手机需要把 `dashboard.config.json` 的 `host` 改成 `0.0.0.0`
 （或直接 `node bin/serve.mjs --host 0.0.0.0`），然后用电脑的局域网 IP 访问，例如 `http://192.168.1.23:8787`。
@@ -84,17 +92,20 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 ## 测试
 
 ```bash
-npm run test:in-process     # 14 个用例：数据层 + HTTP API + jsdom 前端渲染（node）
-bun test                    # 13 个用例（jsdom 渲染测试只在 node 下跑）
+npm run test:in-process     # 16 个用例：数据层 + HTTP API + jsdom 前端渲染（node）
+bun test                    # 15 个用例（jsdom 渲染测试只在 node 下跑）
 
 # 端到端（需要采集服务也在跑）
 node scripts/e2e-check.mjs          # 页面 + 各 API 全量校验
 node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可达性
 ```
 
-`test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`：
-校验状态卡片、四张 SVG 图表、机器勾选/时间跨度切换、页面无 JS 错误。
-（本环境无法启动 Chromium，所以用 jsdom 做 DOM 级验证。）
+`test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`（含 Chart.js）：
+校验状态卡片、三张 Chart.js 图表（数据/配置/主题色板）、机器勾选/时间跨度切换、页面无 JS 错误。
+本环境装不上原生 `canvas`（沙箱禁止 install 脚本 spawn），测试里用一个轻量 2D context stub 让 Chart.js 能初始化；
+**Canvas 的实际绘制由 Chart.js 自身保证**，我们断言的是喂给它的数据与配置。
+
+> 开发依赖：`jsdom`（测试）与 `chart.js`（仅用于 `scripts/vendor-chartjs.mjs` 复制 UMD 构建，部署时不需要 `node_modules`）。
 
 > 本环境不允许启动子进程，`npm test`（默认多进程）会被 `spawn EPERM` 拦住，用 `test:in-process`；
 > 普通机器上 `npm test` / `bun test` 均可。

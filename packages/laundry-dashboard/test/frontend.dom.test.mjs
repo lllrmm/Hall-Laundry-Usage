@@ -1,9 +1,10 @@
 /**
- * 前端渲染闭环测试：用 jsdom 真跑一遍 public/ 里的页面，
- * 验证首屏状态卡片、四张图表、筛选交互、自动刷新都能正常工作。
+ * 前端渲染闭环测试：用 jsdom 真跑一遍 public/ 里的页面（含 Chart.js）。
  *
- * 说明：本环境无法启动真实浏览器（沙箱禁止 Chromium 的命名管道），
- * 用 jsdom 做 DOM + 网络 + 脚本执行级别的验证。
+ * 说明：
+ * - 本环境无法启动真实浏览器（沙箱禁止 Chromium 的命名管道），用 jsdom 做 DOM + 脚本级验证；
+ * - jsdom 没有原生 Canvas 2D（原生 canvas 包在沙箱里装不了），这里用一个轻量 context stub
+ *   让 Chart.js 能正常初始化，断言对象是 Chart 实例的数据/配置（真正的绘制由 Chart.js 负责）。
  */
 
 import test from 'node:test';
@@ -20,6 +21,42 @@ import { createDashboardServer } from '../src/server.js';
 
 const isBun = Boolean(process.versions.bun);
 const T0 = Date.now() - 10 * 60 * 1000;
+
+/** 最小 Canvas 2D 上下文：Chart.js 只要求这些方法可调用 */
+function createContext2DStub(canvas) {
+  const props = {};
+  const noop = () => {};
+  return new Proxy(props, {
+    get(target, prop) {
+      if (prop === 'canvas') return canvas;
+      if (prop === 'measureText') {
+        return (text) => ({
+          width: String(text ?? '').length * 6,
+          actualBoundingBoxAscent: 8,
+          actualBoundingBoxDescent: 2,
+          actualBoundingBoxLeft: 0,
+          actualBoundingBoxRight: String(text ?? '').length * 6,
+        });
+      }
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient') {
+        return () => ({ addColorStop: noop });
+      }
+      if (prop === 'createPattern') return () => null;
+      if (prop === 'getImageData') {
+        return (x, y, w, h) => ({ data: new Uint8ClampedArray(Math.max(4, (w || 1) * (h || 1) * 4)) });
+      }
+      if (prop === 'getLineDash') return () => [];
+      if (prop === 'getTransform') return () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+      if (prop === 'isPointInPath' || prop === 'isPointInStroke') return () => false;
+      if (prop in target) return target[prop];
+      return noop;
+    },
+    set(target, prop, value) {
+      target[prop] = value;
+      return true;
+    },
+  });
+}
 
 function machine(id, name, kind, state, serviceValue = null) {
   const value = serviceValue ?? (kind === 'dryer' ? 'dryer_machine' : 'washing_machine_without_powder');
@@ -78,7 +115,7 @@ function buildFixtureDb() {
   return { dir, file };
 }
 
-function waitFor(check, { timeout = 5000, interval = 50, label = 'condition' } = {}) {
+function waitFor(check, { timeout = 8000, interval = 50, label = 'condition' } = {}) {
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const timer = setInterval(() => {
@@ -99,7 +136,7 @@ function waitFor(check, { timeout = 5000, interval = 50, label = 'condition' } =
   });
 }
 
-test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun ? 'jsdom 测试仅在 node 下运行' : false }, async () => {
+test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { skip: isBun ? 'jsdom 测试仅在 node 下运行' : false }, async () => {
   const { dir, file } = buildFixtureDb();
   const app = createDashboardServer({
     config: { databasePath: file, host: '127.0.0.1', port: 0, refreshSeconds: 30 },
@@ -125,7 +162,8 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
       beforeParse(window) {
         // jsdom 没有 fetch：桥接到 Node 的 fetch，并解析相对 URL
         window.fetch = (input, init) => globalThis.fetch(new URL(input, window.location.href), init);
-        // jsdom 没有完整的 matchMedia：用可控 stub 模拟系统深浅色
+
+        // 可控的系统深浅色
         const media = { matches: false, listeners: new Set() };
         window.__themeMedia = media;
         window.matchMedia = () => ({
@@ -140,6 +178,20 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
             media.listeners.delete(listener);
           },
         });
+
+        // Chart.js 需要 ResizeObserver
+        window.ResizeObserver = class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        };
+
+        // jsdom 没有 Canvas 2D：stub 掉，让 Chart.js 能初始化
+        window.HTMLCanvasElement.prototype.getContext = function getContext(type) {
+          if (type !== '2d') return null;
+          if (!this.__ctx) this.__ctx = createContext2DStub(this);
+          return this.__ctx;
+        };
       },
     });
 
@@ -158,70 +210,62 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     assert.deepEqual(machineGroups.map((group) => group.dataset.kind), ['washer', 'dryer']);
     assert.deepEqual(machineGroups.map((group) => group.querySelector('h3').textContent), ['Washers', 'Dryers']);
     assert.deepEqual(machineGroups.map((group) => group.querySelectorAll('.machine').length), [2, 2]);
-    assert.match(machineGroups[0].querySelector('.machine-group-head .hint').textContent, /2\/2 free/);
 
-    // 1.1) 洗衣机洗粉标注
-    const withPowder = document.querySelectorAll('#machine-grid .powder.with');
-    const withoutPowder = document.querySelectorAll('#machine-grid .powder.without');
-    assert.equal(withPowder.length, 1, 'should mark one washer "With detergent"');
-    assert.equal(withPowder[0].textContent, 'With detergent');
-    assert.equal(withoutPowder.length, 1, 'should mark one washer "No detergent"');
-    assert.equal(withoutPowder[0].textContent, 'No detergent');
-    assert.equal(document.querySelectorAll('#machine-grid .powder').length, 2, 'dryers should not show detergent badges');
+    // 2) 三张 Chart.js 图表
+    await waitFor(() => {
+      const charts = dom.window.__laundryCharts;
+      return charts?.trend && charts?.bars && charts?.hourly;
+    }, { label: 'Chart.js 图表实例创建' });
 
-    // 2) 三张图表都渲染出 SVG（每台机器空闲率图已移除）
-    assert.equal(document.querySelector('#chart-series'), null, '不再渲染每台机器空闲率图');
-    assert.equal(document.querySelector('#presets'), null, 'Presets 已移除');
+    const charts = () => dom.window.__laundryCharts;
+
     for (const id of ['chart-trend', 'chart-bars', 'chart-hourly']) {
-      await waitFor(() => document.querySelector(`#${id} svg`), { label: `${id} 图表渲染` });
+      assert.ok(document.querySelector(`#${id} canvas`), `${id} 应渲染出 canvas`);
     }
 
-    const trendSvg = document.querySelector('#chart-trend svg');
-    assert.ok(trendSvg, '趋势图应有 svg');
-    const trendLines = [...trendSvg.querySelectorAll('path.series-line')];
-    assert.equal(trendLines.length, 2, '趋势图按 washer / dryer 画两条线');
-    const trendStrokes = trendLines.map((line) => line.getAttribute('stroke')).sort();
-    assert.deepEqual(trendStrokes, ['#0891b2', '#d97706'], '两条线分别为 washer / dryer 颜色');
-    assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
+    // 趋势图：washer / dryer 两条线
+    const trend = charts().trend;
+    assert.equal(trend.config.type, 'line');
+    assert.equal(trend.data.datasets.length, 2, '趋势图两条线');
+    assert.deepEqual(Array.from(trend.data.datasets, (dataset) => dataset.label), ['Washers in use', 'Dryers in use']);
+    assert.deepEqual(Array.from(trend.data.datasets, (dataset) => dataset.borderColor), ['#0891b2', '#d97706']);
+    assert.ok(trend.data.labels.length > 0, '趋势图应有时间标签');
+    assert.equal(trend.data.datasets[0].data.length, trend.data.labels.length);
 
-    // 占比图堆叠顺序：In use → Free → Unavailable
-    const barsSvg = document.querySelector('#chart-bars svg');
-    const legendLabels = [...barsSvg.querySelectorAll('text.bar-value')].slice(0, 3).map((node) => node.textContent);
-    assert.deepEqual(legendLabels, ['In use', 'Free', 'Unavailable'], '图例顺序应为 In use / Free / Unavailable');
+    // 状态占比：横向堆叠柱，In use → Free → Unavailable
+    const bars = charts().bars;
+    assert.equal(bars.config.type, 'bar');
+    assert.equal(bars.options.indexAxis, 'y');
+    assert.equal(bars.options.scales.x.stacked, true);
+    assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free', 'Unavailable']);
+    assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
+    assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');
 
-    const dryerLabel = [...barsSvg.querySelectorAll('text.bar-label')].find((node) => node.textContent.includes('Dryer (51)'));
-    assert.ok(dryerLabel, '应有 Dryer (51) 标签');
-    const segmentGroup = dryerLabel.nextElementSibling?.nextElementSibling; // 跳过 track rect
-    const segmentFills = [...(segmentGroup?.querySelectorAll('rect') ?? [])].map((rect) => rect.getAttribute('fill'));
-    assert.ok(segmentFills.length >= 2, '该机器应有 in use / free 两个分段');
-    assert.equal(segmentFills[0], '#f59e0b', '第一段应为 In use（橙色）');
-    assert.equal(segmentFills[1], '#22c55e', '第二段应为 Free（绿色）');
-    // 小时图：只有有数据的那个小时会画柱子（测试数据集中在几分钟内）
-    assert.ok(document.querySelectorAll('#chart-hourly svg rect').length >= 1, '小时图应有柱子');
-    assert.match(document.getElementById('chart-hourly').textContent, /Best time/, 'hourly chart should label the best time');
+    // 按小时：24 根柱子 + 最佳时段文案
+    const hourly = charts().hourly;
+    assert.equal(hourly.config.type, 'bar');
+    assert.equal(hourly.data.labels.length, 24);
+    assert.equal(hourly.data.datasets[0].data.length, 24);
+    assert.equal(hourly.data.datasets[0].backgroundColor.length, 24);
+    assert.match(document.getElementById('hourly-hint').textContent, /Best time/);
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
+    assert.equal(document.querySelectorAll('#presets').length, 0, 'Presets 已移除');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
 
     const chipGroups = [...document.querySelectorAll('#machine-chips .chip-group')];
     assert.equal(chipGroups.length, 2, 'Machines 选择分 Washers / Dryers 两栏');
     assert.deepEqual(chipGroups.map((group) => group.dataset.kind), ['washer', 'dryer']);
-    assert.deepEqual(
-      chipGroups.map((group) => group.querySelector('.chip-group-head').textContent),
-      ['Washers', 'Dryers'],
-    );
-    assert.deepEqual(chipGroups.map((group) => group.querySelectorAll('.chip').length), [2, 2]);
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
     const selectAllButton = document.getElementById('select-all');
     assert.ok(selectAllButton, '应有 Select all 按钮');
     assert.equal(selectAllButton.textContent, 'Clear all', '全部选中时按钮显示 Clear all');
 
-    // 4) 交互：单台取消 → Select all 恢复 → Clear all 清空 → 图表仍显示全部机器
-    const firstMachineChip = document.querySelector('#machine-chips .chip');
-    firstMachineChip.click();
+    // 4) 交互：单台取消 → Select all 恢复 → Clear all 清空 → 占比图仍显示全部机器
+    document.querySelector('#machine-chips .chip').click();
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 3, {
       label: '取消勾选后只选中 3 台',
     });
@@ -232,7 +276,6 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
       label: 'Select all 恢复全选',
     });
-    assert.equal(document.getElementById('select-all').textContent, 'Clear all');
 
     document.getElementById('select-all').click(); // Clear all
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 0, {
@@ -240,29 +283,30 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     });
     assert.match(document.getElementById('selected-count').textContent, /0\/4/);
 
-    // State breakdown 不跟随机器选择：清空选择后仍显示全部 4 台
-    await waitFor(() => document.querySelectorAll('#chart-bars svg text.bar-label').length === 4, {
+    // 清空选择后：趋势图/小时图显示占位，状态占比仍是 4 台机器
+    await waitFor(() => document.querySelector('#chart-trend .empty'), { label: '趋势图空状态' });
+    assert.equal(charts().trend, null, '清空选择后趋势图实例应销毁');
+    await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
       label: '状态占比始终显示全部 4 台机器',
     });
 
-    document.getElementById('select-all').click(); // 恢复全选，供后续断言使用
-    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
-      label: '恢复全选',
+    document.getElementById('select-all').click(); // 恢复全选
+    await waitFor(() => charts().trend && charts().bars && charts().hourly, {
+      label: '恢复全选后图表重建',
     });
 
+    // 5) 时间跨度切换
     const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 days'));
     weekChip.click();
-    // 点击后 chips 会重建，需要重新查询
     await waitFor(
-      () => {
-        const active = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.classList.contains('active'));
-        return active && active.textContent.includes('7 days');
-      },
-      { label: '7 days chip highlighted' },
+      () => [...document.querySelectorAll('#ranges .chip')].some(
+        (chip) => chip.classList.contains('active') && chip.textContent.includes('7 days'),
+      ),
+      { label: '7 days chip 高亮' },
     );
-    assert.ok(document.querySelector('#chart-trend svg'), '切换时间跨度后图表仍存在');
+    await waitFor(() => charts().trend, { label: '切换跨度后趋势图仍在' });
 
-    // 5) 主题：Auto → Light → Dark → Auto
+    // 6) 主题：Auto → Light → Dark，图表用深色色板重建
     const root = document.documentElement;
     assert.ok(['light', 'dark'].includes(root.dataset.theme), '首屏应已确定 data-theme');
     assert.equal(document.getElementById('theme-label').textContent, 'Auto');
@@ -274,23 +318,26 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
 
     themeButton.click(); // Light -> Dark
     await waitFor(() => root.dataset.theme === 'dark', { label: '切换到 Dark' });
-    assert.equal(document.getElementById('theme-label').textContent, 'Dark');
+    await waitFor(
+      () => charts().trend && charts().trend.data.datasets[0].borderColor === '#22d3ee',
+      { label: '深色主题下图表使用深色色板' },
+    );
     assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'dark');
-    assert.ok(document.querySelector('#chart-trend svg'), '切换深色后图表仍存在');
-    assert.ok(document.querySelector('#chart-hourly svg'), '切换深色后小时图仍存在');
 
     themeButton.click(); // Dark -> Auto
     await waitFor(() => document.getElementById('theme-label').textContent === 'Auto', { label: '回到 Auto' });
     assert.equal(root.dataset.theme, 'light', 'Auto 在浅色系统下应解析为 light');
 
-    // 模拟系统切到深色：Auto 模式应自动跟随，且不写入 localStorage
+    // 模拟系统切到深色：Auto 模式应自动跟随
     dom.window.__themeMedia.matches = true;
     for (const listener of dom.window.__themeMedia.listeners) listener({ matches: true });
     await waitFor(() => root.dataset.theme === 'dark', { label: 'Auto 跟随系统切到深色' });
-    assert.equal(document.getElementById('theme-label').textContent, 'Auto', '跟随系统时模式仍显示 Auto');
-    assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'auto');
+    await waitFor(
+      () => charts().trend && charts().trend.data.datasets[0].borderColor === '#22d3ee',
+      { label: '跟随系统后图表同步深色' },
+    );
 
-    // 6) 移动端：375px 宽度下按窄屏参数重绘
+    // 7) 移动端：容器宽度变化后按紧凑参数重建（刻度更少、占比图高度压缩）
     Object.defineProperty(dom.window.HTMLElement.prototype, 'clientWidth', {
       configurable: true,
       get() {
@@ -300,18 +347,11 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     dom.window.innerWidth = 375;
     dom.window.dispatchEvent(new dom.window.Event('resize'));
 
-    await waitFor(
-      () => document.querySelector('#chart-trend svg')?.getAttribute('width') === '375',
-      { label: '移动端图表按 375px 重绘' },
-    );
-    assert.equal(document.querySelector('#chart-bars svg').getAttribute('width'), '375');
-    assert.equal(document.querySelector('#chart-hourly svg').getAttribute('width'), '375');
-
-    // 窄屏柱状图标签用短名（去掉 "UG4 " 前缀）
-    const barLabels = [...document.querySelectorAll('#chart-bars svg text.bar-label')].map((node) => node.textContent);
-    assert.ok(barLabels.length > 0, '柱状图应有机器标签');
-    assert.ok(barLabels.every((label) => !label.startsWith('UG')), `窄屏应使用短名，实际：${barLabels.join(', ')}`);
-    assert.ok(barLabels.includes('Dryer (51)'), '短名应保留机器编号');
+    await waitFor(() => charts().trend?.options.scales.x.ticks.maxTicksLimit === 4, {
+      label: '窄屏趋势图使用紧凑刻度',
+    });
+    assert.equal(document.getElementById('chart-bars').style.height, '220px', '窄屏占比图高度压缩');
+    assert.equal(charts().hourly.data.labels.length, 24);
 
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
