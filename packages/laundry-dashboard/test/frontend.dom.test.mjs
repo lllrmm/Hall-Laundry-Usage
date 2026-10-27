@@ -274,7 +274,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     };
 
     // 历史剖面：默认 1 分钟线图；点行 → 该周几 1 分钟线图；点分钟 → 该分钟 7 天柱状图
-    await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {
+    await waitFor(() => charts().profile && charts().profile.data.datasets[0]?.data.length === 1440, {
       label: '默认剖面（1 分钟 × 1440 槽）',
     });
     assert.equal(charts().profile.config.type, 'line', '默认剖面用线图');
@@ -285,18 +285,14 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.match(document.getElementById('profile-hint').textContent, /1-min profile · /);
 
-    // 横轴标签间距只能是 15 / 30 / 60 / 120 分钟
-    const ticks = charts().profile.options.scales.x.ticks;
-    const shownIndices = [];
-    for (let index = 0; index < 400; index += 1) {
-      if (ticks.callback('12:00', index)) shownIndices.push(index);
-    }
-    assert.ok(shownIndices.length >= 2, '应显示多个横轴标签');
-    const labelStep = shownIndices[1] - shownIndices[0];
+    // 横轴刻度间距只能是 15 / 30 / 60 / 120 分钟（线性时间轴）
+    const xOptions = charts().profile.options.scales.x;
+    assert.equal(xOptions.type, 'linear', '横轴使用分钟线性轴');
     assert.ok(
-      [15, 30, 60, 120].includes(labelStep),
-      `横轴标签间距应为 15/30/60/120 分钟，实际 ${labelStep}`,
+      [15, 30, 60, 120].includes(xOptions.ticks.stepSize),
+      `横轴刻度间距应为 15/30/60/120 分钟，实际 ${xOptions.ticks.stepSize}`,
     );
+    assert.match(xOptions.ticks.callback(720), /^12:00$/, '刻度标签仍按 hh:mm 显示');
 
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
@@ -305,7 +301,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.labels.length === 1440 &&
+        charts().profile.data.datasets[0]?.data.length === 1440 &&
         /Tue · 1-min profile/.test(document.getElementById('profile-hint').textContent),
       { label: '点击周几行显示该天的 5 分钟剖面' },
     );
@@ -376,7 +372,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 1 &&
         charts().profile &&
         charts().profile.config.type === 'line' &&
-        charts().profile.data.labels.length === 1440 &&
+        charts().profile.data.datasets[0]?.data.length === 1440 &&
         new RegExp(`${todayLabel} · 1-min profile`).test(
           document.getElementById('profile-hint').textContent,
         ),
@@ -394,7 +390,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       () =>
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
         charts().profile &&
-        charts().profile.data.labels.length === 1440 &&
+        charts().profile.data.datasets[0]?.data.length === 1440 &&
         /1-min profile · /.test(document.getElementById('profile-hint').textContent),
       { label: '取消星期后回到默认剖面' },
     );
@@ -470,7 +466,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => document.getElementById('heatmap-canvas')?.dataset.minutes === '1440', {
       label: '清除日期后热力图恢复',
     });
-    await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {
+    await waitFor(() => charts().profile && charts().profile.data.datasets[0]?.data.length === 1440, {
       label: '清除日期后剖面恢复',
     });
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
@@ -518,10 +514,12 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     dom.window.innerWidth = 375;
     dom.window.dispatchEvent(new dom.window.Event('resize'));
 
-    await waitFor(() => charts().profile?.options.scales.x.ticks.maxTicksLimit === 6, {
-      label: '窄屏剖面使用紧凑刻度',
+    await waitFor(() => charts().profile?.options.scales.x.ticks.stepSize === 120, {
+      label: '窄屏剖面刻度间距仍为允许值',
     });
-    assert.equal(document.getElementById('chart-bars').style.height, '220px', '窄屏占比图高度压缩');
+    await waitFor(() => document.getElementById('chart-bars').style.height === '220px', {
+      label: '窄屏占比图高度压缩',
+    });
 
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {

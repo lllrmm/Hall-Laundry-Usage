@@ -1051,6 +1051,9 @@
     const dryerValues = data.slots.map((entry) => toPercent(entry.dryerUsage));
     const washerSamples = data.slots.map((entry) => entry.washerSamples ?? 0);
     const dryerSamples = data.slots.map((entry) => entry.dryerSamples ?? 0);
+    // 用 1 分钟索引作为 x 坐标，便于按时距控制刻度
+    const washerPoints = washerValues.map((value, index) => ({ x: index, y: value }));
+    const dryerPoints = dryerValues.map((value, index) => ({ x: index, y: value }));
 
     const period =
       data.since && data.until
@@ -1075,12 +1078,13 @@
         pointHoverRadius: 4,
         spanGaps: false,
         samples: washerSamples,
+        data: washerPoints,
       });
     }
     if (dryerSamples.some((count) => count > 0)) {
       datasets.push({
         label: 'Dryers in use',
-        data: dryerValues,
+        data: dryerPoints,
         borderColor: colors.dryer,
         backgroundColor: hexToRgba(colors.dryer, 0.12),
         borderWidth: 2,
@@ -1093,18 +1097,31 @@
       });
     }
 
-    // 横轴标签间距只允许 15 / 30 / 60 / 120 分钟
+    // 横轴刻度固定为 15 / 30 / 60 / 120 分钟间距
     const tickStep = profileTickStep(container.clientWidth || 900);
     const options = profileChartOptions(colors, compact, { showLegend: true });
-    options.scales.x.ticks = {
-      ...options.scales.x.ticks,
-      autoSkip: false,
-      callback: (value, index) => (index % tickStep === 0 ? value : ''),
+    options.scales.x = {
+      type: 'linear',
+      min: 0,
+      max: 1439,
+      ticks: {
+        stepSize: tickStep,
+        color: colors.muted,
+        font: chartFont(compact ? 8 : 9),
+        maxRotation: 0,
+        callback: (value) => `${pad2(Math.floor(value / 60))}:${pad2(value % 60)}`,
+      },
+      grid: { color: colors.grid },
+      border: { color: colors.grid },
+    };
+    options.plugins.tooltip.callbacks.title = (items) => {
+      const minute = Math.round(items[0]?.parsed?.x ?? 0);
+      return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
     };
 
     mountChart('profile', container, {
       type: 'line',
-      data: { labels, datasets },
+      data: { datasets },
       options,
     });
   }
