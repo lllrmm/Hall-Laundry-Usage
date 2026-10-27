@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { normalizeResponse } from '../../laundry-machines/index.js';
+import { normalizeResponse } from '../../laundry-monitor/src/machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
 
 import { DashboardDatabase } from '../src/queries.js';

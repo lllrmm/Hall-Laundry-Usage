@@ -7,7 +7,7 @@
  *   laundry-machines --token <token> 指定 token（否则读 LDR_TOKEN / ./token.txt）
  */
 
-import { LaundryClient, formatRemaining } from '../index.js';
+import { LaundryClient, formatRemaining } from '../src/machines/index.js';
 
 const HELP = `用法: laundry-machines [选项]
 

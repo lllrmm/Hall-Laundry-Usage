@@ -4,7 +4,7 @@
 
 写入两个库：**原始库**（每次轮询的完整记录，用于精确分析与排查）和**序列库**（每台机器每天 1,440 字节的分钟状态，用于快速历史规律查询）。原始库是真相源，序列库随时可由它重建。
 
-依赖 [`hkust-laundry-machines`](../laundry-machines) 做接口调用与归一化；存储用 Node 内置的 `node:sqlite`（Node ≥ 22.5，**零原生依赖**）。
+上游 API 客户端在 `src/machines/`（原独立包 `hkust-laundry-machines`，已合并进来）；存储用 Node 内置的 `node:sqlite`（Node ≥ 22.5，**零原生依赖**）。
 
 ## 工作方式
 
@@ -26,7 +26,7 @@ monitor.config.json
 
 ```bash
 cd packages/laundry-monitor
-npm install                 # 只装本地依赖 hkust-laundry-machines
+npm install                 # 只有 typescript 一个 devDependency（测试/类型检查用）
 cp monitor.config.example.json monitor.config.json
 # 编辑 monitor.config.json，把 bearer 换成你的 token
 npm run once                # 先采一次，确认能通
@@ -164,11 +164,33 @@ LIMIT 20;
 
 > 注意：SQLite 的 `now` 是 UTC；想看本地时间用 `datetime(observed_at, 'localtime')`。
 
+## 机器状态查询（上游客户端）
+
+原 `hkust-laundry-machines` 包已合并到 `src/machines/`，能力不变：
+
+```bash
+laundry-machines              # 表格
+laundry-machines --json       # JSON（去掉 raw）
+laundry-machines --token <t>  # 临时指定 token
+npm run machines -- --json    # 从本仓库直接运行
+```
+
+```js
+import { createClient } from 'hkust-laundry-monitor';
+
+const client = createClient();       // 读 LDR_TOKEN 或 ./token.txt
+const status = await client.getMachines();
+status.counts;                        // { total, available, inUse, unavailable }
+status.machines.filter((m) => m.kind === 'dryer' && m.available);
+```
+
+`src/machines/index.d.ts` 保留 TypeScript 类型，`npm run typecheck` 校验。
+
 ## 库用法（不走 CLI）
 
 ```js
-import { createClient } from 'hkust-laundry-machines';
 import {
+  createClient,
   createLogger,
   loadConfig,
   openDatabase,

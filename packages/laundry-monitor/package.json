@@ -1,11 +1,12 @@
 {
   "name": "hkust-laundry-monitor",
   "version": "0.1.0",
-  "description": "Poll HKUST laundry machine status on an interval and store every observation in SQLite for later analysis.",
+  "description": "Poll HKUST laundry machine status on an interval, store every observation in SQLite, and expose the upstream machine client (src/machines) for reuse.",
   "type": "module",
   "main": "./src/index.js",
   "bin": {
-    "laundry-monitor": "./bin/cli.mjs"
+    "laundry-monitor": "./bin/cli.mjs",
+    "laundry-machines": "./bin/machines.mjs"
   },
   "files": [
     "bin",
@@ -20,11 +21,14 @@
     "start": "node bin/cli.mjs run --config monitor.config.json",
     "once": "node bin/cli.mjs once --config monitor.config.json",
     "stats": "node bin/cli.mjs stats --config monitor.config.json",
+    "machines": "node bin/machines.mjs",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/db.test.mjs test/collector.test.mjs test/series.test.mjs"
+    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/machines-normalize.test.mjs test/machines-client.test.mjs test/db.test.mjs test/collector.test.mjs test/series.test.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "smoke": "node test/machines-live-smoke.mjs"
   },
-  "dependencies": {
-    "hkust-laundry-machines": "file:../laundry-machines"
+  "devDependencies": {
+    "typescript": "^7.0.2"
   },
   "license": "MIT",
   "private": true

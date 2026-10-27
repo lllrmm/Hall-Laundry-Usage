@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { createClient } from 'hkust-laundry-machines';
+import { createClient } from '../src/machines/index.js';
 
 import {
   DEFAULT_CONFIG_FILE,

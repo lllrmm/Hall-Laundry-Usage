@@ -2,7 +2,7 @@
 
 对 <https://laundry.ust.hk/ldr/app/tickets> 的逆向 + 实测，产出一套**只读**的洗衣房工具链：
 
-- 机器状态查询库 / CLI（`packages/laundry-machines`、`laundry.mjs`）
+- 机器状态查询库 / CLI（`packages/laundry-monitor/src/machines/`、`laundry.mjs`）
 - 常驻采集服务（`packages/laundry-monitor`）：按 60s 轮询，写原始快照库 + 日级压缩序列库
 - 只读 API 服务（`packages/laundry-dashboard`）：当前状态与历史分钟序列，只发数据不渲染页面
 - 独立前端（`packages/laundry-web`）：静态页面 + 本地 Chart.js + 图表聚合，通过反向代理调用 API
@@ -135,8 +135,7 @@ laundry.mjs                   只读 CLI：machines / available / used（见 doc
 token.txt                     Bearer token（git 忽略）
 docs/API.md                   站点 API 文档
 docs/openapi.json             OpenAPI 3.0 规格
-packages/laundry-machines/    机器状态查询库（ESM + TS 类型 + CLI，Node ≥18）
-packages/laundry-monitor/     采集服务：轮询 + 原始快照库 + 日序列库（stats/export/rebuild）
+packages/laundry-monitor/     采集服务 + 上游机器客户端（src/machines）：轮询、原始库、序列库、stats/export/rebuild
 packages/laundry-dashboard/   只读 JSON API：meta / state / machines / days
 packages/laundry-web/         独立前端：静态页面 + Chart.js + /api 反向代理
 packages/shared/              跨包共享契约：序列字节编码、本地日界、洗粉映射
@@ -144,7 +143,6 @@ packages/shared/              跨包共享契约：序列字节编码、本地�
 
 各包的详细说明、配置项和设计细节见各自的 README：
 
-- [packages/laundry-machines/README.md](packages/laundry-machines/README.md)
 - [packages/laundry-monitor/README.md](packages/laundry-monitor/README.md)
 - [packages/laundry-dashboard/README.md](packages/laundry-dashboard/README.md)
 - [packages/laundry-web/README.md](packages/laundry-web/README.md)
@@ -161,11 +159,8 @@ node laundry.mjs machines --json   # 原始 JSON
 ## 测试与自检
 
 ```bash
-# 机器状态库
-cd packages/laundry-machines && npm test && npm run typecheck
-
-# 采集 / 存储 / 序列
-cd packages/laundry-monitor && npm test
+# 采集 / 存储 / 序列 / 上游客户端
+cd packages/laundry-monitor && npm test && npm run typecheck
 
 # 只读 API（数据层 + HTTP）
 cd packages/laundry-dashboard && npm test

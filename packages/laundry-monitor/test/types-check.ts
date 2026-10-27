@@ -14,7 +14,7 @@ import {
   type Machine,
   type MachineStatus,
   type RawMachinesResponse,
-} from '../index.js';
+} from '../src/machines/index.js';
 
 const client: LaundryClient = createClient({ token: 'test-token', timeoutMs: 5000 });
 

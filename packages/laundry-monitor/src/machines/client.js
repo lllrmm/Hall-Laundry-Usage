@@ -14,7 +14,8 @@ export const MACHINES_ENDPOINT = '/app/laundry-rooms/machines';
  * token 取自网页登录态：localStorage["ldr_student"].token
  *
  * @example
- * import { createClient } from 'hkust-laundry-machines';
+ * import { createClient } from 'hkust-laundry-monitor';
+ * // 或从仓库内部：import { createClient } from '../src/machines/index.js';
  *
  * const client = createClient({ token: process.env.LDR_TOKEN });
  * const status = await client.getMachines();
@@ -36,7 +37,7 @@ export class LaundryClient {
     baseUrl = DEFAULT_BASE_URL,
     fetch: fetchImpl = globalThis.fetch,
     timeoutMs = 15_000,
-    userAgent = 'hkust-laundry-machines/0.1.0',
+    userAgent = 'hkust-laundry-monitor/0.1.0',
     tokenFile = 'token.txt',
   } = {}) {
     if (typeof fetchImpl !== 'function') {

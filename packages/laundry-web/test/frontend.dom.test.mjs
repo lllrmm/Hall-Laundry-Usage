@@ -15,7 +15,7 @@ import path from 'node:path';
 
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-import { normalizeResponse } from '../../laundry-machines/index.js';
+import { normalizeResponse } from '../../laundry-monitor/src/machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
 import { createDashboardServer } from '../../laundry-dashboard/src/server.js';
 import { createWebServer } from '../src/server.js';

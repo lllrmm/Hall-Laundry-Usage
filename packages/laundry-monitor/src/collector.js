@@ -6,7 +6,7 @@
 
 /**
  * @param {object} options
- * @param {import('hkust-laundry-machines').LaundryClient} options.client
+ * @param {import('./machines/index.js').LaundryClient} options.client
  * @param {import('./db.js').MonitorDatabase} options.db
  * @param {import('./series.js').SeriesDatabase} [options.series] 序列库（raw 的日级压缩派生层）
  * @param {{info: Function, error: Function, debug: Function, warn: Function}} [options.logger]

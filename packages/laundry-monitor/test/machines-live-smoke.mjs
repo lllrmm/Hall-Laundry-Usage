@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createClient, formatRemaining } from '../index.js';
+import { createClient, formatRemaining } from '../src/machines/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootTokenFile = path.resolve(here, '../../../token.txt');

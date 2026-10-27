@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { normalizeResponse } from 'hkust-laundry-machines';
+import { normalizeResponse } from '../src/machines/index.js';
 
 import { pollOnce } from '../src/collector.js';
 import { startMonitor } from '../src/monitor.js';

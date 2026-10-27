@@ -7,7 +7,7 @@ import { pollOnce } from './collector.js';
 
 /**
  * @param {object} options
- * @param {import('hkust-laundry-machines').LaundryClient} options.client
+ * @param {import('./machines/index.js').LaundryClient} options.client
  * @param {import('./db.js').MonitorDatabase} options.db
  * @param {import('./series.js').SeriesDatabase} [options.series] 序列库（日级压缩派生层）
  * @param {object} options.config 由 loadConfig 返回

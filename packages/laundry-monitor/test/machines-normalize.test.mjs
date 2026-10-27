@@ -7,7 +7,7 @@ import {
   normalizeMachine,
   normalizeResponse,
   parseMachineNumber,
-} from '../index.js';
+} from '../src/machines/index.js';
 
 const NOW = Date.parse('2026-10-26T17:00:00.000Z');
 

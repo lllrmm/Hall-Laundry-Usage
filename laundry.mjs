@@ -21,7 +21,7 @@ import {
   formatRemaining,
   normalizeMachine,
   resolveToken,
-} from './packages/laundry-machines/index.js';
+} from './packages/laundry-monitor/src/machines/index.js';
 
 export const BASE = 'https://laundry.ust.hk/ldr/api';
 

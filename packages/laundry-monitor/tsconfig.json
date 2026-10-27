@@ -10,5 +10,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": []
   },
-  "include": ["index.d.ts", "test/types-check.ts"]
+  "include": ["src/machines/index.d.ts", "test/types-check.ts"]
 }

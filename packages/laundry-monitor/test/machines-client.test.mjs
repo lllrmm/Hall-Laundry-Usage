@@ -12,7 +12,7 @@ import {
   MACHINES_ENDPOINT,
   createClient,
   resolveToken,
-} from '../index.js';
+} from '../src/machines/index.js';
 
 const fixtureUrl = new URL('./fixtures/machines-response.json', import.meta.url);
 const fixture = JSON.parse(fs.readFileSync(fixtureUrl, 'utf8'));
