@@ -780,6 +780,33 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '窄屏占比图高度压缩',
     });
 
+    // 移动端选择时段：粒度固定为 1 小时（整点开始、整点结束）
+    const mobileSnapFrom = Math.floor(rawFrom / 60) * 60;
+    const mobileDragTo = Math.min(1439, rawFrom + 5);
+    const mobileSnapTo = Math.min(1439, Math.floor(mobileDragTo / 60) * 60 + 59);
+    const mobileLabel = `${hhmm(mobileSnapFrom)}–${hhmm(mobileSnapTo)}`;
+    const mobileTouch = (type, minute) => {
+      const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
+      const touch = { clientX: (minute / 1440) * 375, clientY: 10 };
+      Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [touch] });
+      Object.defineProperty(event, 'changedTouches', { value: [touch] });
+      return event;
+    };
+    axis.dispatchEvent(mobileTouch('touchstart', rawFrom));
+    axis.dispatchEvent(mobileTouch('touchmove', mobileDragTo));
+    axis.dispatchEvent(mobileTouch('touchend', mobileDragTo));
+    await waitFor(
+      () =>
+        charts().profile?.config.type === 'bar' &&
+        document.getElementById('profile-hint').textContent === mobileLabel,
+      { label: '移动端按 1 小时粒度选择时段' },
+    );
+    assert.match(
+      document.getElementById('bars-range').textContent,
+      /^Mon–Sun · \d{2}:00–\d{2}:59$/,
+      '移动端选择结果是整小时区间',
+    );
+
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
     if (dom) dom.window.close();

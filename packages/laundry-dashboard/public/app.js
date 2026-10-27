@@ -769,9 +769,10 @@
     axisSelection.style.opacity = '0';
     axis.appendChild(axisSelection);
 
-    const SNAP_MINUTES = 30;
-    const snapStart = (minute) => Math.min(1439, Math.floor(minute / SNAP_MINUTES) * SNAP_MINUTES);
-    const blockEnd = (start) => Math.min(1439, start + SNAP_MINUTES - 1);
+    // 桌面用 30 分钟粒度；移动端（窄屏）用 1 小时粒度
+    const snapMinutes = window.innerWidth <= 720 ? 60 : 30;
+    const snapStart = (minute) => Math.min(1439, Math.floor(minute / snapMinutes) * snapMinutes);
+    const blockEnd = (start) => Math.min(1439, start + snapMinutes - 1);
 
     const axisMinuteAtX = (clientX) => {
       const rect = axis.getBoundingClientRect();
