@@ -1087,16 +1087,26 @@
     // 横轴刻度固定为 15 / 30 / 60 / 120 分钟间距
     const tickStep = profileTickStep(container.clientWidth || 900);
     const options = profileChartOptions(colors, compact, { showLegend: true });
+    // 显式给出整数分钟刻度，避免 Chart.js 自动把范围均分后产生 239.833… 这种小数刻度
+    const minuteTicks = [];
+    for (let minute = 0; minute <= 1439; minute += tickStep) minuteTicks.push({ value: minute });
     options.scales.x = {
       type: 'linear',
       min: 0,
       max: 1439,
+      afterBuildTicks: (axis) => {
+        axis.ticks = minuteTicks.map((tick) => ({ value: tick.value }));
+      },
       ticks: {
         stepSize: tickStep,
+        autoSkip: false,
         color: colors.muted,
         font: chartFont(compact ? 8 : 9),
         maxRotation: 0,
-        callback: (value) => `${pad2(Math.floor(value / 60))}:${pad2(value % 60)}`,
+        callback: (value) => {
+          const minute = Math.round(Number(value));
+          return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
+        },
       },
       grid: { color: colors.grid },
       border: { color: colors.grid },

@@ -340,8 +340,17 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '首次进入时默认显示 Mon–Sun（不再显示 "1-min profile · 时段"）',
     );
 
-    // 横轴刻度间距只能是 15 / 30 / 60 / 120 分钟（线性时间轴）
+    // 横轴刻度间距只能是 15 / 30 / 60 / 120 分钟（线性时间轴），且必须是整数分钟
     const xOptions = charts().profile.options.scales.x;
+    const fakeAxis = { ticks: [] };
+    xOptions.afterBuildTicks(fakeAxis);
+    assert.ok(fakeAxis.ticks.length >= 10, '应生成覆盖全天的刻度');
+    assert.ok(
+      fakeAxis.ticks.every(
+        (tick) => Number.isInteger(tick.value) && tick.value % xOptions.ticks.stepSize === 0,
+      ),
+      '刻度必须是整数分钟（不再出现 239.833… 这种小数）',
+    );
     assert.equal(xOptions.type, 'linear', '横轴使用分钟线性轴');
     assert.ok(
       [15, 30, 60, 120].includes(xOptions.ticks.stepSize),
