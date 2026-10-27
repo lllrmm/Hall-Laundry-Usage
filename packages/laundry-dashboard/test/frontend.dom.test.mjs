@@ -286,10 +286,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '热力图提示说明用全部历史样本并可点行/列',
     );
 
-    // 历史剖面：默认全部按小时；点行 → 该周几的 24 小时剖面；点列 → 该小时的 7 天剖面
+    // 历史剖面：默认（柱状图）；点行 → 该周几 24 小时（线图）；点列 → 该小时 7 天（柱状图）
     await waitFor(() => charts().profile && charts().profile.data.labels.length === 24, {
       label: '默认剖面（24 小时）',
     });
+    assert.equal(charts().profile.config.type, 'bar', '默认剖面用柱状图');
     assert.match(document.getElementById('profile-hint').textContent, /All days · usage by hour/);
 
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
@@ -303,6 +304,8 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         /Tue · usage by hour/.test(document.getElementById('profile-hint').textContent),
       { label: '点击周几行显示该天的小时剖面' },
     );
+    assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
+    assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
     assert.ok(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
         (node) => node.classList.contains('active') && node.textContent === 'Tue',
@@ -319,6 +322,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
       { label: '点击小时列显示一周 7 天剖面' },
     );
+    assert.equal(charts().profile.config.type, 'bar', '选中列时剖面用柱状图');
     assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.col-active').length, 7, '该列所有格子高亮');
 
     // 再次点击同一列 → 取消选择，回到默认剖面

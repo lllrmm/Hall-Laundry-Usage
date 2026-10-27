@@ -911,21 +911,33 @@
       },
     };
 
+    // 选中周几（行）→ 线图；选中小时（列）或未选 → 柱状图
+    const isLine = Boolean(focus && focus.kind === 'weekday');
+    const dataset = isLine
+      ? {
+          label: 'Usage rate',
+          data: values,
+          borderColor: colors.busy,
+          backgroundColor: hexToRgba(colors.busy, 0.14),
+          borderWidth: 2,
+          tension: 0.25,
+          fill: true,
+          pointRadius: compact ? 2 : 3,
+          pointHoverRadius: 5,
+          spanGaps: false,
+        }
+      : {
+          label: 'Usage rate',
+          data: values,
+          backgroundColor: colors.busy,
+          borderRadius: 3,
+          borderWidth: 0,
+          maxBarThickness: compact ? 14 : 30,
+        };
+
     mountChart('profile', container, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Usage rate',
-            data: values,
-            backgroundColor: colors.busy,
-            borderRadius: 3,
-            borderWidth: 0,
-            maxBarThickness: compact ? 14 : 30,
-          },
-        ],
-      },
+      type: isLine ? 'line' : 'bar',
+      data: { labels, datasets: [dataset] },
       options,
     });
   }
