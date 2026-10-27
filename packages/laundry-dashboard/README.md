@@ -93,7 +93,7 @@ npm start                       # http://127.0.0.1:8787（只读 API）
 | `port` | `8787` | 监听端口 |
 | `corsOrigins` | `[]` | 允许跨域访问 API 的浏览器 origin 列表；同源/反代部署留空，GitHub Pages 填 `["https://<user>.github.io"]` 或 `["*"]` |
 
-> GitHub Pages 前端通过 `?api=https://your-api.example.com` 访问本服务，此时必须配置 `corsOrigins`（origin 不要带仓库路径）；API 还需支持 HTTPS。
+> GitHub Pages 前端通过 `?api=https://your-api.example.com` 访问本服务，此时必须配置 `corsOrigins`（origin 不要带仓库路径）；API 还需支持 HTTPS。若在同一台电脑上从 Pages 访问 `http://127.0.0.1:8787`，Chrome/Edge 会发 Private Network Access 预检，本服务会返回 `Access-Control-Allow-Private-Network: true`；Firefox/Safari 可能直接拦截 HTTPS→HTTP localhost，建议改用本地前端 `http://127.0.0.1:8788`。
 
 ## 测试
 

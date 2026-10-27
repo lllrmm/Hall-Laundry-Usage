@@ -226,11 +226,17 @@ test('CORS：白名单 origin 返回头，OPTIONS 预检 204，非白名单无 A
       headers: {
         origin: 'https://user.github.io',
         'access-control-request-method': 'GET',
+        'access-control-request-private-network': 'true',
       },
     });
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://user.github.io');
     assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /GET/);
+    assert.equal(
+      preflight.headers.get('access-control-allow-private-network'),
+      'true',
+      'Chrome PNA：公网页面访问 localhost 时需要该响应头',
+    );
   } finally {
     await app.close();
     try {

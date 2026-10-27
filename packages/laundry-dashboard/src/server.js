@@ -228,6 +228,10 @@ export function createDashboardServer({ config, logger = console }) {
         sendText(res, 403, 'CORS origin not allowed');
         return;
       }
+      // Chrome Private Network Access：公网 HTTPS 页面访问 127.0.0.1 时预检会带这个请求头
+      if (String(req.headers['access-control-request-private-network'] ?? '').toLowerCase() === 'true') {
+        res.setHeader('access-control-allow-private-network', 'true');
+      }
       res.writeHead(204);
       res.end();
       return;

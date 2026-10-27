@@ -51,6 +51,12 @@ window.__LAUNDRY_API_BASE__ = 'http://192.168.1.23:8787';
    （origin 只到 `https://<user>.github.io`，不要带仓库路径）；只读 API 也可以临时用 `"corsOrigins": ["*"]`；
 5. 不带 `?api=` 且 `config.js` 为空时，前端按同源 `/api/*` 请求——在 Pages 上会失败，这是预期行为。
 
+> **在跑后端的同一台电脑上打开 Pages** 时，可以直接用
+> `?api=http://127.0.0.1:8787`（dashboard 的 API 端口，不是前端的 8788）。
+> Chrome/Edge 会对「公网 HTTPS 页面 → localhost」做 Private Network Access 预检，dashboard 已返回
+> `Access-Control-Allow-Private-Network: true`；Firefox/Safari 可能直接拦截 HTTPS→HTTP localhost，
+> 这种情况下请改用本地前端 `http://127.0.0.1:8788`，不要用 Pages。
+
 > Pages 只托管静态文件；采集与 API 仍需在常开机器上运行，并通过 HTTPS 隧道/反代暴露。
 
 ## 页面内容（界面为英文）
