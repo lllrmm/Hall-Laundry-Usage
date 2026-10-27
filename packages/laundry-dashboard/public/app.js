@@ -62,7 +62,12 @@
     ['all', 'All'],
   ];
 
-  const HOURLY_HINT = 'Taller bar = easier to find a free machine';
+  /** 时间范围 → 展示用文案（State breakdown 右上角） */
+  function rangeLabel(range) {
+    const found = RANGES.find(([value]) => value === range);
+    if (!found) return '';
+    return found[0] === 'all' ? 'All time' : found[1];
+  }
 
   const state = {
     range: '24h',
@@ -648,11 +653,9 @@
   function renderHourlyChart(hourly) {
     const container = $('chart-hourly');
     const hours = hourly?.hours ?? [];
-    const hint = $('hourly-hint');
     const withData = hours.filter((entry) => entry.freeRatio !== null);
 
     if (!withData.length) {
-      if (hint) hint.textContent = HOURLY_HINT;
       showChartEmpty('hourly', container, 'No data yet (waiting for polls)');
       return;
     }
@@ -660,10 +663,6 @@
     const colors = chartColors();
     const compact = container.clientWidth > 0 && container.clientWidth < 520;
     const best = withData.reduce((a, b) => (b.freeRatio > a.freeRatio ? b : a), withData[0]);
-
-    if (hint) {
-      hint.textContent = `Best time ${pad2(best.hour)}:00 (${Math.round(best.freeRatio * 100)}% free)`;
-    }
 
     const options = baseChartOptions(colors, compact);
     options.plugins.legend.display = false;
@@ -729,6 +728,9 @@
     });
     // State breakdown 只跟时间范围走，始终展示所有机器（不带 machines 过滤）
     const barsParams = new URLSearchParams({ since: state.range });
+
+    const barsRangeEl = $('bars-range');
+    if (barsRangeEl) barsRangeEl.textContent = rangeLabel(state.range);
 
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;

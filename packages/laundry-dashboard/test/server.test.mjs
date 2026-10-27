@@ -81,6 +81,8 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
     assert.match(html, /Database updated/, '顶栏时间标签应为 Database updated');
     assert.doesNotMatch(html, />Data updated</, '旧标签 Data updated 应已移除');
+    assert.match(html, /id="bars-range"/, '占比图应显示当前时间范围');
+    assert.doesNotMatch(html, /All machines/, '旧的 All machines 文案应已移除');
     assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
   });
 });

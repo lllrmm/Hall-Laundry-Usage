@@ -29,8 +29,8 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空 |
 | Overall trend | 折线图：**Washers / Dryers 各一条线**，显示所选机器中在用台数随时间变化（Y 轴按峰值自适应） |
-| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器，只跟随时间范围变化** |
-| Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
+| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器，只跟随时间范围变化**，右上角显示当前范围（如 `24 hours`） |
+| Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器；最佳时段用深色柱标出 |
 
 图表使用 **Chart.js 4**（本地 vendor，`public/vendor/chart.umd.js`，MIT），折线/堆叠柱/柱状图都由 Chart.js 渲染；悬停/触摸 tooltip、图例由库提供，主题颜色取自 CSS 变量。数据每 30 秒自动刷新，窗口尺寸变化时按新宽度重建图表。
 
