@@ -324,84 +324,67 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: 'State breakdown 跟随多选的星期',
     });
 
-    // 取消多选，回到全部星期
-    findRow('Mon').click();
-    findRow('Tue').click();
-    await waitFor(
-      () =>
-        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
-        /1-min profile · /.test(document.getElementById('profile-hint').textContent),
-      { label: '取消星期选择后回到默认剖面' },
-    );
-
-    clickAxis(720);
-    await waitFor(
-      () =>
-        charts().profile &&
-        charts().profile.data.labels.length === 7 &&
-        /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
-      { label: '点击小时表头显示一周 7 天剖面' },
-    );
-    assert.equal(charts().profile.config.type, 'bar', '选中分钟时剖面用柱状图');
-    await waitFor(() => /12:00 · all history/.test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 跟随选中的分钟',
-    });
-
-    // 横向拖动选择当前时段（fixture 数据所在分钟）→ 剖面显示每天该时段的使用率
+    // 互斥：已选星期时拖动时段 → 星期选择被清空
     const pad2 = (value) => String(value).padStart(2, '0');
     const hhmm = (minute) => `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
     const t0 = new Date(T0);
-    const rangeFrom = t0.getHours() * 60 + t0.getMinutes();
-    const rangeTo = Math.min(1439, rangeFrom + 5);
-
+    const rawFrom = t0.getHours() * 60 + t0.getMinutes();
+    const rawTo = Math.min(1439, rawFrom + 5);
+    // 时间轴选择按 10 分钟粒度吸附
+    const snappedFrom = Math.floor(rawFrom / 10) * 10;
+    const snappedTo = Math.min(1439, Math.floor(rawTo / 10) * 10 + 9);
+    const rangeFrom = rawFrom;
+    const rangeTo = rawTo;
+    const rangeLabel = `${hhmm(snappedFrom)}–${hhmm(snappedTo)}`;
     const dragTo = (fromMinute, toMinute) => {
       axis.dispatchEvent(axisEvent('mousedown', fromMinute));
       axis.dispatchEvent(axisEvent('mousemove', toMinute));
       axis.dispatchEvent(axisEvent('mouseup', toMinute));
     };
     dragTo(rangeFrom, rangeTo);
-    const rangeLabel = `${hhmm(rangeFrom)}–${hhmm(rangeTo)}`;
     await waitFor(
       () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
         charts().profile &&
         charts().profile.config.type === 'bar' &&
         charts().profile.data.labels.length === 7 &&
         new RegExp(`${rangeLabel} · usage by weekday`).test(
           document.getElementById('profile-hint').textContent,
         ),
-      { label: '拖动选择时段后显示按周几统计的柱状图' },
+      { label: '拖动时段后清空星期选择并显示周几柱状图' },
     );
-    assert.deepEqual(
-      Array.from(charts().profile.data.labels),
-      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      '时段剖面横轴为周几',
-    );
-    await waitFor(() => new RegExp(rangeLabel).test(document.getElementById('bars-range').textContent), {
-      label: 'State breakdown 跟随拖动时段',
-    });
+    assert.doesNotMatch(document.getElementById('profile-hint').textContent, /Mon, Tue/, '时段选择与星期互斥');
 
-    // 点击单个分钟 → 取消时段选择，回到分钟剖面
-    clickAxis(720);
+    // 互斥：时段已选时点星期 → 时段选择被清空（选 fixture 当天，保证有数据）
+    const todayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(t0.getDay() + 6) % 7];
+    findRow(todayLabel).click();
     await waitFor(
       () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 1 &&
         charts().profile &&
-        charts().profile.data.labels.length === 7 &&
-        /12:00 · usage by weekday/.test(document.getElementById('profile-hint').textContent),
-      { label: '点击分钟恢复单分钟剖面' },
+        charts().profile.config.type === 'line' &&
+        charts().profile.data.labels.length === 1440 &&
+        new RegExp(`${todayLabel} · 1-min profile`).test(
+          document.getElementById('profile-hint').textContent,
+        ),
+      { label: '点星期后清空时段选择' },
     );
+    await waitFor(
+      () => new RegExp(`${todayLabel} · `).test(document.getElementById('bars-range').textContent),
+      { label: 'State breakdown 跟随星期' },
+    );
+    assert.equal(document.querySelector('.axis-selection')?.style.opacity, '0', '时段选区已清除');
 
-    // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
-    clickAxis(720);
+    // 取消星期 → 默认剖面
+    findRow(todayLabel).click();
     await waitFor(
       () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
         charts().profile &&
         charts().profile.data.labels.length === 1440 &&
-        /1-min profile/.test(document.getElementById('profile-hint').textContent),
-      { label: '再次点击取消选择' },
+        /1-min profile · /.test(document.getElementById('profile-hint').textContent),
+      { label: '取消星期后回到默认剖面' },
     );
-    await waitFor(() => /^\d{2}-\d{2} \d{2}:\d{2} – /.test(document.getElementById('bars-range').textContent), {
-      label: '取消选择后 State breakdown 回到时间窗',
-    });
 
     // 3) 选择控件：Date range 输入 + 机器 chips
     assert.equal(document.querySelectorAll('#ranges').length, 0, '旧的相对窗口 chips 已移除');

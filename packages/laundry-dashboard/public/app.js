@@ -632,6 +632,8 @@
     const focus = state.heatmapFocus;
     state.heatmapFocus = focus && focus.kind === kind && focus.value === value ? null : { kind, value };
     state.heatmapRange = null;
+    // 时段选择与星期选择互斥
+    state.weekdaySelection.clear();
     if (state.heatmap) renderHeatmap(state.heatmap);
     refreshProfile();
     loadBars();
@@ -705,6 +707,11 @@
       label.addEventListener('click', () => {
         if (state.weekdaySelection.has(weekday)) state.weekdaySelection.delete(weekday);
         else state.weekdaySelection.add(weekday);
+        // 时段选择与星期选择互斥：选星期时清除时段/分钟选择
+        if (state.weekdaySelection.size) {
+          state.heatmapFocus = null;
+          state.heatmapRange = null;
+        }
         if (state.heatmap) renderHeatmap(state.heatmap);
         refreshProfile();
         loadBars();
@@ -790,12 +797,16 @@
       if (tooltip) tooltip.classList.remove('visible');
     };
 
-    // ---- 顶部时间轴：横向拖动选择时段 ----
+    // ---- 顶部时间轴：横向拖动选择时段（10 分钟粒度） ----
     const axis = hoursBox;
     const axisSelection = document.createElement('div');
     axisSelection.className = 'axis-selection';
     axisSelection.style.opacity = '0';
     axis.appendChild(axisSelection);
+
+    const SNAP_MINUTES = 10;
+    const snapStart = (minute) => Math.min(1439, Math.floor(minute / SNAP_MINUTES) * SNAP_MINUTES);
+    const blockEnd = (start) => Math.min(1439, start + SNAP_MINUTES - 1);
 
     const axisMinuteAt = (event) => {
       const rect = axis.getBoundingClientRect();
@@ -813,31 +824,31 @@
 
     let axisDragStart = null;
     axis.onmousedown = (event) => {
-      axisDragStart = axisMinuteAt(event);
-      showAxisSelection(axisDragStart, axisDragStart);
+      axisDragStart = snapStart(axisMinuteAt(event));
+      showAxisSelection(axisDragStart, blockEnd(axisDragStart));
       event.preventDefault();
     };
     axis.onmousemove = (event) => {
       if (axisDragStart === null) return;
-      const minute = axisMinuteAt(event);
-      showAxisSelection(Math.min(axisDragStart, minute), Math.max(axisDragStart, minute));
+      const minute = snapStart(axisMinuteAt(event));
+      const from = Math.min(axisDragStart, minute);
+      showAxisSelection(from, blockEnd(Math.max(axisDragStart, minute)));
     };
     axis.onmouseup = (event) => {
-      const end = axisMinuteAt(event);
+      const end = snapStart(axisMinuteAt(event));
       const start = axisDragStart;
       axisDragStart = null;
       if (start === null) return;
-      if (Math.abs(end - start) >= 2) {
-        const from = Math.min(start, end);
-        const to = Math.max(start, end);
-        state.heatmapRange = { from, to };
-        state.heatmapFocus = { kind: 'range', from, to };
-        renderHeatmap(state.heatmap);
-        refreshProfile();
-        loadBars();
-        return;
-      }
-      setHeatmapFocus('minute', end);
+
+      const from = Math.min(start, end);
+      const to = blockEnd(Math.max(start, end));
+      state.heatmapRange = { from, to };
+      state.heatmapFocus = { kind: 'range', from, to };
+      // 时段选择与星期选择互斥
+      state.weekdaySelection.clear();
+      renderHeatmap(state.heatmap);
+      refreshProfile();
+      loadBars();
     };
     axis.onmouseleave = () => {
       axisDragStart = null;
@@ -850,7 +861,7 @@
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis to select a time range`;
+      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis (10-min steps) to select a time range`;
     }
   }
 
