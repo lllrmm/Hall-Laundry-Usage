@@ -82,7 +82,7 @@ docker compose up -d --build
 - `api`：只在 compose 内部网络监听 `8787`，由 `web` 反向代理；
 - `monitor`：写 named volume `hall-laundry-usage_laundry-data`；
 - 容器配置在 `deploy/docker/*.json`，token 由 `.env` 的 `LDR_TOKEN` 注入（monitor 配置里写的是 `${LDR_TOKEN}`）；
-- `TZ` 默认 `Asia/Shanghai`（影响序列按天切分），可在 `.env` 修改；
+- `TZ` 默认 `Asia/Hong_Kong`（香港时间，影响序列按天切分），可在 `.env` 修改；
 - GitHub Pages 需要跨域时，改 `deploy/docker/dashboard-api.config.json` 的 `corsOrigins`。
 
 常用命令：

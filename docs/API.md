@@ -7,7 +7,7 @@
 >
 > 采集方式：对 `https://laundry.ust.hk/ldr/app/` 的 React SPA 打包文件做静态逆向（`main.*.chunk.js`），
 > 再用真实 Bearer token 对生产接口逐条实测验证（HTTP 记录见附录 D）。
-> 采集时间：2026-10-27（Asia/Shanghai）。站点未公开文档，字段语义均以实测为准。
+> 采集时间：2026-10-27（Asia/Hong_Kong）。站点未公开文档，字段语义均以实测为准。
 
 ---
 
@@ -127,7 +127,7 @@ CAS 登录含学校的统一认证/二次验证，不适合脚本自动完成；
 
 ### 3.3 时间与数据类型约定
 
-- 所有时间是 **ISO 8601 UTC** 字符串（如 `"2026-10-16T15:59:59.999Z"`），展示时需转 `Asia/Shanghai`；
+- 所有时间是 **ISO 8601 UTC** 字符串（如 `"2026-10-16T15:59:59.999Z"`），展示时需转 `Asia/Hong_Kong`；
 - 金额字段（`price`、`bulk_purchase_price`）单位是 **HKD 整数**；
 - 所有 `_id` 是 MongoDB ObjectId 的 24 位十六进制字符串。
 
@@ -529,7 +529,7 @@ tickets / rooms 没有内置 CLI，请直接按上面的 HTTP 示例调用。
 
 ## 8. 附录
 
-### A. 本次实测采样（2026-10-27 01:5x，Asia/Shanghai）
+### A. 本次实测采样（2026-10-27 01:5x，Asia/Hong_Kong）
 
 | 项目 | 实测值 |
 |---|---|

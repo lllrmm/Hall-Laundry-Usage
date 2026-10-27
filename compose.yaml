@@ -6,7 +6,7 @@ x-service: &service
     context: .
   restart: unless-stopped
   environment:
-    TZ: ${TZ:-Asia/Shanghai}
+    TZ: ${TZ:-Asia/Hong_Kong}
 
 services:
   monitor:
@@ -18,7 +18,7 @@ services:
       - --config
       - /config/monitor.config.json
     environment:
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-Asia/Hong_Kong}
       LDR_TOKEN: ${LDR_TOKEN:?set LDR_TOKEN in .env}
     volumes:
       - laundry-data:/data
@@ -51,3 +51,4 @@ services:
 
 volumes:
   laundry-data:
+
