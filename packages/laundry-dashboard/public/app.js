@@ -804,7 +804,7 @@
     axisSelection.style.opacity = '0';
     axis.appendChild(axisSelection);
 
-    const SNAP_MINUTES = 10;
+    const SNAP_MINUTES = 30;
     const snapStart = (minute) => Math.min(1439, Math.floor(minute / SNAP_MINUTES) * SNAP_MINUTES);
     const blockEnd = (start) => Math.min(1439, start + SNAP_MINUTES - 1);
 
@@ -861,7 +861,7 @@
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis (10-min steps) to select a time range`;
+      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis (30-min steps) to select a time range`;
     }
   }
 

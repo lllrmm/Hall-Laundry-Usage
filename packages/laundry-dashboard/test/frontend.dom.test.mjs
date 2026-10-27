@@ -339,9 +339,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     const t0 = new Date(T0);
     const rawFrom = t0.getHours() * 60 + t0.getMinutes();
     const rawTo = Math.min(1439, rawFrom + 5);
-    // 时间轴选择按 10 分钟粒度吸附
-    const snappedFrom = Math.floor(rawFrom / 10) * 10;
-    const snappedTo = Math.min(1439, Math.floor(rawTo / 10) * 10 + 9);
+    // 时间轴选择按 30 分钟粒度吸附
+    const snappedFrom = Math.floor(rawFrom / 30) * 30;
+    const snappedTo = Math.min(1439, Math.floor(rawTo / 30) * 30 + 29);
     const rangeFrom = rawFrom;
     const rangeTo = rawTo;
     const rangeLabel = `${hhmm(snappedFrom)}–${hhmm(snappedTo)}`;

@@ -29,7 +29,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | Date range | 选择开始 / 结束日期（本地日期，含首尾两天），留空 = 全部历史；**热力图 / Historical profile / State breakdown 都跟随** |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空；**热力图 / 剖面 / State breakdown 都跟随**（清空选择时显示占位） |
 | State breakdown | 横向堆叠柱状图：每台机器 **In use / Free** 占比（维护 / 离线 / 停用样本**不计入分母**，tooltip 显示被排除的样本数）；样本范围 = Date range + Machines selected + 勾选的星期 + 热力图选中的时段 |
-| Usage heatmap · weekday × minute | Canvas 绘制的 7 行（周一…周日）× **1440 列（1 分钟）** 热力图，**压缩到视口宽度、无需滚动**；颜色 = 该星期几该分钟的平均使用率（只统计可运营样本）；跟随 Date range 与机器选择；点行标签可多选星期；**顶部时间轴拖动选择时段，选择粒度 10 分钟**（热力图本身仍按 1 分钟绘制） |
+| Usage heatmap · weekday × minute | Canvas 绘制的 7 行（周一…周日）× **1440 列（1 分钟）** 热力图，**压缩到视口宽度、无需滚动**；颜色 = 该星期几该分钟的平均使用率（只统计可运营样本）；跟随 Date range 与机器选择；点行标签可多选星期；**顶部时间轴拖动选择时段，选择粒度 30 分钟**（热力图本身仍按 1 分钟绘制） |
 | Historical profile | 热力图剖面：勾选一个或多个星期 → 合并的 1 分钟使用率线图（洗衣机 / 烘干机各一条，按样本加权；**横轴标签间距限定为 15 / 30 / 60 / 120 分钟**，按容器宽度自动选择）；点分钟 / 拖选时段 → 仅按**勾选的星期**统计的柱状图；跟随 Date range 与机器选择；百分比同样**只统计可运营样本** |
 
 图表使用 **Chart.js 4**（本地 vendor，`public/vendor/chart.umd.js`，MIT），折线/堆叠柱/柱状图都由 Chart.js 渲染；悬停/触摸 tooltip、图例由库提供，主题颜色取自 CSS 变量。数据每 30 秒自动刷新，窗口尺寸变化时按新宽度重建图表。
