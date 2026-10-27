@@ -63,6 +63,13 @@ cd packages/laundry-web && npm start
 前端监听 `0.0.0.0`，同一局域网内的手机/平板用电脑 IP 访问即可，例如
 `http://<电脑 IP>:8788`（用系统工具查看本机局域网 IP）。API 默认只监听 `127.0.0.1`，由前端本地反代访问。
 
+### 4. 可选：前端发布到 GitHub Pages
+
+前端是纯静态的，可以用仓库内的 `.github/workflows/pages.yml` 发布到 GitHub Pages；页面用
+`?api=https://<API 地址>` 指定公网 API。API 需要在 `laundry-dashboard` 的 `dashboard.config.json`
+里配置允许 Pages 的 `corsOrigins`（例如 `["https://<user>.github.io"]`），并且是可用的 HTTPS 地址。
+采集与 API 仍需一台常开机器，Pages 只负责静态页面。
+
 ## 看板
 
 浏览器端单页看板，主要包含：

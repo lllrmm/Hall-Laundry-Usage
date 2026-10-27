@@ -89,8 +89,11 @@ npm start                       # http://127.0.0.1:8787（只读 API）
 |---|---|---|
 | `database` | `../laundry-monitor/data/laundry.sqlite` | 原始快照库路径（必需） |
 | `seriesDatabase` | `../laundry-monitor/data/laundry-series.sqlite` | 日序列库路径；缺失时回退 raw |
-| `host` | `127.0.0.1`（默认值）；仓库配置为 `0.0.0.0` | 监听地址；本服务只提供 API |
+| `host` | `127.0.0.1`（默认值；仓库配置也是 `127.0.0.1`） | 监听地址；本服务只提供 API |
 | `port` | `8787` | 监听端口 |
+| `corsOrigins` | `[]` | 允许跨域访问 API 的浏览器 origin 列表；同源/反代部署留空，GitHub Pages 填 `["https://<user>.github.io"]` 或 `["*"]` |
+
+> GitHub Pages 前端通过 `?api=https://your-api.example.com` 访问本服务，此时必须配置 `corsOrigins`（origin 不要带仓库路径）；API 还需支持 HTTPS。
 
 ## 测试
 

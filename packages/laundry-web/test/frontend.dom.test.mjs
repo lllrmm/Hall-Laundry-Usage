@@ -223,6 +223,15 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     const { document } = dom.window;
     await waitFor(() => document.readyState === 'complete', { label: '页面加载完成' });
 
+    // config.js 的 ?api= 解析：GitHub Pages 等跨域部署依赖它（本地别名可避开 jsdom 的 window 方法调用怪癖）
+    const resolvePageApiBase = dom.window.__resolveLaundryApiBase__;
+    assert.equal(typeof resolvePageApiBase, 'function', 'config.js 应提供 API 解析');
+    assert.equal(
+      resolvePageApiBase(`?api=${encodeURIComponent(apiUrl)}`),
+      apiUrl,
+      '?api= 参数应解析为绝对 API 地址',
+    );
+
     // 1) 当前状态卡片：4 台机器，分为 Washers / Dryers 两块
     await waitFor(() => document.querySelectorAll('.machine').length === 4, { label: '状态卡片渲染' });
     const cards = [...document.querySelectorAll('.machine')];

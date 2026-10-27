@@ -29,7 +29,7 @@ check(
     html.includes('chart-profile') &&
     html.includes('aggregate.js') &&
     html.includes('history.js') &&
-    html.includes('/config.js'),
+    html.includes('./config.js'),
   `${html.length} bytes`,
 );
 check('主题切换控件', html.includes('id="theme-toggle"') && html.includes('data-theme'), '');
@@ -69,7 +69,7 @@ check(
 const vendor = await get('/vendor/chart.umd.js', false, WEB_BASE);
 check(
   'Chart.js 本地 vendor',
-  html.includes('/vendor/chart.umd.js') && vendor.includes('Chart') && vendor.length > 100_000,
+  html.includes('./vendor/chart.umd.js') && vendor.includes('Chart') && vendor.length > 100_000,
   `${Math.round(vendor.length / 1024)} KB`,
 );
 check(

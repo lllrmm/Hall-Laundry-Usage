@@ -20,7 +20,7 @@
   "scripts": {
     "start": "node bin/serve.mjs --config web.config.json",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/web.test.mjs test/aggregate.test.mjs test/history.test.mjs test/frontend.dom.test.mjs test/contract.test.mjs"
+    "test:in-process": "node --test-isolation=none --test test/web.test.mjs test/config.test.mjs test/aggregate.test.mjs test/history.test.mjs test/frontend.dom.test.mjs test/contract.test.mjs"
   },
   "license": "MIT",
   "private": true,

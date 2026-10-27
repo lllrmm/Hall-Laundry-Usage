@@ -1,4 +1,4 @@
-/** 前端看板配置：数据库路径、监听地址。 */
+/** 前端/程序配置：数据库路径、监听地址、CORS 允许的浏览器来源。 */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,6 +10,7 @@ export const DEFAULTS = {
   seriesDatabase: '../laundry-monitor/data/laundry-series.sqlite',
   host: '127.0.0.1',
   port: 8787,
+  corsOrigins: [],
 };
 
 /**
@@ -44,7 +45,29 @@ export function normalizeConfig(input, { baseDir = process.cwd(), sourcePath = n
 
   const host = String(input.host ?? DEFAULTS.host).trim() || DEFAULTS.host;
 
-  return { databasePath, seriesDatabasePath, host, port, sourcePath };
+  const rawCors = input.corsOrigins ?? DEFAULTS.corsOrigins;
+  if (!Array.isArray(rawCors)) {
+    throw new Error(`corsOrigins 必须是数组，例如 ["https://yourname.github.io"] 或 ["*"]${where}`);
+  }
+  const corsOrigins = rawCors.map((value) => {
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`corsOrigins 里的每一项必须是非空字符串${where}`);
+    }
+    const origin = value.trim();
+    if (origin === '*') return origin;
+    let parsed;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error(`corsOrigins 不是合法来源：${origin}${where}`);
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.pathname !== '/' && parsed.pathname !== '') {
+      throw new Error(`corsOrigins 只接受 http/https 的 origin（不要带路径）：${origin}${where}`);
+    }
+    return parsed.origin;
+  });
+
+  return { databasePath, seriesDatabasePath, host, port, corsOrigins, sourcePath };
 }
 
 /** 读取配置文件（文件不存在时返回默认值，方便零配置启动）。 */

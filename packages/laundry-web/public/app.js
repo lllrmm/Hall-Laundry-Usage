@@ -8,8 +8,9 @@
   const History = window.LaundryHistory;
   if (!History) throw new Error('history.js 未加载');
 
-  /** 独立部署时的 API 基址（默认同源，由 laundry-web / Nginx 反代 /api） */
-  const API_BASE = String(window.__LAUNDRY_API_BASE__ ?? '').replace(/\/+$/, '');
+  /** API 基址：优先 URL 参数 ?api=…，其次 config.js 的 __LAUNDRY_API_BASE__，默认同源 */
+  const resolveApiBase = window.__resolveLaundryApiBase__;
+  const API_BASE = typeof resolveApiBase === 'function' ? resolveApiBase(window.location.search) : '';
 
   /* ---------------- 主题 ---------------- */
 

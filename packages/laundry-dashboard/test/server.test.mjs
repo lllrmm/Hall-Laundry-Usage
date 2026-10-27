@@ -190,3 +190,53 @@ test('未知 API 路由 404；非 API 路径提示由 laundry-web 托管', async
     assert.match((await page.json()).error, /laundry-web/);
   });
 });
+
+test('CORS：白名单 origin 返回头，OPTIONS 预检 204，非白名单无 ACAO', async () => {
+  const { dir, file } = buildFixtureDb();
+  const app = createDashboardServer({
+    config: {
+      databasePath: file,
+      seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
+      host: '127.0.0.1',
+      port: 0,
+      corsOrigins: ['https://user.github.io'],
+    },
+    logger: { info() {}, warn() {}, error() {} },
+  });
+
+  try {
+    const address = await app.listen(0, '127.0.0.1');
+    const base = `http://127.0.0.1:${address.port}`;
+
+    const allowed = await fetch(`${base}/api/state`, {
+      headers: { origin: 'https://user.github.io' },
+    });
+    assert.equal(allowed.status, 200);
+    assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://user.github.io');
+    assert.match(allowed.headers.get('vary') ?? '', /origin/i);
+
+    const denied = await fetch(`${base}/api/state`, {
+      headers: { origin: 'https://evil.example' },
+    });
+    assert.equal(denied.status, 200);
+    assert.equal(denied.headers.get('access-control-allow-origin'), null);
+
+    const preflight = await fetch(`${base}/api/state`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://user.github.io',
+        'access-control-request-method': 'GET',
+      },
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://user.github.io');
+    assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /GET/);
+  } finally {
+    await app.close();
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  }
+});

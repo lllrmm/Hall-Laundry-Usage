@@ -36,8 +36,14 @@ function sendJson(res, statusCode, payload) {
     'content-type': 'application/json; charset=utf-8',
     'content-length': body.length,
     'cache-control': 'no-store',
-    vary: 'accept-encoding',
   };
+  // 合并 Vary：CORS 的 origin + 压缩协商
+  const varyParts = new Set(['accept-encoding']);
+  for (const part of String(res.getHeader('vary') ?? '').split(',')) {
+    if (part.trim()) varyParts.add(part.trim());
+  }
+  if (res.getHeader('access-control-allow-origin')) varyParts.add('origin');
+  headers.vary = [...varyParts].join(', ');
   if (useGzip) headers['content-encoding'] = 'gzip';
 
   res.writeHead(statusCode, headers);
@@ -58,7 +64,7 @@ function parseMachineIds(params) {
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
- * @param {{databasePath: string, host: string, port: number}} options.config
+ * @param {{databasePath: string, host: string, port: number, corsOrigins?: string[]}} options.config
  * @param {{info: Function, error: Function, warn: Function}} [options.logger]
  */
 export function createDashboardServer({ config, logger = console }) {
@@ -67,7 +73,24 @@ export function createDashboardServer({ config, logger = console }) {
     rawPath: config.databasePath,
     seriesPath: config.seriesDatabasePath ?? null,
   });
+  const corsOrigins = Array.isArray(config.corsOrigins) ? config.corsOrigins : [];
   const cache = new Map();
+
+  /** 根据请求 Origin 返回 CORS 头；不允许时返回 null */
+  const corsHeaders = (req) => {
+    const origin = req.headers.origin;
+    if (!origin || corsOrigins.length === 0) return null;
+    const allowAll = corsOrigins.includes('*');
+    if (!allowAll && !corsOrigins.includes(origin)) return null;
+    const headers = {
+      'access-control-allow-origin': allowAll ? '*' : origin,
+      'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+      'access-control-allow-headers': 'accept, content-type',
+      'access-control-max-age': '86400',
+    };
+    if (!allowAll) headers.vary = 'origin';
+    return headers;
+  };
 
   const cached = (key, build) => {
     const hit = cache.get(key);
@@ -183,16 +206,35 @@ export function createDashboardServer({ config, logger = console }) {
   };
 
   const server = http.createServer((req, res) => {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      sendText(res, 405, 'Method Not Allowed');
-      return;
-    }
-
     let url;
     try {
       url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     } catch {
       sendText(res, 400, 'Bad Request');
+      return;
+    }
+
+    // CORS：供 GitHub Pages 等独立前端跨域访问；未配置时保持同源/无 CORS 头
+    const cors = corsHeaders(req);
+    if (cors) {
+      for (const [name, value] of Object.entries(cors)) res.setHeader(name, value);
+    }
+    if (req.method === 'OPTIONS') {
+      if (!url.pathname.startsWith('/api/')) {
+        sendText(res, 404, 'Not found');
+        return;
+      }
+      if (!cors) {
+        sendText(res, 403, 'CORS origin not allowed');
+        return;
+      }
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      sendText(res, 405, 'Method Not Allowed');
       return;
     }
 

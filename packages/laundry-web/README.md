@@ -37,6 +37,22 @@ window.__LAUNDRY_API_BASE__ = 'http://192.168.1.23:8787';
 
 留空表示同源 `/api/*`。跨域时 API 侧需要相应 CORS 配置（本项目默认推荐用 Nginx 同源反代）。
 
+### GitHub Pages：用 `?api=` 指定 API
+
+前端是纯静态的，可直接发布到 GitHub Pages（仓库内含 `.github/workflows/pages.yml`，推 `main` 自动部署）：
+
+1. 仓库 Settings → Pages → Source 选 **GitHub Actions**；
+2. 访问 `https://<user>.github.io/<repo>/?api=https%3A%2F%2Fyour-api.example.com`；
+3. API 地址也可以带子路径，末尾 `/` 会自动去掉；必须支持 **HTTPS**（Pages 是 HTTPS，浏览器会拦截 HTTP 混合内容）；
+4. API 需允许 Pages 的 origin 跨域：在 `laundry-dashboard` 的 `dashboard.config.json` 里填
+   ```json
+   { "corsOrigins": ["https://<user>.github.io"] }
+   ```
+   （origin 只到 `https://<user>.github.io`，不要带仓库路径）；只读 API 也可以临时用 `"corsOrigins": ["*"]`；
+5. 不带 `?api=` 且 `config.js` 为空时，前端按同源 `/api/*` 请求——在 Pages 上会失败，这是预期行为。
+
+> Pages 只托管静态文件；采集与 API 仍需在常开机器上运行，并通过 HTTPS 隧道/反代暴露。
+
 ## 页面内容（界面为英文）
 
 - **Current status**：Washers / Dryers 分区卡片，Free / In use / Unavailable、剩余时间/已运行时长；洗衣机在卡片最下方显示 `With detergent` / `No detergent`；
