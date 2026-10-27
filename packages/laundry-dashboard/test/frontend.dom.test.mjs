@@ -99,7 +99,7 @@ function waitFor(check, { timeout = 5000, interval = 50, label = 'condition' } =
   });
 }
 
-test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun ? 'jsdom 测试仅在 node 下运行' : false }, async () => {
+test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun ? 'jsdom 测试仅在 node 下运行' : false }, async () => {
   const { dir, file } = buildFixtureDb();
   const app = createDashboardServer({
     config: { databasePath: file, host: '127.0.0.1', port: 0, refreshSeconds: 30 },
@@ -177,6 +177,19 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
       `趋势线应为 in-use 颜色，实际 ${trendLines[0].getAttribute('stroke')}`,
     );
     assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
+
+    // 占比图堆叠顺序：In use → Free → Unavailable
+    const barsSvg = document.querySelector('#chart-bars svg');
+    const legendLabels = [...barsSvg.querySelectorAll('text.bar-value')].slice(0, 3).map((node) => node.textContent);
+    assert.deepEqual(legendLabels, ['In use', 'Free', 'Unavailable'], '图例顺序应为 In use / Free / Unavailable');
+
+    const dryerLabel = [...barsSvg.querySelectorAll('text.bar-label')].find((node) => node.textContent.includes('Dryer (51)'));
+    assert.ok(dryerLabel, '应有 Dryer (51) 标签');
+    const segmentGroup = dryerLabel.nextElementSibling?.nextElementSibling; // 跳过 track rect
+    const segmentFills = [...(segmentGroup?.querySelectorAll('rect') ?? [])].map((rect) => rect.getAttribute('fill'));
+    assert.ok(segmentFills.length >= 2, '该机器应有 in use / free 两个分段');
+    assert.equal(segmentFills[0], '#f59e0b', '第一段应为 In use（橙色）');
+    assert.equal(segmentFills[1], '#22c55e', '第二段应为 Free（绿色）');
     // 小时图：只有有数据的那个小时会画柱子（测试数据集中在几分钟内）
     assert.ok(document.querySelectorAll('#chart-hourly svg rect').length >= 1, '小时图应有柱子');
     assert.match(document.getElementById('chart-hourly').textContent, /Best time/, 'hourly chart should label the best time');

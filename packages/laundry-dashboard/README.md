@@ -29,7 +29,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择 Presets：All / Washers only / Dryers only |
 | Overall trend | 折线图：所选机器中 in use 台数随时间变化（只画在用一条线，Y 轴按峰值自适应） |
-| State breakdown in window | 横向堆叠柱状图：每台机器 Free / In use / Unavailable 的时间占比 |
+| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠） |
 | Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
 
 图表全部用原生 SVG 手绘（无图表库），鼠标悬停显示该时刻数值；数据每 30 秒自动刷新，窗口 resize 自动重绘。

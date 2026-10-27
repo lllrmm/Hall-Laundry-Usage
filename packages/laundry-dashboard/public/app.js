@@ -622,9 +622,10 @@
     const colorOff = cssVar('--off', '#94a3b8');
 
     const legendY = height - 12;
+    // 堆叠顺序：In use → Free → Unavailable
     const legend = [
-      ['Free', colorFree],
       ['In use', colorBusy],
+      ['Free', colorFree],
       ['Unavailable', colorOff],
     ];
     let legendX = labelWidth;
@@ -653,8 +654,8 @@
       }));
 
       const segments = [
-        [row.availableRatio, colorFree],
         [row.inUseRatio, colorBusy],
+        [row.availableRatio, colorFree],
         [row.unavailableRatio, colorOff],
       ];
       let offset = 0;
