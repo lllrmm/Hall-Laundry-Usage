@@ -43,7 +43,12 @@ function createContext2DStub(canvas) {
       }
       if (prop === 'createPattern') return () => null;
       if (prop === 'getImageData') {
-        return (x, y, w, h) => ({ data: new Uint8ClampedArray(Math.max(4, (w || 1) * (h || 1) * 4)) });
+        // 限制尺寸，避免 jsdom 下拿不到布局尺寸时分配超大 buffer
+        return (x, y, w, h) => {
+          const width = Math.min(2048, Math.max(1, Math.round(Number.isFinite(w) ? w : 1)));
+          const height = Math.min(2048, Math.max(1, Math.round(Number.isFinite(h) ? h : 1)));
+          return { data: new Uint8ClampedArray(width * height * 4), width, height };
+        };
       }
       if (prop === 'getLineDash') return () => [];
       if (prop === 'getTransform') return () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
@@ -237,6 +242,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(bars.config.type, 'bar');
     assert.equal(bars.options.indexAxis, 'y');
     assert.equal(bars.options.scales.x.stacked, true);
+    assert.equal(bars.options.interaction.mode, 'index');
+    assert.equal(bars.options.interaction.intersect, false);
+    assert.equal(bars.options.interaction.axis, 'y', '横向柱状图 tooltip 必须按 y 轴定位行');
     assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free', 'Unavailable']);
     assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
     assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');

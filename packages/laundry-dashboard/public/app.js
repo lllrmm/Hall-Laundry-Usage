@@ -595,6 +595,8 @@
 
     const options = baseChartOptions(colors, compact);
     options.indexAxis = 'y';
+    // 横向柱状图的 index 模式必须按 y 轴（行）算，否则 tooltip 会取到错误行
+    options.interaction = { mode: 'index', intersect: false, axis: 'y' };
     options.plugins.tooltip.callbacks = {
       label: (item) => `${item.dataset.label}: ${item.formattedValue}%`,
     };
