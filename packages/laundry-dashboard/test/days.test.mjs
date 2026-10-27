@@ -308,11 +308,12 @@ test('GET /api/days：序列库缺天时用 raw 补齐（source=mixed）', async
   });
 });
 
-test('GET /api/state：返回数据覆盖的日期范围 span', async () => {
+test('GET /api/state：meta 里返回数据覆盖的日期范围 span', async () => {
   await withServer('full', async ({ base, fixture }) => {
     const { day1, day2 } = fixture.timeline;
     const state = await (await fetch(`${base}/api/state`)).json();
-    assert.deepEqual(state.span, { firstDay: day1, lastDay: day2 });
+    assert.deepEqual(state.meta.span, { firstDay: day1, lastDay: day2 });
+    assert.equal('span' in state, false, 'span 不再是顶层字段');
   });
 });
 

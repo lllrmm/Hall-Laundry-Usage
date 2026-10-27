@@ -63,8 +63,8 @@
     dateFrom: null,
     dateTo: null,
     selected: new Set(),
+    /** 机器维度 + 最新状态（/api/state 的 machines 已合并 latest） */
     machines: [],
-    latest: [],
     meta: null,
     /** machineId|day → {machineId, day, seq: Uint8Array(1440), updatedAt} */
     dayCache: new Map(),
@@ -242,7 +242,7 @@
     const container = $('machine-grid');
     container.innerHTML = '';
 
-    if (!state.latest.length) {
+    if (!state.machines.length) {
       $('no-data').hidden = false;
       return;
     }
@@ -253,11 +253,11 @@
       { kind: 'dryer', label: 'Dryers' },
     ];
     const knownKinds = new Set(['washer', 'dryer']);
-    const others = state.latest.filter((machine) => !knownKinds.has(machine.kind));
+    const others = state.machines.filter((machine) => !knownKinds.has(machine.kind));
     if (others.length) groups.push({ kind: 'other', label: 'Others' });
 
     for (const group of groups) {
-      const machines = group.kind === 'other' ? others : state.latest.filter((machine) => machine.kind === group.kind);
+      const machines = group.kind === 'other' ? others : state.machines.filter((machine) => machine.kind === group.kind);
       if (!machines.length) continue;
 
       const section = document.createElement('section');
@@ -1397,8 +1397,7 @@
     const data = await api('/api/state');
     state.meta = data.meta;
     state.machines = data.machines ?? [];
-    state.latest = data.latest ?? [];
-    state.span = data.span ?? null;
+    state.span = data.meta?.span ?? null;
 
     if (state.firstLoad) {
       state.selected = new Set(state.machines.map((machine) => machine.id));

@@ -129,7 +129,11 @@ export function createDashboardServer({ config, logger = console }) {
     const machineIds = parseMachineIds(url.searchParams);
 
     if (route === '/api/meta') {
-      sendJson(res, 200, cached(route, () => database.meta()));
+      sendJson(
+        res,
+        200,
+        cached(route, () => ({ ...database.meta(), span: daysDatabase.span() })),
+      );
       return true;
     }
 
@@ -139,26 +143,16 @@ export function createDashboardServer({ config, logger = console }) {
         res,
         200,
         cached(key, () => {
-          const meta = database.meta();
-          return {
-            meta,
-            machines: database.machines(),
-            latest: database.latest(),
-            // 数据覆盖的本地日期范围：前端把"全部历史"换算成 /api/days 必填的 from/to
-            span: daysDatabase.span(),
-          };
+          // meta 里附带数据覆盖的本地日期范围：前端把"全部历史"换算成 /api/days 必填的 from/to
+          const meta = { ...database.meta(), span: daysDatabase.span() };
+          return { meta, machines: database.machinesWithLatest() };
         }),
       );
       return true;
     }
 
     if (route === '/api/machines') {
-      sendJson(res, 200, { machines: database.machines() });
-      return true;
-    }
-
-    if (route === '/api/latest') {
-      sendJson(res, 200, { machines: database.latest(), meta: database.meta() });
+      sendJson(res, 200, { machines: database.machinesWithLatest() });
       return true;
     }
 

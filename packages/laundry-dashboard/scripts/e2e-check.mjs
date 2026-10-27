@@ -78,17 +78,29 @@ check(
   state.meta && !('database' in state.meta) && !('durationMs' in (state.meta.lastPoll ?? {})),
   'database / durationMs 已移除',
 );
-check('/api/state 机器数', state.latest?.length === 12, `${state.latest?.length} 台`);
-check('/api/state 最新状态完整', state.latest?.every((m) => typeof m.available === 'boolean' && m.name), '');
+check('/api/state 机器数', state.machines?.length === 12, `${state.machines?.length} 台`);
+check(
+  '/api/state machines 含最新状态',
+  state.machines?.every((m) => typeof m.available === 'boolean' && m.name && m.observedAt) &&
+    !('latest' in state),
+  'latest 已合并进 machines',
+);
 check('/api/state firstObservedAt', Boolean(state.meta?.firstObservedAt), `${state.meta?.firstObservedAt}`);
 check(
-  '/api/state span',
-  Boolean(state.span?.firstDay && state.span?.lastDay),
-  `${state.span?.firstDay} ~ ${state.span?.lastDay}`,
+  '/api/state meta.span',
+  Boolean(state.meta?.span?.firstDay && state.meta?.span?.lastDay) && !('span' in state),
+  `${state.meta?.span?.firstDay} ~ ${state.meta?.span?.lastDay}`,
 );
 
-const allIds = state.latest.map((machine) => machine.id).join(',');
-const { firstDay, lastDay } = state.span;
+const metaPayload = await get('/api/meta');
+check(
+  '/api/meta meta.span',
+  Boolean(metaPayload.span?.firstDay && metaPayload.span?.lastDay),
+  `${metaPayload.span?.firstDay} ~ ${metaPayload.span?.lastDay}`,
+);
+
+const allIds = state.machines.map((machine) => machine.id).join(',');
+const { firstDay, lastDay } = state.meta.span;
 
 const series = await get('/api/series?since=1h');
 check('/api/series 桶', Array.isArray(series.buckets) && series.buckets.length > 0, `${series.buckets?.length} 桶 / ${series.bucketSeconds}s`);
@@ -118,7 +130,7 @@ if (days.days.length) {
   );
 }
 
-const oneMachine = state.latest[0];
+const oneMachine = state.machines[0];
 const scopedDays = await get(`/api/days?machines=${oneMachine.id}&from=${firstDay}&to=${lastDay}`);
 check(
   '/api/days 按机器过滤',
@@ -164,7 +176,14 @@ check(
 );
 
 const removed = [];
-for (const route of ['/api/bars', '/api/hourly', '/api/heatmap', '/api/profile', '/api/profile/days']) {
+for (const route of [
+  '/api/latest',
+  '/api/bars',
+  '/api/hourly',
+  '/api/heatmap',
+  '/api/profile',
+  '/api/profile/days',
+]) {
   removed.push(`${route}=${await status(route)}`);
 }
 check(

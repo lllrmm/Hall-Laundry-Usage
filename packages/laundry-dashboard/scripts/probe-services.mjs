@@ -27,7 +27,7 @@ async function dashboard() {
       reachable: true,
       pollCount: body.meta.pollCount,
       lastObservedAt: body.meta.lastObservedAt,
-      machines: body.latest?.length ?? 0,
+      machines: body.machines?.length ?? 0,
     };
   } catch (error) {
     return { reachable: false, error: error.message };

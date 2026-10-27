@@ -47,7 +47,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 → { available, source, fromDay, toDay, count, days: [{ machineId, day, seq(base64 1440B), updatedAt }] }
 ```
 
-不传 `machines`、缺日期范围、`from`/`to` 与 `days` 同时使用等情况一律返回 **400**（不会无参数拉全库）。`/api/state` 会同时返回数据覆盖的本地日期范围 `span: { firstDay, lastDay }`，前端用它在"全部历史"时换算出 /api/days 必填的 `from`/`to`。
+不传 `machines`、缺日期范围、`from`/`to` 与 `days` 同时使用等情况一律返回 **400**（不会无参数拉全库）。`/api/state` 和 `/api/meta` 的 `meta.span` 都会返回数据覆盖的本地日期范围 `{ firstDay, lastDay }`，前端用它在"全部历史"时换算出 /api/days 必填的 `from`/`to`。
 
 `seq` 的每个字节是当天第 N 分钟的状态（编码见下）。前端把这些序列按 `(machineId, day)` 缓存在内存里：
 
@@ -125,10 +125,9 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 
 | 接口 | 说明 |
 |---|---|
-| `GET /api/meta` | 数据最早/最后更新时间、最近一次轮询结果、轮询次数、机器数、快照数 |
-| `GET /api/state` | meta + 机器维度 + 最新一轮全部机器状态 + 数据覆盖日期范围 `span`（页面首屏用这一个请求） |
-| `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
-| `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
+| `GET /api/meta` | 数据最早/最后更新时间、最近一次轮询结果、轮询次数、机器数、快照数、数据覆盖日期范围 `span` |
+| `GET /api/state` | meta（含 `span`）+ `machines`（机器维度 + **已合并的最新状态**；页面首屏用这一个请求） |
+| `GET /api/machines` | 机器维度 + 最新状态合并后的 `machines` 数组（含 `serviceValue` / `serviceLabel` / `powder` / `available` / `state` / 剩余时间等） |
 | `GET /api/days?machines=id1,id2&from=YYYY-MM-DD&to=YYYY-MM-DD` | **历史图表唯一数据源**：每台机器每天的 1440 字节分钟状态序列（`seq` 为 base64）。`machines` **必填**；日期用 `from`+`to`（含首尾）或 `days=YYYY-MM-DD,YYYY-MM-DD` 日期列表（互斥，列表最多 366 天）；优先读序列库、缺失时回退原始快照；返回 `source`（`series`/`raw`/`mixed`）与 `encoding` 编码表；参数缺失/非法返回 **400** |
 | `GET /api/series?since=24h&machines=id1,id2` | 原始快照的分桶时间序列（`buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`），供脚本/外部工具使用 |
 
@@ -140,7 +139,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
 - 响应体 ≥ 1 KB 且请求头 `Accept-Encoding` 含 gzip 时自动 gzip（JSON 与 `.html/.js/.css/.svg` 静态文件），响应带 `Vary: accept-encoding`；静态文件的压缩结果按 `path + mtime + size` 缓存，不会每次重复压缩；
 - 数据库以**只读**方式打开（失败时退回 `PRAGMA query_only`），绝不会写入采集数据。
-- 旧的 `/api/bars`、`/api/heatmap`、`/api/profile`、`/api/profile/days`、`/api/hourly` 已删除——聚合改由浏览器端完成，交互不再触发后端计算。
+- 旧的 `/api/latest`（已并入 `machines`）、`/api/bars`、`/api/heatmap`、`/api/profile`、`/api/profile/days`、`/api/hourly` 已删除——聚合改由浏览器端完成，交互不再触发后端计算。
 
 ## 测试
 

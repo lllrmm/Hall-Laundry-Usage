@@ -122,17 +122,33 @@ test('GET /vendor/chart.umd.js 返回 Chart.js', async () => {
   });
 });
 
-test('GET /api/meta 与 /api/state', async () => {
+test('GET /api/meta 与 /api/state（latest 已合并进 machines）', async () => {
   await withServer(async (base) => {
     const meta = await (await fetch(`${base}/api/meta`)).json();
     assert.equal(meta.available, true);
     assert.equal(meta.pollCount, 1);
+    assert.deepEqual(meta.span, { firstDay: DAY, lastDay: DAY }, '/api/meta 也应返回数据覆盖范围');
 
     const state = await (await fetch(`${base}/api/state`)).json();
-    assert.equal(state.latest.length, 1);
-    assert.equal(state.latest[0].name, 'UG4 Dryer (51)');
+    assert.equal('latest' in state, false, 'latest 不再是顶层字段');
     assert.equal(state.machines.length, 1);
-    assert.deepEqual(state.span, { firstDay: DAY, lastDay: DAY }, '应返回数据覆盖的日期范围');
+    const machine = state.machines[0];
+    assert.equal(machine.name, 'UG4 Dryer (51)');
+    assert.equal(machine.kind, 'dryer');
+    assert.equal(machine.available, true);
+    assert.equal(machine.state, 'available');
+    assert.ok(machine.observedAt, 'machines 应带最新观测时间');
+    assert.deepEqual(state.meta.span, { firstDay: DAY, lastDay: DAY }, 'span 放在 meta 里');
+    assert.equal('span' in state, false, 'span 不再作为顶层字段');
+
+    // /api/machines 也返回合并后的数据
+    const machines = await (await fetch(`${base}/api/machines`)).json();
+    assert.equal(machines.machines.length, 1);
+    assert.equal(machines.machines[0].available, true);
+    assert.equal('observedAt' in machines.machines[0], true);
+
+    // /api/latest 已删除
+    assert.equal((await fetch(`${base}/api/latest`)).status, 404);
   });
 });
 

@@ -183,41 +183,45 @@ export class DashboardDatabase {
     }
   }
 
-  /** 数据库里最新一轮快照（所有机器的"当下"状态） */
-  latest() {
+  /**
+   * 机器维度 + 最新一轮状态（合并后的 machines 列表）。
+   * 没有快照的机器也会返回，状态字段为 null / false。
+   */
+  machinesWithLatest() {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return [];
     try {
       return db
         .prepare(
-          `SELECT s.machine_id AS id, m.name, m.kind, s.observed_at,
-                  s.status, s.state, s.available, s.planned_minutes,
+          `SELECT m.id, m.name, m.kind, m.room_name, m.service_value, m.service_label,
+                  s.observed_at, s.status, s.state, s.available, s.planned_minutes,
                   s.remaining_seconds, s.elapsed_seconds, s.finished_but_not_emptied,
-                  s.started_at, s.ends_at,
-                  m.service_value AS service_value, m.service_label AS service_label
-           FROM machine_snapshots s
-           LEFT JOIN machines m ON m.id = s.machine_id
-           WHERE s.run_id = (SELECT MAX(run_id) FROM machine_snapshots)
+                  s.started_at, s.ends_at
+           FROM machines m
+           LEFT JOIN machine_snapshots s
+             ON s.machine_id = m.id
+            AND s.run_id = (SELECT MAX(run_id) FROM machine_snapshots)
            ORDER BY m.kind, m.name`,
         )
         .all()
         .map((row) => ({
           id: row.id,
-          name: row.name ?? row.id,
-          kind: row.kind ?? null,
-          observedAt: row.observed_at,
-          status: row.status,
-          state: row.state,
-          available: bool(row.available),
-          plannedMinutes: row.planned_minutes,
-          remainingSeconds: row.remaining_seconds,
-          elapsedSeconds: row.elapsed_seconds,
-          finishedButNotEmptied: bool(row.finished_but_not_emptied),
-          startedAt: row.started_at,
-          endsAt: row.ends_at,
+          name: row.name,
+          kind: row.kind,
+          roomName: row.room_name,
           serviceValue: row.service_value ?? null,
           serviceLabel: row.service_label ?? null,
           powder: powderOf(row.service_value),
+          observedAt: row.observed_at ?? null,
+          status: row.status ?? null,
+          state: row.state ?? null,
+          available: bool(row.available),
+          plannedMinutes: row.planned_minutes ?? null,
+          remainingSeconds: row.remaining_seconds ?? null,
+          elapsedSeconds: row.elapsed_seconds ?? null,
+          finishedButNotEmptied: bool(row.finished_but_not_emptied),
+          startedAt: row.started_at ?? null,
+          endsAt: row.ends_at ?? null,
         }));
     } catch {
       return [];

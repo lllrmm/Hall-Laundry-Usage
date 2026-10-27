@@ -117,14 +117,27 @@ test('meta：最后更新时间、轮询次数、机器数', () => {
   });
 });
 
-test('latest：返回数据库中最新一轮的全部机器', () => {
+test('machinesWithLatest：机器维度 + 最新一轮状态合并', () => {
   withDashboard((dashboard) => {
-    const latest = dashboard.latest();
-    assert.equal(latest.length, 2);
-    const dryer = latest.find((machine) => machine.id === 'm-dryer');
+    const machines = dashboard.machinesWithLatest();
+    assert.equal(machines.length, 2);
+    // 先按 kind 排序（dryer 在前），再按 name
+    assert.equal(machines[0].id, 'm-dryer');
+    assert.equal(machines[1].id, 'm-washer');
+
+    const dryer = machines[0];
+    assert.equal(dryer.name, 'UG4 Dryer (51)');
+    assert.equal(dryer.kind, 'dryer');
+    assert.equal(dryer.roomName, 'UG Hall IV');
     assert.equal(dryer.available, true);
     assert.equal(dryer.state, 'available');
     assert.equal(dryer.observedAt, new Date(T0 + 120_000).toISOString());
+    assert.equal(dryer.powder, null);
+
+    const washer = machines[1];
+    assert.equal(washer.powder, 'without');
+    assert.equal('serviceValue' in washer, true);
+    assert.equal('status' in washer, true);
   });
 });
 
@@ -208,7 +221,7 @@ test('洗粉标注：洗衣机 powder 字段（with / without），烘干机为 
 
   const dashboard = new DashboardDatabase(file);
   try {
-    const latest = dashboard.latest();
+    const latest = dashboard.machinesWithLatest();
     const byId = new Map(latest.map((machine) => [machine.id, machine]));
 
     assert.equal(byId.get('w1').powder, 'without');
@@ -238,7 +251,7 @@ test('数据库不存在时优雅降级', () => {
     assert.equal(meta.available, false);
     assert.equal(meta.lastObservedAt, null);
     assert.deepEqual(dashboard.machines(), []);
-    assert.deepEqual(dashboard.latest(), []);
+    assert.deepEqual(dashboard.machinesWithLatest(), []);
 
     const series = dashboard.series({ since: null, windowSeconds: 3600 });
     assert.equal(series.available, false);
