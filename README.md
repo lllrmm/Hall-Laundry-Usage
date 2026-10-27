@@ -92,7 +92,7 @@ start-all.cmd
 #   采集窗口关闭 = 停止采集；看板窗口关闭 = 停止看板，互不影响
 
 # 方式二：手动分别启动
-# 终端 1：采集（每 30 秒一次，写入 data/laundry.sqlite）
+# 终端 1：采集（每 60 秒一次，写入 data/laundry.sqlite）
 cd packages/laundry-monitor && npm start
 #   或双击 packages/laundry-monitor/run.cmd
 

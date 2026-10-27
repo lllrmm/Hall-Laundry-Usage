@@ -105,7 +105,7 @@ node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可
 ```
 laundry-monitor（写）──► data/laundry.sqlite ──► laundry-dashboard（只读）
         │                                              │
-   30s 轮询一次                                   每 30s 读一次
+   60s 轮询一次                                   每 30s 读一次
    Ctrl+C 停止后数据库不再增长                    停止后页面仍可查看历史数据
 ```
 

@@ -18,7 +18,7 @@ export const RECOMMENDED_POLL_INTERVAL_SECONDS = 15;
 
 export const DEFAULTS = {
   baseUrl: 'https://laundry.ust.hk/ldr/api',
-  pollIntervalSeconds: 30,
+  pollIntervalSeconds: 60,
   timeoutMs: 15_000,
   database: './data/laundry.sqlite',
   retentionDays: 30,
