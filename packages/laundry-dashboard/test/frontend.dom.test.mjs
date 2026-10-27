@@ -216,26 +216,17 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.deepEqual(machineGroups.map((group) => group.querySelector('h3').textContent), ['Washers', 'Dryers']);
     assert.deepEqual(machineGroups.map((group) => group.querySelectorAll('.machine').length), [2, 2]);
 
-    // 2) 三张 Chart.js 图表
+    // 2) Chart.js 图表（State breakdown + 历史剖面）
     await waitFor(() => {
       const charts = dom.window.__laundryCharts;
-      return charts?.trend && charts?.bars && charts?.hourly;
+      return charts?.bars && charts?.profile;
     }, { label: 'Chart.js 图表实例创建' });
 
     const charts = () => dom.window.__laundryCharts;
 
-    for (const id of ['chart-trend', 'chart-bars', 'chart-hourly']) {
+    for (const id of ['chart-bars', 'chart-profile']) {
       assert.ok(document.querySelector(`#${id} canvas`), `${id} 应渲染出 canvas`);
     }
-
-    // 趋势图：washer / dryer 两条线
-    const trend = charts().trend;
-    assert.equal(trend.config.type, 'line');
-    assert.equal(trend.data.datasets.length, 2, '趋势图两条线');
-    assert.deepEqual(Array.from(trend.data.datasets, (dataset) => dataset.label), ['Washers in use', 'Dryers in use']);
-    assert.deepEqual(Array.from(trend.data.datasets, (dataset) => dataset.borderColor), ['#0891b2', '#d97706']);
-    assert.ok(trend.data.labels.length > 0, '趋势图应有时间标签');
-    assert.equal(trend.data.datasets[0].data.length, trend.data.labels.length);
 
     // 状态占比：横向堆叠柱，In use → Free → Unavailable
     const bars = charts().bars;
@@ -254,16 +245,6 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       /^\d{2}-\d{2} \d{2}:\d{2} – \d{2}-\d{2} \d{2}:\d{2}$/,
       '占比图右上角显示开始 – 结束时段',
     );
-
-    // 按小时：24 根柱子，展示使用率（in use 占比）
-    const hourly = charts().hourly;
-    assert.equal(hourly.config.type, 'bar');
-    assert.equal(hourly.data.datasets[0].label, 'Usage rate');
-    assert.equal(hourly.data.labels.length, 24);
-    assert.equal(hourly.data.datasets[0].data.length, 24);
-    assert.equal(typeof hourly.data.datasets[0].backgroundColor, 'string', '使用率柱使用统一颜色');
-    assert.doesNotMatch(document.getElementById('hourly-hint').textContent, /Best time/);
-    assert.match(document.getElementById('hourly-hint').textContent, /busier/, '提示文案改为使用率语义');
 
     // 热力图：纵轴周几（7 行）、横轴小时（24 列），有数据的格子带 usage/samples
     await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
@@ -383,9 +364,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     });
     assert.match(document.getElementById('selected-count').textContent, /0\/4/);
 
-    // 清空选择后：趋势图/小时图显示占位；状态占比与热力图（全部历史）不受影响
-    await waitFor(() => document.querySelector('#chart-trend .empty'), { label: '趋势图空状态' });
-    assert.equal(charts().trend, null, '清空选择后趋势图实例应销毁');
+    // 清空选择后：状态占比与热力图/剖面（全部历史）不受影响
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
       label: '状态占比始终显示全部 4 台机器',
     });
@@ -395,8 +374,8 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
 
     document.getElementById('select-all').click(); // 恢复全选
-    await waitFor(() => charts().trend && charts().bars && charts().hourly, {
-      label: '恢复全选后图表重建',
+    await waitFor(() => charts().bars && charts().profile, {
+      label: '恢复全选后图表仍在',
     });
     await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
       label: '恢复全选后热力图仍在',
@@ -411,7 +390,6 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ),
       { label: '7 days chip 高亮' },
     );
-    await waitFor(() => charts().trend, { label: '切换跨度后趋势图仍在' });
     await waitFor(() => document.getElementById('bars-range').textContent !== barsRangeText, {
       label: '占比图时段跟随时间跨度更新',
     });
@@ -437,7 +415,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     themeButton.click(); // Light -> Dark
     await waitFor(() => root.dataset.theme === 'dark', { label: '切换到 Dark' });
     await waitFor(
-      () => charts().trend && charts().trend.data.datasets[0].borderColor === '#22d3ee',
+      () => charts().profile && charts().profile.data.datasets[0].borderColor === '#22d3ee',
       { label: '深色主题下图表使用深色色板' },
     );
     assert.equal(dom.window.localStorage.getItem('laundry.theme'), 'dark');
@@ -451,7 +429,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     for (const listener of dom.window.__themeMedia.listeners) listener({ matches: true });
     await waitFor(() => root.dataset.theme === 'dark', { label: 'Auto 跟随系统切到深色' });
     await waitFor(
-      () => charts().trend && charts().trend.data.datasets[0].borderColor === '#22d3ee',
+      () => charts().profile && charts().profile.data.datasets[0].borderColor === '#22d3ee',
       { label: '跟随系统后图表同步深色' },
     );
 
@@ -465,11 +443,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     dom.window.innerWidth = 375;
     dom.window.dispatchEvent(new dom.window.Event('resize'));
 
-    await waitFor(() => charts().trend?.options.scales.x.ticks.maxTicksLimit === 4, {
-      label: '窄屏趋势图使用紧凑刻度',
+    await waitFor(() => charts().profile?.options.scales.x.ticks.maxTicksLimit === 6, {
+      label: '窄屏剖面使用紧凑刻度',
     });
     assert.equal(document.getElementById('chart-bars').style.height, '220px', '窄屏占比图高度压缩');
-    assert.equal(charts().hourly.data.labels.length, 24);
 
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {

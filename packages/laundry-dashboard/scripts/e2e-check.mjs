@@ -15,8 +15,13 @@ function check(name, condition, detail) {
 }
 
 const html = await get('/', false);
-check('页面 /', html.includes('Laundry Monitor') && html.includes('chart-trend'), `${html.length} bytes`);
+check(
+  '页面 /',
+  html.includes('Laundry Monitor') && html.includes('chart-bars') && html.includes('chart-profile'),
+  `${html.length} bytes`,
+);
 check('主题切换控件', html.includes('id="theme-toggle"') && html.includes('data-theme'), '');
+check('Date range 控件', html.includes('Date range') && !html.includes('chart-trend'), '');
 
 const css = await get('/styles.css', false);
 const appJs = await get('/app.js', false);

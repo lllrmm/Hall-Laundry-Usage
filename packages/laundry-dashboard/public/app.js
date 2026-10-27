@@ -504,81 +504,6 @@
     };
   }
 
-  function renderTrendChart(series) {
-    const container = $('chart-trend');
-    const buckets = series?.buckets ?? [];
-
-    if (!buckets.length) {
-      $('trend-hint').textContent = '';
-      showChartEmpty('trend', container, 'No data yet (waiting for polls)');
-      return;
-    }
-
-    const colors = chartColors();
-    const compact = container.clientWidth > 0 && container.clientWidth < 520;
-    const byKind = series.totalsByKind ?? {};
-
-    $('trend-hint').textContent = `from ${fmtDateTime(series.since)} · ${
-      series.bucketSeconds >= 60
-        ? `${Math.round(series.bucketSeconds / 60)} min`
-        : `${series.bucketSeconds} s`
-    }/point · ${buckets.length} points`;
-
-    const options = baseChartOptions(colors, compact);
-    options.plugins.tooltip.callbacks = {
-      label: (item) => `${item.dataset.label}: ${item.formattedValue}`,
-    };
-    options.scales = {
-      x: {
-        ticks: {
-          color: colors.muted,
-          font: chartFont(compact ? 9 : 10),
-          maxTicksLimit: compact ? 4 : 6,
-          maxRotation: 0,
-          autoSkip: true,
-        },
-        grid: { color: colors.grid },
-        border: { color: colors.grid },
-      },
-      y: {
-        beginAtZero: true,
-        ticks: { color: colors.muted, font: chartFont(compact ? 9 : 10), precision: 0 },
-        grid: { color: colors.grid },
-        border: { color: colors.grid },
-      },
-    };
-
-    mountChart('trend', container, {
-      type: 'line',
-      data: {
-        labels: buckets.map((iso) => fmtAxisTime(iso, series.bucketSeconds)),
-        datasets: [
-          {
-            label: 'Washers in use',
-            data: byKind.washer?.inUse ?? [],
-            borderColor: colors.washer,
-            backgroundColor: colors.washer,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            borderWidth: 2,
-            tension: 0.25,
-          },
-          {
-            label: 'Dryers in use',
-            data: byKind.dryer?.inUse ?? [],
-            borderColor: colors.dryer,
-            backgroundColor: colors.dryer,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            borderWidth: 2,
-            tension: 0.25,
-          },
-        ],
-      },
-      options,
-    });
-  }
-
   function renderBarsChart() {
     const container = $('chart-bars');
     const rows = state.bars?.rows ?? [];
@@ -647,70 +572,6 @@
             stack: 'state',
             borderWidth: 0,
             borderSkipped: false,
-          },
-        ],
-      },
-      options,
-    });
-  }
-
-  function renderHourlyChart(hourly) {
-    const container = $('chart-hourly');
-    const hours = hourly?.hours ?? [];
-    const withData = hours.filter((entry) => entry.usageRatio !== null);
-
-    if (!withData.length) {
-      showChartEmpty('hourly', container, 'No data yet (waiting for polls)');
-      return;
-    }
-
-    const colors = chartColors();
-    const compact = container.clientWidth > 0 && container.clientWidth < 520;
-
-    const options = baseChartOptions(colors, compact);
-    options.plugins.legend.display = false;
-    options.interaction = { mode: 'index', intersect: false };
-    options.plugins.tooltip.callbacks = {
-      title: (items) => items[0]?.label ?? '',
-      label: (item) => (item.raw === null ? 'No data' : `Usage: ${item.formattedValue}%`),
-    };
-    options.scales = {
-      x: {
-        ticks: {
-          color: colors.muted,
-          font: chartFont(9),
-          maxRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: compact ? 8 : 12,
-        },
-        grid: { display: false },
-        border: { color: colors.grid },
-      },
-      y: {
-        beginAtZero: true,
-        max: 100,
-        ticks: {
-          color: colors.muted,
-          font: chartFont(compact ? 9 : 10),
-          callback: (value) => `${value}%`,
-        },
-        grid: { color: colors.grid },
-        border: { color: colors.grid },
-      },
-    };
-
-    mountChart('hourly', container, {
-      type: 'bar',
-      data: {
-        labels: hours.map((entry) => `${pad2(entry.hour)}:00`),
-        datasets: [
-          {
-            label: 'Usage rate',
-            data: hours.map((entry) => (entry.usageRatio === null ? null : round1(entry.usageRatio * 100))),
-            backgroundColor: colors.busy,
-            borderRadius: 3,
-            borderWidth: 0,
-            maxBarThickness: compact ? 12 : 26,
           },
         ],
       },
@@ -1049,12 +910,6 @@
   }
 
   async function loadCharts() {
-    const hasSelection = state.selected.size > 0;
-
-    const params = new URLSearchParams({
-      since: state.range,
-      machines: [...state.selected].join(','),
-    });
     // State breakdown 跟随热力图选中范围（行=星期几 / 列=小时），否则按当前时间跨度
     const barsQueryInfo = barsQuery();
     const barsParams = barsQueryInfo.params;
@@ -1062,17 +917,9 @@
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;
 
-    if (!hasSelection) {
-      $('trend-hint').textContent = 'No machines selected';
-      showChartEmpty('trend', $('chart-trend'), 'Select at least one machine');
-      showChartEmpty('hourly', $('chart-hourly'), 'Select at least one machine');
-    }
-
     try {
-      const [bars, series, hourly, heatmap] = await Promise.all([
+      const [bars, heatmap] = await Promise.all([
         api(`/api/bars?${barsParams}`),
-        hasSelection ? api(`/api/series?${params}`) : Promise.resolve(null),
-        hasSelection ? api(`/api/hourly?${params}`) : Promise.resolve(null),
         // 热力图与剖面始终用全部历史样本，不受时间跨度/机器筛选影响
         api('/api/heatmap?since=all'),
       ]);
@@ -1088,20 +935,6 @@
         barsRangeEl.textContent =
           barsQueryInfo.label ??
           (bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '');
-      }
-
-      if (series) {
-        state.series = series;
-        renderTrendChart(series);
-      } else {
-        state.series = null;
-      }
-
-      if (hourly) {
-        state.hourly = hourly;
-        renderHourlyChart(hourly);
-      } else {
-        state.hourly = null;
       }
 
       if (heatmap) {
@@ -1211,9 +1044,7 @@
 
   function redrawCharts() {
     renderMachineChips();
-    if (state.series) renderTrendChart(state.series);
     if (state.bars) renderBarsChart();
-    if (state.hourly) renderHourlyChart(state.hourly);
     if (state.heatmap) renderHeatmap(state.heatmap);
     if (state.heatmap) renderProfile();
   }
@@ -1261,9 +1092,11 @@
       'resize',
       debounce(() => {
         // 容器宽度变化会影响紧凑模式（刻度密度等），按新宽度重建图表
-        if (state.series) renderTrendChart(state.series);
         if (state.bars) renderBarsChart();
-        if (state.hourly) renderHourlyChart(state.hourly);
+        if (state.heatmap) {
+          renderHeatmap(state.heatmap);
+          renderProfile();
+        }
       }, 250),
     );
 

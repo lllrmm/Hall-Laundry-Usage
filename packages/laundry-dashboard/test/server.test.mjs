@@ -75,7 +75,10 @@ test('GET / 返回看板页面', async () => {
     const html = await response.text();
     assert.match(html, /HKUST Laundry Monitor/);
     assert.match(html, /Current status/);
-    assert.match(html, /chart-trend/);
+    assert.match(html, /chart-bars/);
+    assert.match(html, /chart-profile/);
+    assert.doesNotMatch(html, /chart-trend|chart-hourly/, '趋势图与按小时图已移除');
+    assert.match(html, /Date range/, '时间跨度控件改名为 Date range');
     assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
     assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
     assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
@@ -83,8 +86,7 @@ test('GET / 返回看板页面', async () => {
     assert.doesNotMatch(html, />Data updated</, '旧标签 Data updated 应已移除');
     assert.match(html, /id="bars-range"/, '占比图应显示当前时间范围');
     assert.doesNotMatch(html, /All machines/, '旧的 All machines 文案应已移除');
-    assert.match(html, /Usage rate by hour/, '小时图标题应为用量率');
-    assert.doesNotMatch(html, /Free rate by hour/, '旧的 Free rate 标题应已移除');
+    assert.doesNotMatch(html, /Usage rate by hour/, '按小时图已移除');
     assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
   });
 });

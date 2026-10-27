@@ -26,11 +26,9 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 |---|---|
 | 顶栏 | **Database updated**（数据库最后更新时间，绝对 + 相对）、Refresh now、自动刷新倒计时 |
 | 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
-| 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
+| 时间跨度 Date range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All（标签已改为 Date range；后续可改成真实日期选择） |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空 |
-| Overall trend | 折线图：**Washers / Dryers 各一条线**，显示所选机器中在用台数随时间变化（Y 轴按峰值自适应） |
 | State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器**，样本范围跟随热力图选中的行/列（星期几或小时，全部历史），未选中时按当前时间范围；右上角显示对应范围或实际时段（开始 – 结束） |
-| Usage rate by hour | 24 根柱状图（本地时间），每小时 in use 机器占比，柱子越高代表该时段越忙 |
 | Usage heatmap · weekday × hour | 7 行（周一…周日）× 24 列热力图，格子颜色 = 该星期几该小时的平均使用率；**始终基于全部历史样本**（不随时间跨度 / 机器筛选变化），空格为无数据，样本过少的格子变淡，悬停显示百分比与样本数；点击行或列可查看剖面 |
 | Historical profile | 热力图的剖面图（5 分钟精度，每天 288 个槽）：点周几行 → 该天 5 分钟使用率（**线图**，洗衣机 / 烘干机分别一条线）；点小时列 → 该小时一周 7 天的使用率（**柱状图**）；都不选时显示全部历史 5 分钟剖面（线图）；再点一次取消选择 |
 
@@ -42,7 +40,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 - 使用 `scripts/vendor-chartjs.mjs` 从 `node_modules` 复制 UMD 构建到 `public/vendor/`，**不依赖外部 CDN**，局域网/离线可用；
 - 升级方式：`npm update chart.js && node scripts/vendor-chartjs.mjs`；
 - 文件约 205 KB（未压缩），页面里通过 `<script src="/vendor/chart.umd.js">` 加载；
-- 三张图的配置都在 `public/app.js` 的 `renderTrendChart()` / `renderBarsChart()` / `renderHourlyChart()` 里。
+- 图表配置都在 `public/app.js` 的 `renderBarsChart()` / `renderHeatmap()` / `renderProfile()` 里。
 
 ### 移动端适配
 
@@ -104,7 +102,7 @@ node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可
 ```
 
 `test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`（含 Chart.js）：
-校验状态卡片、三张 Chart.js 图表（数据/配置/主题色板）、机器勾选/时间跨度切换、页面无 JS 错误。
+校验状态卡片、两张 Chart.js 图表（State breakdown + 历史剖面，数据/配置/主题色板）、热力图行/列交互、机器勾选/时间跨度切换、页面无 JS 错误。
 本环境装不上原生 `canvas`（沙箱禁止 install 脚本 spawn），测试里用一个轻量 2D context stub 让 Chart.js 能初始化；
 **Canvas 的实际绘制由 Chart.js 自身保证**，我们断言的是喂给它的数据与配置。
 
