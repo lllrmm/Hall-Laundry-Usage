@@ -26,11 +26,11 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 |---|---|
 | 顶栏 | **Database updated**（数据库最后更新时间，绝对 + 相对）、Refresh now、自动刷新倒计时 |
 | 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
-| 时间跨度 Date range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All（标签已改为 Date range；后续可改成真实日期选择） |
+| Date range | 选择开始 / 结束日期（本地日期，含首尾两天），留空 = 全部历史；**热力图与 Historical profile 跟随**，State breakdown 不跟随 |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空 |
-| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器**，样本范围跟随热力图选中的行/列（星期几或小时，全部历史），未选中时按当前时间范围；右上角显示对应范围或实际时段（开始 – 结束） |
-| Usage heatmap · weekday × hour | 7 行（周一…周日）× 24 列热力图，格子颜色 = 该星期几该小时的平均使用率；**始终基于全部历史样本**（不随时间跨度 / 机器筛选变化），空格为无数据，样本过少的格子变淡，悬停显示百分比与样本数；点击行或列可查看剖面 |
-| Historical profile | 热力图的剖面图（5 分钟精度，每天 288 个槽）：点周几行 → 该天 5 分钟使用率（**线图**，洗衣机 / 烘干机分别一条线）；点小时列 → 该小时一周 7 天的使用率（**柱状图**）；都不选时显示全部历史 5 分钟剖面（线图）；再点一次取消选择 |
+| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器**，样本范围**只跟随热力图选中的行/列**（星期几或小时，全部历史），未选中时为全部历史；右上角显示对应范围 |
+| Usage heatmap · weekday × hour | 7 行（周一…周日）× 24 列热力图，格子颜色 = 该星期几该小时的平均使用率；**跟随 Date range**（留空 = 全部历史，不随机器筛选变化），空格为无数据，样本过少的格子变淡，悬停显示百分比与样本数；点击行或列可查看剖面 |
+| Historical profile | 热力图的剖面图（5 分钟精度，每天 288 个槽）：点周几行 → 该天 5 分钟使用率（**线图**，洗衣机 / 烘干机分别一条线）；点小时列 → 该小时一周 7 天的使用率（**柱状图**）；都不选时显示 5 分钟剖面（线图）；**跟随 Date range**；再点一次取消选择 |
 
 图表使用 **Chart.js 4**（本地 vendor，`public/vendor/chart.umd.js`，MIT），折线/堆叠柱/柱状图都由 Chart.js 渲染；悬停/触摸 tooltip、图例由库提供，主题颜色取自 CSS 变量。数据每 30 秒自动刷新，窗口尺寸变化时按新宽度重建图表。
 
@@ -80,9 +80,10 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
 | `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
 | `GET /api/series?since=24h&machines=id1,id2` | 时间序列（自动分桶，返回 `buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`） |
-| `GET /api/bars?since=24h&machines=...` | 时间窗内每台机器的状态占比 |
+| `GET /api/bars?since=all&weekday=0&hour=12` | 每台机器状态占比；`weekday`（0=周一…6=周日）/ `hour`（0–23）按热力图选中范围筛选，返回 `scope` |
 | `GET /api/hourly?since=7d&machines=...` | 按本地小时聚合的使用率 / 空闲率（24 桶，含 `usageRatio` / `freeRatio`） |
-| `GET /api/heatmap?since=30d&machines=...` | 星期 × 小时热力图数据：`cells[]`（`weekday` 0=周一 … 6=周日、`hour`、`samples`、`usageRatio`）+ 覆盖时段 `since`/`until` |
+| `GET /api/heatmap?since=...&until=...&machines=...` | 星期 × 小时热力图数据：`cells[]`（`weekday` 0=周一 … 6=周日、`hour`、`samples`、`usageRatio`）+ 覆盖时段 `since`/`until`（`until` 为开区间上界） |
+| `GET /api/profile?since=...&until=...&weekday=...&bucketSeconds=300` | 5 分钟剖面：288 个槽位，含总/洗衣机/烘干机的 `usageRatio` 与 `samples`；`weekday` 可选 |
 
 - `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；
 - 分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；

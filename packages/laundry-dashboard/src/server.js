@@ -54,6 +54,13 @@ function parseOptionalInt(value, min, max) {
   return parsed;
 }
 
+/** 解析可选 ISO 时间参数，非法返回 null */
+function parseIsoParam(value) {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
@@ -140,23 +147,27 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/heatmap') {
       const range = parseRange(sinceParam);
-      const key = `${route}?${range.label}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => database.heatmap({ since: range.since, machineIds })));
+      const until = parseIsoParam(url.searchParams.get('until'));
+      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}`;
+      sendJson(res, 200, cached(key, () => database.heatmap({ since: range.since, until, machineIds })));
       return true;
     }
 
     if (route === '/api/profile') {
       const range = parseRange(sinceParam);
+      const until = parseIsoParam(url.searchParams.get('until'));
       const weekdayParam = url.searchParams.get('weekday');
       const weekday =
         weekdayParam === null || weekdayParam === '' ? null : Number.parseInt(weekdayParam, 10);
       const bucketSeconds = Number.parseInt(url.searchParams.get('bucketSeconds') ?? '', 10);
       const bucket = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? bucketSeconds : 300;
-      const key = `${route}?${range.label}:${weekday ?? 'all'}:${bucket}`;
+      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${bucket}`;
       sendJson(
         res,
         200,
-        cached(key, () => database.profile({ since: range.since, weekday, bucketSeconds: bucket })),
+        cached(key, () =>
+          database.profile({ since: range.since, until, weekday, bucketSeconds: bucket }),
+        ),
       );
       return true;
     }

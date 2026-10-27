@@ -159,6 +159,16 @@ test('GET /api/bars 与 /api/hourly', async () => {
     assert.equal(scopedBars.scope.weekday, 1);
     assert.equal(scopedBars.scope.hour, 0);
     assert.ok(Array.isArray(scopedBars.rows));
+
+    const emptyHeatmap = await (
+      await fetch(`${base}/api/heatmap?since=all&until=2000-01-01T00:00:00.000Z`)
+    ).json();
+    assert.equal(emptyHeatmap.cells.length, 0, 'until 早于数据时无热力图样本');
+
+    const emptyProfile = await (
+      await fetch(`${base}/api/profile?since=all&until=2000-01-01T00:00:00.000Z`)
+    ).json();
+    assert.ok(emptyProfile.slots.every((slot) => slot.samples === 0), 'until 早于数据时剖面无样本');
   });
 });
 

@@ -247,6 +247,10 @@ test('heatmap：按星期 × 小时聚合使用率', () => {
 
     const keys = new Set(cells.map((cell) => `${cell.weekday}-${cell.hour}`));
     assert.equal(keys.size, cells.length, '每个 星期/小时 组合只出现一次');
+
+    // until 早于数据 → 没有样本
+    const none = dashboard.heatmap({ since: null, until: '2000-01-01T00:00:00.000Z' });
+    assert.equal(none.cells.length, 0, 'until 早于数据时热力图无样本');
   });
 });
 
@@ -284,6 +288,10 @@ test('profile：5 分钟精度（每天 288 槽）', () => {
 
     const other = dashboard.profile({ since: null, weekday: (weekday + 3) % 7 });
     assert.equal(other.slots.filter((slot) => slot.samples > 0).length, 0, '其他周几没有数据');
+
+    // until 早于数据 → 剖面全空
+    const none = dashboard.profile({ since: null, until: '2000-01-01T00:00:00.000Z' });
+    assert.ok(none.slots.every((slot) => slot.samples === 0), 'until 早于数据时剖面无样本');
   });
 });
 

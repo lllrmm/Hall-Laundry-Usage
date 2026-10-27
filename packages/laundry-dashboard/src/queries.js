@@ -498,13 +498,18 @@ export class DashboardDatabase {
   }
 
   /** 星期 × 小时热力图：每格的平均使用率（weekday 0 = 周一 … 6 = 周日） */
-  heatmap({ since = null, machineIds = [] } = {}) {
+  heatmap({ since = null, until = null, machineIds = [] } = {}) {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return { available: false, since, until: null, cells: [] };
 
     const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
     const idFilter = filterIds.length > 0 ? `AND machine_id IN (${placeholders(filterIds.length)})` : '';
     const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
+    let untilFilter = '';
+    if (until) {
+      untilFilter = 'AND observed_at < ?';
+      params.push(until);
+    }
 
     try {
       const rows = db
@@ -514,7 +519,7 @@ export class DashboardDatabase {
                   COUNT(*) AS samples,
                   AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
            FROM machine_snapshots
-           WHERE observed_at >= ? ${idFilter}
+           WHERE observed_at >= ? ${idFilter} ${untilFilter}
            GROUP BY weekday, hour
            ORDER BY weekday, hour`,
         )
@@ -531,14 +536,14 @@ export class DashboardDatabase {
         .prepare(
           `SELECT MIN(observed_at) AS first, MAX(observed_at) AS last
            FROM machine_snapshots
-           WHERE observed_at >= ? ${idFilter}`,
+           WHERE observed_at >= ? ${idFilter} ${untilFilter}`,
         )
         .get(...params);
 
       return {
         available: true,
         since: since ?? span?.first ?? null,
-        until: span?.last ?? null,
+        until: span?.last ?? until ?? null,
         cells,
       };
     } catch {
@@ -550,7 +555,7 @@ export class DashboardDatabase {
    * 按 5 分钟精度的时间剖面（每天 288 个槽位）。
    * weekday 0=周一…6=周日；不传则汇总所有天（按样本数加权由调用方处理，这里返回逐槽聚合值）。
    */
-  profile({ since = null, weekday = null, bucketSeconds = 300 } = {}) {
+  profile({ since = null, until = null, weekday = null, bucketSeconds = 300 } = {}) {
     const db = this._ensure();
     const slotsPerDay = Math.round(86400 / bucketSeconds);
     const slotsPerHour = slotsPerDay / 24;
@@ -565,6 +570,11 @@ export class DashboardDatabase {
       weekdayFilter = `AND CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) = ?`;
       params.push((weekday + 1) % 7);
     }
+    let untilFilter = '';
+    if (until) {
+      untilFilter = 'AND s.observed_at < ?';
+      params.push(until);
+    }
 
     try {
       const rows = db
@@ -576,7 +586,7 @@ export class DashboardDatabase {
                   AVG(CASE WHEN s.state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
-           WHERE s.observed_at >= ? ${weekdayFilter}
+           WHERE s.observed_at >= ? ${weekdayFilter} ${untilFilter}
            GROUP BY slot, kind
            ORDER BY slot`,
         )
@@ -631,14 +641,14 @@ export class DashboardDatabase {
         .prepare(
           `SELECT MIN(s.observed_at) AS first, MAX(s.observed_at) AS last
            FROM machine_snapshots s
-           WHERE s.observed_at >= ? ${weekdayFilter}`,
+           WHERE s.observed_at >= ? ${weekdayFilter} ${untilFilter}`,
         )
         .get(...params);
 
       return {
         available: true,
         since: since ?? span?.first ?? null,
-        until: span?.last ?? null,
+        until: span?.last ?? until ?? null,
         bucketSeconds,
         weekday,
         slots,

@@ -64,21 +64,18 @@
       <section class="card controls">
         <div class="control-row">
           <span class="label">Date range</span>
-          <div id="ranges" class="chips"></div>
+          <div class="date-range">
+            <input type="date" id="date-from" aria-label="From date" />
+            <span class="date-sep">–</span>
+            <input type="date" id="date-to" aria-label="To date" />
+            <button id="date-all" class="chip plain" type="button" disabled>All dates</button>
+          </div>
         </div>
         <div class="control-row">
           <span class="label">Machines <span id="selected-count" class="hint"></span></span>
           <div id="machine-chips" class="chips machine-chips"></div>
           <button id="select-all" class="chip plain select-all" type="button">Select all</button>
         </div>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
-          <h2>State breakdown in window</h2>
-          <span class="hint" id="bars-range"></span>
-        </div>
-        <div id="chart-bars" class="chart tall"></div>
       </section>
 
       <section class="card">
@@ -95,6 +92,14 @@
           <span class="hint" id="profile-hint"></span>
         </div>
         <div id="chart-profile" class="chart"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>State breakdown in window</h2>
+          <span class="hint" id="bars-range"></span>
+        </div>
+        <div id="chart-bars" class="chart tall"></div>
       </section>
     </main>
 

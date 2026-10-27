@@ -330,8 +330,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '取消选择后 State breakdown 回到时间窗',
     });
 
-    // 3) 选择控件
-    assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
+    // 3) 选择控件：Date range 输入 + 机器 chips
+    assert.equal(document.querySelectorAll('#ranges').length, 0, '旧的相对窗口 chips 已移除');
+    assert.ok(document.getElementById('date-from'), '应有开始日期输入');
+    assert.ok(document.getElementById('date-to'), '应有结束日期输入');
+    assert.ok(document.getElementById('date-all'), '应有 All dates 按钮');
     assert.equal(document.querySelectorAll('#presets').length, 0, 'Presets 已移除');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
@@ -381,26 +384,28 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '恢复全选后热力图仍在',
     });
 
-    // 5) 时间跨度切换
-    const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 days'));
-    weekChip.click();
-    await waitFor(
-      () => [...document.querySelectorAll('#ranges .chip')].some(
-        (chip) => chip.classList.contains('active') && chip.textContent.includes('7 days'),
-      ),
-      { label: '7 days chip 高亮' },
-    );
-    await waitFor(() => document.getElementById('bars-range').textContent !== barsRangeText, {
-      label: '占比图时段跟随时间跨度更新',
-    });
-    assert.match(document.getElementById('bars-range').textContent, /^\d{2}-\d{2} \d{2}:\d{2} – /);
+    // 5) Date range：只影响热力图 / 剖面，不影响 State breakdown
+    const barsRangeBefore = document.getElementById('bars-range').textContent;
+    const fromInput = document.getElementById('date-from');
+    const toInput = document.getElementById('date-to');
+    fromInput.value = '2020-01-01';
+    fromInput.dispatchEvent(new dom.window.Event('change'));
+    toInput.value = '2020-01-02';
+    toInput.dispatchEvent(new dom.window.Event('change'));
 
-    // 热力图与剖面基于全部历史样本，不随时间跨度变化
-    assert.equal(
-      document.querySelectorAll('#heatmap .heatmap-cell[data-samples]').length,
-      filledCells.length,
-      '热力图不随时间跨度变化',
-    );
+    await waitFor(() => document.querySelector('#heatmap .empty'), { label: '日期范围外热力图空状态' });
+    await waitFor(() => document.querySelector('#chart-profile .empty'), { label: '日期范围外剖面空状态' });
+    assert.equal(document.getElementById('bars-range').textContent, barsRangeBefore, 'State breakdown 不跟随日期范围');
+    assert.equal(charts().bars.data.labels.length, 4, 'State breakdown 仍显示全部机器');
+
+    // All dates → 恢复全部历史
+    document.getElementById('date-all').click();
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
+      label: '清除日期后热力图恢复',
+    });
+    await waitFor(() => charts().profile && charts().profile.data.labels.length === 288, {
+      label: '清除日期后剖面恢复',
+    });
 
     // 6) 主题：Auto → Light → Dark，图表用深色色板重建
     const root = document.documentElement;

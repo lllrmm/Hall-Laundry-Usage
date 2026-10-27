@@ -53,17 +53,9 @@
     return 'light';
   }
 
-  const RANGES = [
-    ['1h', '1 hour'],
-    ['6h', '6 hours'],
-    ['24h', '24 hours'],
-    ['7d', '7 days'],
-    ['30d', '30 days'],
-    ['all', 'All'],
-  ];
-
   const state = {
-    range: '24h',
+    dateFrom: null,
+    dateTo: null,
     selected: new Set(),
     machines: [],
     latest: [],
@@ -317,22 +309,40 @@
 
   /* ---------------- 选择控件 ---------------- */
 
-  function renderRangeChips() {
-    const box = $('ranges');
-    box.innerHTML = '';
-    for (const [value, label] of RANGES) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `chip plain${state.range === value ? ' active' : ''}`;
-      button.textContent = label;
-      button.onclick = () => {
-        if (state.range === value) return;
-        state.range = value;
-        renderRangeChips();
-        loadCharts();
-      };
-      box.appendChild(button);
-    }
+  /** 日期范围 → API 参数（本地日期，含首尾两天） */
+  function dateRangeParams() {
+    const params = {};
+    if (state.dateFrom) params.since = new Date(`${state.dateFrom}T00:00:00`).toISOString();
+    if (state.dateTo) params.until = new Date(`${state.dateTo}T23:59:59.999`).toISOString();
+    return params;
+  }
+
+  function syncDateInputs() {
+    const from = $('date-from');
+    const to = $('date-to');
+    const all = $('date-all');
+    if (from) from.value = state.dateFrom ?? '';
+    if (to) to.value = state.dateTo ?? '';
+    if (all) all.disabled = !state.dateFrom && !state.dateTo;
+  }
+
+  /** 读取日期输入并重新加载图表（热力图 / 剖面跟随日期） */
+  function applyDateRange() {
+    state.dateFrom = $('date-from')?.value || null;
+    state.dateTo = $('date-to')?.value || null;
+    state.profile = null;
+    state.profileKey = null;
+    syncDateInputs();
+    loadCharts();
+  }
+
+  function clearDateRange() {
+    state.dateFrom = null;
+    state.dateTo = null;
+    state.profile = null;
+    state.profileKey = null;
+    syncDateInputs();
+    loadCharts();
   }
 
   /** 全选 / 全不选（按钮文字随状态切换） */
@@ -783,9 +793,9 @@
     }
 
     const data = state.profile;
-    if (!data || !data.slots?.length) {
+    if (!data || !data.slots?.length || !data.slots.some((entry) => entry.samples > 0)) {
       if (hint) hint.textContent = '';
-      showChartEmpty('profile', container, 'No data yet (waiting for polls)');
+      showChartEmpty('profile', container, 'No data in this date range');
       return;
     }
 
@@ -796,10 +806,14 @@
     const washerSamples = data.slots.map((entry) => entry.washerSamples ?? 0);
     const dryerSamples = data.slots.map((entry) => entry.dryerSamples ?? 0);
 
+    const period =
+      data.since && data.until
+        ? `${fmtRangeTime(data.since)} – ${fmtRangeTime(data.until)}`
+        : 'all history';
     const title =
       focus && focus.kind === 'weekday'
-        ? `${WEEKDAY_LABELS[focus.value]} · 5-min profile · all history`
-        : 'All days · 5-min profile · all history';
+        ? `${WEEKDAY_LABELS[focus.value]} · 5-min profile · ${period}`
+        : `All days · 5-min profile · ${period}`;
     if (hint) hint.textContent = title;
 
     mountChart('profile', container, {
@@ -847,7 +861,9 @@
       return;
     }
 
-    const key = focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all';
+    const dateParams = dateRangeParams();
+    const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
+    const key = `${focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all'}|${dateKey}`;
     const fresh = state.profileKey === key && state.profile && Date.now() - (state.profileAt ?? 0) < 60_000;
     if (fresh) {
       renderProfile();
@@ -855,7 +871,8 @@
     }
 
     try {
-      const params = new URLSearchParams({ since: 'all', bucketSeconds: '300' });
+      const params = new URLSearchParams({ since: dateParams.since ?? 'all', bucketSeconds: '300' });
+      if (dateParams.until) params.set('until', dateParams.until);
       if (focus && focus.kind === 'weekday') params.set('weekday', String(focus.value));
       const data = await api(`/api/profile?${params}`);
       state.profile = data;
@@ -885,7 +902,7 @@
         label: `${pad2(focus.value)}:00 · all history`,
       };
     }
-    return { params: new URLSearchParams({ since: state.range }), label: null };
+    return { params: new URLSearchParams({ since: 'all' }), label: null };
   }
 
   /** 只刷新 State breakdown（热力图选择变化时立即生效） */
@@ -910,9 +927,14 @@
   }
 
   async function loadCharts() {
-    // State breakdown 跟随热力图选中范围（行=星期几 / 列=小时），否则按当前时间跨度
+    // State breakdown 只跟随热力图选中范围（行=星期几 / 列=小时）
     const barsQueryInfo = barsQuery();
     const barsParams = barsQueryInfo.params;
+
+    // 热力图与剖面跟随 Date range（未选日期 = 全部历史）
+    const dateParams = dateRangeParams();
+    const heatmapParams = new URLSearchParams({ since: dateParams.since ?? 'all' });
+    if (dateParams.until) heatmapParams.set('until', dateParams.until);
 
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;
@@ -920,8 +942,7 @@
     try {
       const [bars, heatmap] = await Promise.all([
         api(`/api/bars?${barsParams}`),
-        // 热力图与剖面始终用全部历史样本，不受时间跨度/机器筛选影响
-        api('/api/heatmap?since=all'),
+        api(`/api/heatmap?${heatmapParams}`),
       ]);
 
       if (requestId !== state.requestId) return; // 只渲染最新一次请求
@@ -1082,6 +1103,10 @@
     $('theme-toggle').addEventListener('click', () => cycleTheme());
     $('select-all').addEventListener('click', () => toggleSelectAll());
 
+    $('date-from').addEventListener('change', applyDateRange);
+    $('date-to').addEventListener('change', applyDateRange);
+    $('date-all').addEventListener('click', clearDateRange);
+
     $('auto').addEventListener('change', (event) => {
       state.auto = event.target.checked;
       state.countdown = state.refreshSeconds;
@@ -1106,7 +1131,7 @@
   }
 
   async function init() {
-    renderRangeChips();
+    syncDateInputs();
     applyTheme(readThemeMode(), { redraw: false });
     watchSystemTheme();
     bindEvents();
