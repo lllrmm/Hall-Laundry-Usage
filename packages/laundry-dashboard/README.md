@@ -20,7 +20,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite \
   --series ../laundry-monitor/data/laundry-series.sqlite --port 8787
 ```
 
-打开 <http://127.0.0.1:8787> 即可。
+打开 <http://127.0.0.1:8787> 即可；本机/LAN 访问地址也可用 `http://<电脑局域网 IP>:8787`（当前配置 `host=0.0.0.0`，见下方配置说明）。
 
 ## 页面内容（界面为英文）
 
@@ -104,9 +104,15 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 - 图表在 `resize`/横竖屏切换时按容器实际宽度重建；窄屏下"状态占比"柱状图使用短机器名（去掉 `UG4` 前缀）；
 - 触摸屏：Chart.js 自带触摸 tooltip，按住/滑动图表即可查看对应数值。
 
-**手机上打开**：默认只监听 `127.0.0.1`，手机需要把 `dashboard.config.json` 的 `host` 改成 `0.0.0.0`
-（或直接 `node bin/serve.mjs --host 0.0.0.0`），然后用电脑的局域网 IP 访问，例如 `http://192.168.1.23:8787`。
-服务没有登录鉴权，只暴露洗衣房状态（只读），请只在可信网络（家里/宿舍 WiFi）里这样开，看完可改回 `127.0.0.1`。
+**手机上打开**：当前 `dashboard.config.json` 已设置 `"host": "0.0.0.0"`（监听所有网卡），手机/平板与电脑在同一局域网时，直接访问电脑的局域网 IP 即可，例如 `http://192.168.1.23:8787`；本机仍可用 `http://127.0.0.1:8787`。
+如果其他设备打不开，通常是 **Windows 防火墙**拦了入站 8787 端口，需要管理员权限放行一次，例如：
+
+```powershell
+# 管理员 PowerShell
+netsh advfirewall firewall add rule name="Laundry Dashboard 8787" dir=in action=allow protocol=TCP localport=8787
+```
+
+服务没有登录鉴权，只暴露洗衣房状态（只读），请只在可信网络（家里/宿舍 WiFi）里这样开；不想被局域网访问时，把 `host` 改回 `127.0.0.1` 并重启看板即可。
 
 ### 深浅色主题
 
@@ -123,7 +129,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 |---|---|---|
 | `database` | `../laundry-monitor/data/laundry.sqlite` | 原始快照库路径（相对本配置文件）；当前状态与回退日序列用 |
 | `seriesDatabase` | `../laundry-monitor/data/laundry-series.sqlite` | 日序列库路径（序列库缺失时自动回退 `database`） |
-| `host` | `127.0.0.1` | 监听地址（只在本机访问） |
+| `host` | `127.0.0.1`（默认值）；仓库配置为 `0.0.0.0` | 监听地址；`0.0.0.0` = 局域网可访问，`127.0.0.1` = 仅本机 |
 | `port` | `8787` | 监听端口 |
 | `refreshSeconds` | `30` | 前端自动刷新间隔（前端实际固定 30s 轮询，字段保留给后续使用） |
 

@@ -97,9 +97,12 @@ start-all.cmd
 cd packages/laundry-monitor && npm start
 #   或双击 packages/laundry-monitor/run.cmd
 
-# 终端 2：看板（只读两个 SQLite，http://127.0.0.1:8787）
+# 终端 2：看板（只读两个 SQLite，http://127.0.0.1:8787；局域网用 http://<本机 IP>:8787）
 cd packages/laundry-dashboard && npm start
 #   或双击 packages/laundry-dashboard/run.cmd
+#   当前配置 host=0.0.0.0，同一 WiFi 下的手机/平板可直接访问；其他设备打不开时需在
+#   Windows 防火墙放行入站 TCP 8787（管理员 PowerShell）：
+#   netsh advfirewall firewall add rule name="Laundry Dashboard 8787" dir=in action=allow protocol=TCP localport=8787
 ```
 
 - 停掉看板：采集继续（数据库照常增长）；重新启动看板即可看到最新数据。
