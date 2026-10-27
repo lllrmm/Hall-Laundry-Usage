@@ -874,6 +874,15 @@
     return `${pad2(hour)}:${pad2(minute)}`;
   }
 
+  /** 横轴标签间距：只能取 15 / 30 / 60 / 120 分钟 */
+  function profileTickStep(width) {
+    const maxLabels = Math.max(4, Math.floor(Math.max(320, width) / 80));
+    for (const step of [15, 30, 60, 120]) {
+      if (1440 / step <= maxLabels) return step;
+    }
+    return 120;
+  }
+
   function profileChartOptions(colors, compact, { showLegend = false } = {}) {
     const options = baseChartOptions(colors, compact);
     options.plugins.legend.display = showLegend;
@@ -1084,10 +1093,19 @@
       });
     }
 
+    // 横轴标签间距只允许 15 / 30 / 60 / 120 分钟
+    const tickStep = profileTickStep(container.clientWidth || 900);
+    const options = profileChartOptions(colors, compact, { showLegend: true });
+    options.scales.x.ticks = {
+      ...options.scales.x.ticks,
+      autoSkip: false,
+      callback: (value, index) => (index % tickStep === 0 ? value : ''),
+    };
+
     mountChart('profile', container, {
       type: 'line',
       data: { labels, datasets },
-      options: profileChartOptions(colors, compact, { showLegend: true }),
+      options,
     });
   }
 

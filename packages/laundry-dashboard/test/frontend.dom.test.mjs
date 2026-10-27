@@ -285,6 +285,19 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.match(document.getElementById('profile-hint').textContent, /1-min profile · /);
 
+    // 横轴标签间距只能是 15 / 30 / 60 / 120 分钟
+    const ticks = charts().profile.options.scales.x.ticks;
+    const shownIndices = [];
+    for (let index = 0; index < 400; index += 1) {
+      if (ticks.callback('12:00', index)) shownIndices.push(index);
+    }
+    assert.ok(shownIndices.length >= 2, '应显示多个横轴标签');
+    const labelStep = shownIndices[1] - shownIndices[0];
+    assert.ok(
+      [15, 30, 60, 120].includes(labelStep),
+      `横轴标签间距应为 15/30/60/120 分钟，实际 ${labelStep}`,
+    );
+
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
     );
