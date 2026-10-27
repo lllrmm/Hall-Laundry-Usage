@@ -662,7 +662,6 @@
 
     const colors = chartColors();
     const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
-    const totalSamples = cells.reduce((sum, cell) => sum + cell.samples, 0);
     const minuteX = (minute) => (minute / 1440) * cssWidth;
     const cellW = cssWidth / 1440;
     canvas.dataset.minutes = '1440';
@@ -833,12 +832,8 @@
     };
 
     if (hint) {
-      const coverage = heatmap.coverage;
-      const covered =
-        coverage?.since && coverage?.until
-          ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
-          : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis (30-min steps) to select a time range`;
+      hint.textContent =
+        'click weekday labels to filter · drag the top axis (30-min steps) to select a time range';
     }
   }
 

@@ -285,11 +285,14 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '纵轴为周一到周日',
     );
     assert.equal(document.querySelectorAll('#heatmap .heatmap-hour').length, 24, '24 个小时表头');
-    assert.match(
-      document.getElementById('heatmap-hint').textContent,
-      /drag the top axis/,
-      '热力图提示说明可拖动选择时段',
+    assert.ok(
+      [...document.querySelectorAll('h2')].some((node) => node.textContent === 'Usage heatmap'),
+      '热力图标题为 Usage heatmap（不再带 weekday × minute）',
     );
+    const heatmapHint = document.getElementById('heatmap-hint').textContent;
+    assert.match(heatmapHint, /drag the top axis/, '热力图提示说明可拖动选择时段');
+    assert.doesNotMatch(heatmapHint, /\d{2}-\d{2} \d{2}:\d{2}/, '提示里不再显示覆盖时段');
+    assert.doesNotMatch(heatmapHint, /samples/, '提示里不再显示样本数');
 
     // 顶部时间轴交互（拖选时段 / 单击选分钟）
     const axis = document.getElementById('heatmap-hours');

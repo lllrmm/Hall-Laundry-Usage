@@ -91,6 +91,8 @@ test('GET / 返回看板页面', async () => {
     const html = await response.text();
     assert.match(html, /HKUST Laundry Monitor/);
     assert.match(html, /Current status/);
+    assert.match(html, /Usage heatmap/);
+    assert.doesNotMatch(html, /weekday × minute/, '热力图标题不应再带 weekday × minute');
     assert.match(html, /chart-bars/);
     assert.match(html, /chart-profile/);
     assert.doesNotMatch(html, /chart-trend|chart-hourly/, '趋势图与按小时图已移除');
