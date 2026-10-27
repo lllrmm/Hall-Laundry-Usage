@@ -550,7 +550,7 @@
     };
 
     // 从左到右的堆叠顺序由 aggregate.js 的 STATE_CATEGORIES 定义：
-    // In use → On hold → Maintenance → Offline → Free → Disabled → Unknown
+    // In use → On hold → Maintenance → Offline → Disabled → Unknown → Free（Free 最右）
     // 始终展示全部状态图例（没有样本的状态显示为 0）
     const colorByKey = {
       inUseRatio: colors.busy,

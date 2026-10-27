@@ -284,9 +284,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       'On hold',
       'Maintenance',
       'Offline',
-      'Free',
       'Disabled',
       'Unknown',
+      'Free',
     ]);
     assert.ok(
       bars.data.datasets.every((dataset) => dataset.data.every((value) => Number.isFinite(value))),

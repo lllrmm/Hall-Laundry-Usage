@@ -39,16 +39,16 @@
 
   /**
    * State breakdown 堆叠柱从左到右的顺序（与 rows 上的 ratio 字段对应）。
-   * Disabled / Unknown 若有样本追加在最后。
+   * Free 固定放最右边；Disabled / Unknown 其次。
    */
   const STATE_CATEGORIES = Object.freeze([
     { key: 'inUseRatio', label: 'In use' },
     { key: 'onHoldRatio', label: 'On hold' },
     { key: 'maintenanceRatio', label: 'Maintenance' },
     { key: 'offlineRatio', label: 'Offline' },
-    { key: 'availableRatio', label: 'Free' },
     { key: 'disabledRatio', label: 'Disabled' },
     { key: 'unknownRatio', label: 'Unknown' },
+    { key: 'availableRatio', label: 'Free' },
   ]);
 
   /**

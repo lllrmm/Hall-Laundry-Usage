@@ -29,10 +29,10 @@ function cellAt(cells, weekday, minute) {
   return cells.find((cell) => cell.weekday === weekday && cell.minute === minute);
 }
 
-test('STATE_CATEGORIES：State breakdown 堆叠柱从左到右的顺序', () => {
+test('STATE_CATEGORIES：State breakdown 堆叠柱从左到右的顺序（Free 最右）', () => {
   assert.deepEqual(
     [...Agg.STATE_CATEGORIES].map((category) => category.label),
-    ['In use', 'On hold', 'Maintenance', 'Offline', 'Free', 'Disabled', 'Unknown'],
+    ['In use', 'On hold', 'Maintenance', 'Offline', 'Disabled', 'Unknown', 'Free'],
   );
 });
 
