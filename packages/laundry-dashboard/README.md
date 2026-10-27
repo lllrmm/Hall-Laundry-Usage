@@ -27,7 +27,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite \
 | 区块 | 说明 |
 |---|---|
 | 顶栏 | **Database updated**（数据库最后更新时间，绝对 + 相对）、Refresh now、自动刷新倒计时 |
-| 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
+| 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"（在机器名下方独立一行显示）**（来自 `service_type.value`，烘干机不显示） |
 | Date range | 选择开始 / 结束日期（本地日期，含首尾两天），留空 = 全部历史；**热力图 / Inspection / State breakdown 都跟随**；变化时只向后台补还没缓存的「机器·天」 |
 | 机器筛选 | 每台机器一个可勾选 chip，**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空；**热力图 / 剖面 / State breakdown 都跟随**（清空选择时显示占位）；新勾选的机器只补它缺的天 |
 | State breakdown | 横向堆叠柱状图：每台机器**各种状态的占比**，**从左到右顺序为 In use → On hold → Maintenance → Offline → Free**（Disabled / Unknown 若有样本则追加在最后），分母为该机器的全部已观测分钟；tooltip 显示总样本数；样本范围 = Date range + Machines selected + 勾选的星期 + 热力图选中的时段；**右上角始终显示「星期 · 时段」**（如 `Mon–Sun · 06:00–11:59`；没选星期时显示全部 `Mon–Sun`，没选时段时显示 `00:00–23:59`；星期连续时合并为 `Mon–Wed`，不连续则分开写 `Mon, Wed, Fri`；显式选了 Date range 才追加日期范围）；**在浏览器端计算** |

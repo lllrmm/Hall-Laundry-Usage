@@ -323,6 +323,11 @@ main {
   min-width: 0;
 }
 
+.powder-line {
+  display: flex;
+  margin-top: 4px;
+}
+
 .powder {
   flex: 0 0 auto;
   font-size: 10px;

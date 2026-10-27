@@ -266,12 +266,16 @@
     head.appendChild(name);
 
     const powder = powderText(machine);
+    let powderLine = null;
     if (powder) {
+      // detergent 标签独立一行显示（在机器名下方、状态上方）
+      powderLine = document.createElement('div');
+      powderLine.className = 'powder-line';
       const badge = document.createElement('span');
       badge.className = `powder ${machine.powder}`;
       badge.textContent = powder;
       badge.title = machine.serviceLabel ?? powder;
-      head.appendChild(badge);
+      powderLine.appendChild(badge);
     }
 
     const st = document.createElement('div');
@@ -282,7 +286,9 @@
     sub.className = 'sub';
     sub.textContent = machineSubText(machine);
 
-    div.append(head, st, sub);
+    div.append(head);
+    if (powderLine) div.appendChild(powderLine);
+    div.append(st, sub);
     div.title = `${machine.name}${powder ? ' · ' + powder : ''}\nObserved: ${fmtDateTime(machine.observedAt)}`;
     return div;
   }
