@@ -383,14 +383,27 @@ export class DashboardDatabase {
     }
   }
 
-  /** 时间窗内每台机器的状态占比（柱状图用） */
-  bars({ since = null, machineIds = [] } = {}) {
+  /** 每台机器的状态占比（柱状图用）；可按星期几 / 小时筛选（对应热力图选中行/列） */
+  bars({ since = null, machineIds = [], weekday = null, hour = null } = {}) {
     const db = this._ensure();
-    if (!db || !this._hasSchema(db)) return { available: false, since, rows: [] };
+    if (!db || !this._hasSchema(db)) return { available: false, since, until: null, rows: [] };
 
     const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
     const idFilter = filterIds.length > 0 ? `AND s.machine_id IN (${placeholders(filterIds.length)})` : '';
     const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
+
+    let scopeFilter = '';
+    const hasWeekday = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6;
+    const hasHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
+    if (hasWeekday) {
+      // 热力图 weekday 0=周一 … 6=周日
+      scopeFilter += ` AND (CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) + 6) % 7 = ?`;
+      params.push(weekday);
+    }
+    if (hasHour) {
+      scopeFilter += ` AND CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) = ?`;
+      params.push(hour);
+    }
 
     try {
       const rows = db
@@ -406,7 +419,7 @@ export class DashboardDatabase {
                   MAX(s.observed_at) AS last_seen_at
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
-           WHERE s.observed_at >= ? ${idFilter}
+           WHERE s.observed_at >= ? ${idFilter} ${scopeFilter}
            GROUP BY s.machine_id
            ORDER BY m.kind DESC, name`,
         )
@@ -426,10 +439,19 @@ export class DashboardDatabase {
       const observedSince = rows.length
         ? rows.reduce((earliest, row) => (row.firstSeenAt < earliest ? row.firstSeenAt : earliest), rows[0].firstSeenAt)
         : null;
+      const observedUntil = rows.length
+        ? rows.reduce((latest, row) => (row.lastSeenAt > latest ? row.lastSeenAt : latest), rows[0].lastSeenAt)
+        : null;
       const effectiveSince = since ?? observedSince;
-      const until = new Date().toISOString();
+      const until = hasWeekday || hasHour ? observedUntil : new Date().toISOString();
 
-      return { available: true, since: effectiveSince, until, rows };
+      return {
+        available: true,
+        since: effectiveSince,
+        until,
+        scope: { weekday: hasWeekday ? weekday : null, hour: hasHour ? hour : null },
+        rows,
+      };
     } catch {
       return { available: false, since, until: null, rows: [] };
     }

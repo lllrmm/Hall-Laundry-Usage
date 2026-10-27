@@ -152,6 +152,11 @@ test('GET /api/bars 与 /api/hourly', async () => {
     const weekdayProfile = await (await fetch(`${base}/api/profile?since=all&weekday=2`)).json();
     assert.equal(weekdayProfile.slots.length, 288);
     assert.equal(weekdayProfile.weekday, 2);
+
+    const scopedBars = await (await fetch(`${base}/api/bars?since=all&weekday=1&hour=0`)).json();
+    assert.equal(scopedBars.scope.weekday, 1);
+    assert.equal(scopedBars.scope.hour, 0);
+    assert.ok(Array.isArray(scopedBars.rows));
   });
 });
 

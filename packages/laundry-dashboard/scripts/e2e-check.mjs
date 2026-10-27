@@ -54,6 +54,13 @@ const bars = await get('/api/bars?since=1h');
 check('/api/bars', bars.rows?.length === 12, `${bars.rows?.length} 行`);
 check('/api/bars 时段', Boolean(bars.since && bars.until), `${bars.since} – ${bars.until}`);
 
+const scopedBars = await get('/api/bars?since=all&weekday=1');
+check(
+  '/api/bars 按热力图行筛选',
+  scopedBars.scope?.weekday === 1 && Array.isArray(scopedBars.rows),
+  `${scopedBars.rows?.length} 行`,
+);
+
 const hourly = await get('/api/hourly?since=24h');
 check('/api/hourly', hourly.hours?.length === 24 && hourly.hours.some((h) => h.samples > 0), '');
 check(

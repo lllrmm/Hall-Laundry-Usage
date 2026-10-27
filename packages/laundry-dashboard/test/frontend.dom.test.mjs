@@ -311,6 +311,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
     assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
+    await waitFor(() => /Tue · all history/.test(document.getElementById('bars-range').textContent), {
+      label: 'State breakdown 跟随选中的星期几',
+    });
     assert.ok(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
         (node) => node.classList.contains('active') && node.textContent === 'Tue',
@@ -329,6 +332,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.equal(charts().profile.config.type, 'bar', '选中列时剖面用柱状图');
     assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.col-active').length, 7, '该列所有格子高亮');
+    await waitFor(() => /12:00 · all history/.test(document.getElementById('bars-range').textContent), {
+      label: 'State breakdown 跟随选中的小时',
+    });
 
     // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
     [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
@@ -339,6 +345,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         /All days/.test(document.getElementById('profile-hint').textContent),
       { label: '再次点击取消选择' },
     );
+    await waitFor(() => /^\d{2}-\d{2} \d{2}:\d{2} – /.test(document.getElementById('bars-range').textContent), {
+      label: '取消选择后 State breakdown 回到时间窗',
+    });
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');

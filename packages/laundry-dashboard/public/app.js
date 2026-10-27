@@ -739,6 +739,7 @@
     state.heatmapFocus = focus && focus.kind === kind && focus.value === value ? null : { kind, value };
     if (state.heatmap) renderHeatmap(state.heatmap);
     refreshProfile();
+    loadBars();
   }
 
   function renderHeatmap(heatmap, emptyMessage = 'No data yet (waiting for polls)') {
@@ -1008,6 +1009,45 @@
 
   /* ---------------- 图表数据装载 ---------------- */
 
+  /** State breakdown 的查询范围：跟随热力图选中的行/列；未选中时用当前时间跨度 */
+  function barsQuery() {
+    const focus = state.heatmapFocus;
+    if (focus && focus.kind === 'weekday') {
+      return {
+        params: new URLSearchParams({ since: 'all', weekday: String(focus.value) }),
+        label: `${WEEKDAY_LABELS[focus.value]} · all history`,
+      };
+    }
+    if (focus && focus.kind === 'hour') {
+      return {
+        params: new URLSearchParams({ since: 'all', hour: String(focus.value) }),
+        label: `${pad2(focus.value)}:00 · all history`,
+      };
+    }
+    return { params: new URLSearchParams({ since: state.range }), label: null };
+  }
+
+  /** 只刷新 State breakdown（热力图选择变化时立即生效） */
+  async function loadBars() {
+    const { params, label } = barsQuery();
+    const requestId = (state.barsRequestId ?? 0) + 1;
+    state.barsRequestId = requestId;
+    try {
+      const bars = await api(`/api/bars?${params}`);
+      if (requestId !== state.barsRequestId) return;
+      state.bars = bars;
+      renderBarsChart();
+      const barsRangeEl = $('bars-range');
+      if (barsRangeEl) {
+        barsRangeEl.textContent =
+          label ??
+          (bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '');
+      }
+    } catch (error) {
+      console.error('Failed to load bars', error);
+    }
+  }
+
   async function loadCharts() {
     const hasSelection = state.selected.size > 0;
 
@@ -1015,8 +1055,9 @@
       since: state.range,
       machines: [...state.selected].join(','),
     });
-    // State breakdown 只跟时间范围走，始终展示所有机器（不带 machines 过滤）
-    const barsParams = new URLSearchParams({ since: state.range });
+    // State breakdown 跟随热力图选中范围（行=星期几 / 列=小时），否则按当前时间跨度
+    const barsQueryInfo = barsQuery();
+    const barsParams = barsQueryInfo.params;
 
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;
@@ -1041,11 +1082,12 @@
       state.bars = bars;
       renderBarsChart(); // 无论选择什么，都展示全部机器的状态占比
 
-      // 右上角显示实际时段：开始 – 结束
+      // 右上角：热力图选中行/列时显示该范围，否则显示实际时段
       const barsRangeEl = $('bars-range');
       if (barsRangeEl) {
         barsRangeEl.textContent =
-          bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '';
+          barsQueryInfo.label ??
+          (bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '');
       }
 
       if (series) {

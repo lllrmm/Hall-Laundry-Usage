@@ -46,6 +46,14 @@ function parseMachineIds(params) {
   return [...new Set(fromComma.map((id) => id.trim()).filter(Boolean))];
 }
 
+/** 解析可选整数参数，非法/越界返回 null */
+function parseOptionalInt(value, min, max) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) return null;
+  return parsed;
+}
+
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
@@ -112,8 +120,14 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/bars') {
       const range = parseRange(sinceParam);
-      const key = `${route}?${range.label}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => database.bars({ since: range.since, machineIds })));
+      const weekday = parseOptionalInt(url.searchParams.get('weekday'), 0, 6);
+      const hour = parseOptionalInt(url.searchParams.get('hour'), 0, 23);
+      const key = `${route}?${range.label}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}`;
+      sendJson(
+        res,
+        200,
+        cached(key, () => database.bars({ since: range.since, machineIds, weekday, hour })),
+      );
       return true;
     }
 

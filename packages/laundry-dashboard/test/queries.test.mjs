@@ -192,6 +192,30 @@ test('bars：时间窗内状态占比', () => {
       rows[0].firstSeenAt,
     );
     assert.equal(all.since, earliest, '全部时间时应回退到最早观测');
+
+    // 按热力图的行（星期几）/ 列（小时）筛选样本
+    const sumSamples = (result) => result.rows.reduce((sum, row) => sum + row.samples, 0);
+    const weekdayTotals = Array.from({ length: 7 }, (_, weekday) =>
+      sumSamples(dashboard.bars({ since: null, weekday })),
+    );
+    const totalSamples = weekdayTotals.reduce((sum, count) => sum + count, 0);
+    assert.ok(totalSamples > 0, '应有样本');
+    const activeWeekdays = weekdayTotals.filter((count) => count > 0);
+    assert.equal(activeWeekdays.length, 1, '当前数据只落在一个星期几');
+    const activeWeekday = weekdayTotals.findIndex((count) => count > 0);
+    const byWeekday = dashboard.bars({ since: null, weekday: activeWeekday });
+    assert.equal(byWeekday.scope.weekday, activeWeekday);
+    assert.equal(sumSamples(byWeekday), totalSamples, '该星期几包含全部样本');
+
+    const hourTotals = Array.from({ length: 24 }, (_, hour) =>
+      sumSamples(dashboard.bars({ since: null, hour })),
+    );
+    assert.equal(hourTotals.reduce((sum, count) => sum + count, 0), totalSamples, '按小时筛选的样本总数一致');
+    const activeHour = hourTotals.findIndex((count) => count > 0);
+    assert.ok(activeHour >= 0);
+    const byHour = dashboard.bars({ since: null, hour: activeHour });
+    assert.equal(byHour.scope.hour, activeHour);
+    assert.ok(sumSamples(byHour) > 0);
   });
 });
 
