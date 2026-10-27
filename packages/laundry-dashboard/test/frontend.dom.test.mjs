@@ -150,7 +150,6 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
       host: '127.0.0.1',
       port: 0,
-      refreshSeconds: 30,
     },
     logger: { info() {}, warn() {}, error() {} },
   });

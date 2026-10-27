@@ -127,7 +127,7 @@ test('字节编码：机器状态 → 1 byte', () => {
   assert.equal(minuteOfDay(date), 14 * 60 + 45);
 });
 
-test('recordPoll：写入 1440 字节序列、元数据与最新状态', async () => {
+test('recordPoll：写入 1440 字节序列与最新状态', async () => {
   await withSeries((series) => {
     const machines = [
       rawMachine('m1', 'UG4 Dryer (51)', 'dryer', 'available'),
@@ -154,11 +154,6 @@ test('recordPoll：写入 1440 字节序列、元数据与最新状态', async (
     assert.equal(washer.seq[minute], STATE_BYTES.in_use);
     // 没轮询过的分钟保持 no_data
     assert.equal(dryer.seq[(minute + 1) % MINUTES_PER_DAY], STATE_BYTES.no_data);
-
-    const meta = series.machines();
-    assert.equal(meta.length, 2);
-    assert.equal(meta.find((row) => row.id === 'm2').powder, 'with');
-    assert.equal(meta.find((row) => row.id === 'm1').powder, null);
 
     const latest = series.latest();
     assert.equal(latest.length, 2);

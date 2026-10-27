@@ -15,7 +15,7 @@ monitor.config.json
    startMonitor ──► 每 N 秒调一次 GET /app/laundry-rooms/machines
         │                │
         │                ├─ 成功：写 poll_runs + machines + machine_snapshots + machine_transitions
-        │                │        └─ 同时更新序列库（machine_days / machine_meta / machine_latest）
+        │                │        └─ 同时更新序列库（machine_days / machine_latest）
         │                └─ 失败：写 poll_runs(ok=0, error_code=...)，不中断循环
         ▼
    data/laundry.sqlite（WAL）──► stats / export / 任意 SQL 分析
@@ -65,14 +65,13 @@ laundry-monitor stats  --config monitor.config.json [--since 24h] [--json]
 laundry-monitor export --config monitor.config.json [--since 7d] [--format csv|jsonl] [--out file]
 laundry-monitor series --config monitor.config.json [--json]   # 序列库统计
 laundry-monitor rebuild --config monitor.config.json [--since 30d]  # 从原始库重建序列库
-laundry-monitor init   [--config monitor.config.json]   # 生成配置模板
 ```
 
 `--since` 支持 `30m` / `24h` / `7d` 或 ISO 时间。`stats`、`export`、`series`、`rebuild` 不需要 token（可以分析历史库）。
 
 ## 序列库（分钟字节）
 
-每台机器每天一行 `machine_days(machine_id, day, seq BLOB)`，`seq` 固定 **1,440 字节**，索引 = 本地时间第几分钟：
+每台机器每天一行 `machine_days(machine_id, day, seq BLOB)`，`seq` 固定 **1,440 字节**，索引 = 本地时间第几分钟（编码实现见 `packages/shared/contracts.js`，monitor / dashboard 共用）：
 
 | byte | 含义 |
 |---|---|
@@ -91,7 +90,7 @@ laundry-monitor init   [--config monitor.config.json]   # 生成配置模板
 
 - 存储量：12 台机器 ≈ **17 KB/天、6 MB/年**（原始库约 3.4 MB/天）；
 - 同一分钟多次轮询以**最后一条**为准；跨天按本地日期切行；
-- 同样保存 `machine_meta`（名称/类型/洗粉）与 `machine_latest`（最新状态/剩余时间）；
+- 同样保存 `machine_latest`（最新状态/剩余时间，CLI 展示用）；
 - 序列库写失败只告警、不影响原始库；
 - 误删/重建：`laundry-monitor rebuild` 从原始库回填（可重复执行，幂等）。
 

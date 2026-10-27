@@ -19,37 +19,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export const MINUTES_PER_DAY = 1440;
+import {
+  MINUTES_PER_DAY,
+  STATE_BYTES as SHARED_STATE_BYTES,
+  BYTE_LABELS,
+  dayKey as localDayKey,
+  minuteOfDay as localMinuteOf,
+  snapshotByte,
+} from '../../shared/contracts.js';
 
+export { MINUTES_PER_DAY, BYTE_LABELS, snapshotByte };
+
+// 看板内部沿用 camelCase 的字节常量名，数值来自共享契约（唯一来源）
 export const STATE_BYTES = Object.freeze({
-  inUse: 0x00,
-  available: 0x01,
-  maintenance: 0x02,
-  disabled: 0x03,
-  offline: 0x04,
-  onHold: 0x05, // 旧编码，仅用于兼容历史序列
-  onHoldInUse: 0x06,
-  onHoldAvailable: 0x07,
-  onHoldOffline: 0x08,
-  onHoldUnknown: 0x09,
-  unknown: 0xfe,
-  noData: 0xff,
-});
-
-/** 字节 → 可读标签（响应里的 encoding 字段用） */
-export const BYTE_LABELS = Object.freeze({
-  [STATE_BYTES.inUse]: 'in_use',
-  [STATE_BYTES.available]: 'available',
-  [STATE_BYTES.maintenance]: 'maintenance',
-  [STATE_BYTES.disabled]: 'disabled',
-  [STATE_BYTES.offline]: 'offline',
-  [STATE_BYTES.onHold]: 'on_hold',
-  [STATE_BYTES.onHoldInUse]: 'on_hold_in_use',
-  [STATE_BYTES.onHoldAvailable]: 'on_hold_available',
-  [STATE_BYTES.onHoldOffline]: 'on_hold_offline',
-  [STATE_BYTES.onHoldUnknown]: 'on_hold_unknown',
-  [STATE_BYTES.unknown]: 'unknown',
-  [STATE_BYTES.noData]: 'no_data',
+  inUse: SHARED_STATE_BYTES.in_use,
+  available: SHARED_STATE_BYTES.available,
+  maintenance: SHARED_STATE_BYTES.maintenance,
+  disabled: SHARED_STATE_BYTES.disabled,
+  offline: SHARED_STATE_BYTES.offline,
+  onHold: SHARED_STATE_BYTES.on_hold,
+  onHoldInUse: SHARED_STATE_BYTES.on_hold_in_use,
+  onHoldAvailable: SHARED_STATE_BYTES.on_hold_available,
+  onHoldOffline: SHARED_STATE_BYTES.on_hold_offline,
+  onHoldUnknown: SHARED_STATE_BYTES.on_hold_unknown,
+  unknown: SHARED_STATE_BYTES.unknown,
+  noData: SHARED_STATE_BYTES.no_data,
 });
 
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -75,20 +69,6 @@ export function normalizeDay(value) {
   return text;
 }
 
-function pad2(value) {
-  return String(value).padStart(2, '0');
-}
-
-/** 本地日历日 YYYY-MM-DD（与序列库 dayKey 一致） */
-function localDayKey(date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-/** 本地时间的当天第几分钟（0–1439） */
-function localMinuteOf(date) {
-  return date.getHours() * 60 + date.getMinutes();
-}
-
 /** YYYY-MM-DD（本地日期）→ 当天本地 00:00 */
 function localDayStart(day) {
   const [year, month, date] = String(day).split('-').map(Number);
@@ -100,34 +80,6 @@ function nextLocalDayStart(day) {
   const start = localDayStart(day);
   start.setDate(start.getDate() + 1);
   return start;
-}
-
-/** status=on_hold 时，按底层 state 细分编码（与 monitor 一致） */
-function onHoldByte(state) {
-  if (state === 'in_use') return STATE_BYTES.onHoldInUse;
-  if (state === 'available') return STATE_BYTES.onHoldAvailable;
-  if (state === 'offline') return STATE_BYTES.onHoldOffline;
-  return STATE_BYTES.onHoldUnknown;
-}
-
-/** 原始快照行 → 一个字节（与 monitor 的 snapshotByte 逻辑一致） */
-export function snapshotByte(row) {
-  // 非 enabled 的 status 优先（维护中的机器 state 也可能是 available）
-  switch (row.status) {
-    case 'maintenance':
-      return STATE_BYTES.maintenance;
-    case 'disabled':
-      return STATE_BYTES.disabled;
-    case 'on_hold':
-      return onHoldByte(row.state);
-    default:
-      break;
-  }
-  if (row.available === 1 || row.available === true) return STATE_BYTES.available;
-  if (row.state === 'in_use') return STATE_BYTES.inUse;
-  if (row.state === 'offline') return STATE_BYTES.offline;
-  if (row.state === 'available') return STATE_BYTES.available;
-  return STATE_BYTES.unknown;
 }
 
 /** 保证长度正好 1,440：短的补 no_data，长的截断（防脏数据） */

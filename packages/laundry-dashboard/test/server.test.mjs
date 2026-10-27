@@ -65,7 +65,6 @@ async function withServer(fn) {
       seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
       host: '127.0.0.1',
       port: 0,
-      refreshSeconds: 30,
     },
     logger: { info() {}, warn() {}, error() {} },
   });

@@ -9,19 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+import { powderFor } from '../../shared/contracts.js';
+
 /** 机器状态 0/1 → boolean */
 const bool = (value) => value === 1 || value === true;
-
-/** 洗衣机是否带洗衣粉：取决于 service_type.value */
-const POWDER_BY_SERVICE_VALUE = {
-  washing_machine_with_powder: 'with',
-  washing_machine_without_powder: 'without',
-};
-
-/** @returns {'with'|'without'|null} */
-function powderOf(serviceValue) {
-  return POWDER_BY_SERVICE_VALUE[serviceValue] ?? null;
-}
 
 export class DashboardDatabase {
   /** @param {string} dbPath SQLite 文件路径 */
@@ -155,7 +146,7 @@ export class DashboardDatabase {
           roomName: row.room_name,
           serviceValue: row.service_value ?? null,
           serviceLabel: row.service_label ?? null,
-          powder: powderOf(row.service_value),
+          powder: powderFor(row.service_value),
         }));
     } catch {
       return [];
@@ -190,7 +181,7 @@ export class DashboardDatabase {
           roomName: row.room_name,
           serviceValue: row.service_value ?? null,
           serviceLabel: row.service_label ?? null,
-          powder: powderOf(row.service_value),
+          powder: powderFor(row.service_value),
           observedAt: row.observed_at ?? null,
           status: row.status ?? null,
           state: row.state ?? null,

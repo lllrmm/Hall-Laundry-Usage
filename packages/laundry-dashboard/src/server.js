@@ -97,7 +97,7 @@ function parseMachineIds(params) {
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
- * @param {{databasePath: string, host: string, port: number, refreshSeconds: number}} options.config
+ * @param {{databasePath: string, host: string, port: number}} options.config
  * @param {{info: Function, error: Function, warn: Function}} [options.logger]
  */
 export function createDashboardServer({ config, logger = console }) {

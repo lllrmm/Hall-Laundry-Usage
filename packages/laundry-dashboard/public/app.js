@@ -46,7 +46,7 @@
     /** 机器维度 + 最新状态（/api/state 的 machines 已合并 latest） */
     machines: [],
     meta: null,
-    /** machineId|day → {machineId, day, seq: Uint8Array(1440), updatedAt} */
+    /** machineId|day → {machineId, day, seq: Uint8Array(1440)} */
     dayCache: new Map(),
     /** 已经请求过的机器·天（没有数据的日期也算，避免重复请求） */
     fetchedDays: new Map(),
@@ -127,14 +127,6 @@
     return `${s}s`;
   }
 
-  function fmtAxisTime(iso, bucketSeconds) {
-    const d = new Date(iso);
-    if (bucketSeconds < 86400) {
-      return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    }
-    return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  }
-
   /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏图表标签用短名 */
   function shortMachineName(name) {
     return String(name ?? '').replace(/^UG\d+\s+/i, '');
@@ -195,10 +187,6 @@
       $('latest-time').textContent = meta.lastObservedAt
         ? `Data time ${fmtDateTime(meta.lastObservedAt)}`
         : '';
-
-      if (meta.lastPoll && meta.lastPoll.finishedAt) {
-        state.refreshSeconds = state.refreshSeconds || 30;
-      }
     }
   }
 
@@ -613,7 +601,7 @@
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const WEEKDAY_LABELS = Aggregate.WEEKDAY_LABELS;
   const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6];
 
   function hhmm(minute) {
@@ -1309,7 +1297,6 @@
         machineId: row.machineId,
         day: row.day,
         seq: decodeSequence(row.seq),
-        updatedAt: row.updatedAt ?? null,
       });
     }
 
@@ -1390,28 +1377,6 @@
     return records;
   }
 
-  /** 展示用的覆盖时段：日期范围与真实首条观测取交集，结束时间不超过现在 */
-  function computeCoverage(records) {
-    const now = Date.now();
-    let since = null;
-    if (state.meta?.firstObservedAt) since = new Date(state.meta.firstObservedAt);
-    if (state.dateFrom) {
-      const from = new Date(`${state.dateFrom}T00:00:00`);
-      since = since ? new Date(Math.max(since.getTime(), from.getTime())) : from;
-    } else if (!since && records.length) {
-      const earliest = records.reduce((min, record) => (record.day < min ? record.day : min), records[0].day);
-      since = new Date(`${earliest}T00:00:00`);
-    }
-
-    let until = new Date(now);
-    if (state.dateTo) {
-      const end = new Date(`${state.dateTo}T23:59:59.999`);
-      until = new Date(Math.min(end.getTime(), now));
-    }
-    if (since && until.getTime() < since.getTime()) until = new Date(since.getTime());
-    return { since: since ? since.toISOString() : null, until: until.toISOString() };
-  }
-
   /** State breakdown 用的机器顺序：洗衣机 → 烘干机 → 其他 */
   function chartMachineList() {
     const kindOrder = { washer: 0, dryer: 1 };
@@ -1470,11 +1435,10 @@
       nameById[machine.id] = machine.name;
     }
 
-    const coverage = computeCoverage(records);
     const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
     const focus = state.heatmapFocus;
 
-    state.heatmap = { ...Aggregate.buildHeatmap(records), coverage };
+    state.heatmap = Aggregate.buildHeatmap(records);
     state.profile = Aggregate.buildProfile(records, { kindById, weekdays });
     const breakdown = Aggregate.buildStateBreakdown(records, {
       kindById,
@@ -1485,7 +1449,7 @@
       fromMinute: focus && focus.kind === 'range' ? focus.from : null,
       toMinute: focus && focus.kind === 'range' ? focus.to : null,
     });
-    state.bars = { ...breakdown, since: coverage.since, until: coverage.until };
+    state.bars = breakdown;
 
     renderHeatmap(state.heatmap);
     renderProfile();

@@ -61,7 +61,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 
 历史数据优先读监控服务的**日序列库**（`machine_days`，每台机器每天 1,440 字节）；序列库不存在或还没覆盖某天时，自动回退到**原始快照库**即时生成同样的日序列，因此只跑过采集、还没执行过 `laundry-monitor rebuild` 的库也能直接看。`/api/days` 的 JSON 会按需 gzip（实测当前 1 天 × 12 台：JSON 24.6 KB → gzip 后约 0.8 KB），历史天数变多时首屏体积也不会等比膨胀。
 
-状态字节编码（与 `laundry-monitor/src/series.js` 一致）：
+状态字节编码（实现见 `packages/shared/contracts.js`，浏览器端 `public/aggregate.js` 由契约测试保证一致）：
 
 | 字节 | 含义 | 计入使用率 |
 |---|---|---|
@@ -123,7 +123,6 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 | `seriesDatabase` | `../laundry-monitor/data/laundry-series.sqlite` | 日序列库路径（序列库缺失时自动回退 `database`） |
 | `host` | `127.0.0.1`（默认值）；仓库配置为 `0.0.0.0` | 监听地址；`0.0.0.0` = 局域网可访问，`127.0.0.1` = 仅本机 |
 | `port` | `8787` | 监听端口 |
-| `refreshSeconds` | `30` | 前端自动刷新间隔（前端实际固定 30s 轮询，字段保留给后续使用） |
 
 ## HTTP API（只读）
 
@@ -149,7 +148,6 @@ npm test                    # 数据层 + HTTP API + 聚合/取数纯函数 + js
 
 # 端到端（需要采集服务也在跑）
 node scripts/e2e-check.mjs          # 页面 + 各 API 全量校验
-node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可达性
 ```
 
 - `test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`（含 Chart.js）：校验状态卡片、两张 Chart.js 图表、热力图 Canvas、机器/日期/星期交互，并断言**只有 data range 变化 / 新选机器缺数据时才会请求 `/api/days`，自动刷新只请求今天**；页面不应有 JS 错误。

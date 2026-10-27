@@ -6,7 +6,6 @@
  *   laundry-monitor once   --config monitor.config.json     只采集一次（cron 用）
  *   laundry-monitor stats  --config monitor.config.json [--since 24h] [--json]
  *   laundry-monitor export --config monitor.config.json [--since 7d] [--format csv|jsonl] [--out file]
- *   laundry-monitor init   [--config monitor.config.json]   生成配置模板
  */
 
 import fs from 'node:fs';
@@ -35,7 +34,6 @@ const HELP = `用法: laundry-monitor <命令> [选项]
   export    导出快照时间序列（jsonl 或 csv）
   rebuild   从原始快照库重建序列库（可重复执行）
   series    查看序列库统计（天数 / 字节 / 最近状态）
-  init      生成配置模板 monitor.config.json
 
 选项:
   --config <path>    配置文件路径，默认 ${DEFAULT_CONFIG_FILE}
@@ -357,26 +355,6 @@ async function seriesCommand(options) {
   }
 }
 
-/* ---------------- init ---------------- */
-
-async function initCommand(options) {
-  const target = path.resolve(options.config);
-  if (fs.existsSync(target)) {
-    throw new Error(`配置文件已存在：${target}`);
-  }
-
-  const examplePath = new URL('../monitor.config.example.json', import.meta.url);
-  const content = fs.readFileSync(examplePath, 'utf8');
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, content, 'utf8');
-
-  console.log(`已生成配置模板：${target}`);
-  console.log('下一步：把 bearer 换成你的 token（或改成 "${LDR_TOKEN}" 用环境变量），然后运行：');
-  console.log(`  laundry-monitor once  --config ${options.config}`);
-  console.log(`  laundry-monitor run   --config ${options.config}`);
-  return 0;
-}
-
 /* ---------------- main ---------------- */
 
 async function main() {
@@ -395,8 +373,6 @@ async function main() {
       return rebuildCommand(options);
     case 'series':
       return seriesCommand(options);
-    case 'init':
-      return initCommand(options);
     case 'help':
       console.log(HELP);
       return 0;

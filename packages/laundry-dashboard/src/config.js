@@ -1,4 +1,4 @@
-/** 前端看板配置：数据库路径、监听地址、刷新间隔。 */
+/** 前端看板配置：数据库路径、监听地址。 */
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,6 @@ export const DEFAULTS = {
   seriesDatabase: '../laundry-monitor/data/laundry-series.sqlite',
   host: '127.0.0.1',
   port: 8787,
-  refreshSeconds: 30,
 };
 
 /**
@@ -45,12 +44,7 @@ export function normalizeConfig(input, { baseDir = process.cwd(), sourcePath = n
 
   const host = String(input.host ?? DEFAULTS.host).trim() || DEFAULTS.host;
 
-  const refreshSeconds = Number(input.refreshSeconds ?? DEFAULTS.refreshSeconds);
-  if (!Number.isFinite(refreshSeconds) || refreshSeconds < 5) {
-    throw new Error(`refreshSeconds 必须 >= 5${where}`);
-  }
-
-  return { databasePath, seriesDatabasePath, host, port, refreshSeconds, sourcePath };
+  return { databasePath, seriesDatabasePath, host, port, sourcePath };
 }
 
 /** 读取配置文件（文件不存在时返回默认值，方便零配置启动）。 */

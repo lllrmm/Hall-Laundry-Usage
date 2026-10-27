@@ -12,7 +12,7 @@ export {
   minuteOfDay,
   stateByte,
   snapshotByte,
-  powderFor,
+  onHoldByte,
 } from './series.js';
 export { pollOnce } from './collector.js';
 export { startMonitor } from './monitor.js';

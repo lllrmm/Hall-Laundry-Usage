@@ -144,7 +144,6 @@ async function withServer(mode, fn) {
       seriesDatabasePath: fixture.seriesFile,
       host: '127.0.0.1',
       port: 0,
-      refreshSeconds: 30,
     },
     logger: silentLogger,
   });
@@ -416,7 +415,6 @@ test('GET /api/days：两个库都不存在时优雅降级', async () => {
       seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
       host: '127.0.0.1',
       port: 0,
-      refreshSeconds: 30,
     },
     logger: silentLogger,
   });

@@ -1,12 +1,9 @@
 /**
- * HKUST Laundry System — 只读信息获取客户端
+ * HKUST Laundry System — 只读信息获取 CLI
  * 配套文档: docs/API.md
  *
- * 数据来源（逆向自 https://laundry.ust.hk/ldr/app/ 的 SPA bundle）:
- *   base URL : https://laundry.ust.hk/ldr/api
- *   auth     : Authorization: Bearer <token>
- *              token 存在浏览器 localStorage["ldr_student"].token
- *   envelope : { meta: {code,message}, data: {...} } — HTTP 恒为 200
+ * 机器状态的 HTTP 调用/鉴权/归一化复用 `packages/laundry-machines`，
+ * 本文件只保留 tickets / rooms 接口与命令行输出。
  *
  * 用法:
  *   node laundry.mjs machines            机器状态（默认，表格）
@@ -19,19 +16,24 @@
  * Token: 环境变量 LDR_TOKEN，否则读 ./token.txt
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import {
+  createClient,
+  formatRemaining,
+  normalizeMachine,
+  resolveToken,
+} from './packages/laundry-machines/index.js';
 
 export const BASE = 'https://laundry.ust.hk/ldr/api';
 
 export function loadToken() {
-  const env = process.env.LDR_TOKEN?.trim();
-  if (env) return env;
-  const p = path.join(process.cwd(), 'token.txt');
-  if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8').trim();
-  throw new Error('缺少 token：设置环境变量 LDR_TOKEN 或创建 token.txt');
+  const token = resolveToken();
+  if (!token) throw new Error('缺少 token：设置环境变量 LDR_TOKEN 或创建 token.txt');
+  return token;
 }
 
+const client = createClient();
+
+/** tickets / rooms 等非机器接口（库只封装了机器接口） */
 export async function api(method, endpoint, body) {
   const res = await fetch(BASE + endpoint, {
     method,
@@ -41,26 +43,37 @@ export async function api(method, endpoint, body) {
       Authorization: 'Bearer ' + loadToken(),
       Origin: 'https://laundry.ust.hk',
       Referer: 'https://laundry.ust.hk/ldr/app/tickets',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36',
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
   let json;
-  try { json = JSON.parse(text); } catch { throw new Error(`非 JSON 响应 (HTTP ${res.status}): ${text.slice(0, 200)}`); }
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`非 JSON 响应 (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  }
   const code = json?.meta?.code;
   if (code === 4031) throw new Error('缺少 Bearer token（4031）');
-  if (code === 4032) throw new Error('Bearer token 无效或已过期（4032）：重新打开网页，从 localStorage["ldr_student"].token 取新 token');
-  if (code !== 200) throw new Error(`API 错误 ${code}: ${json?.meta?.message} ${JSON.stringify(json?.data ?? '').slice(0, 300)}`);
+  if (code === 4032) {
+    throw new Error(
+      'Bearer token 无效或已过期（4032）：重新打开网页，从 localStorage["ldr_student"].token 取新 token',
+    );
+  }
+  if (code !== 200) {
+    throw new Error(`API 错误 ${code}: ${json?.meta?.message} ${JSON.stringify(json?.data ?? '').slice(0, 300)}`);
+  }
   return json.data;
 }
 
 /* ---------------- 三个只读接口 ---------------- */
 
-/** 接口 1：所有洗衣房的机器实时状态 */
+/** 接口 1：所有洗衣房的机器实时状态（原始结构，原样返回） */
 export async function getMachines() {
-  const data = await api('GET', '/app/laundry-rooms/machines');
-  return data.laundry_room_machines;
+  const raw = await client.getMachinesRaw();
+  return raw.data.laundry_room_machines;
 }
 
 /** 接口 2/3：当前账号的全部券（客户端再分 Available / Used） */
@@ -85,46 +98,14 @@ export function classifyTicket(ticket, now = Date.now()) {
   return 'other';
 }
 
-export const availableTickets = (list, now = Date.now()) => list.filter((t) => classifyTicket(t, now) === 'available');
+export const availableTickets = (list, now = Date.now()) =>
+  list.filter((t) => classifyTicket(t, now) === 'available');
 
 export const usedTickets = (list, n = 10) =>
   list
     .filter((t) => t.usage_status === 'used')
     .sort((a, b) => new Date(b.used_at) - new Date(a.used_at))
     .slice(0, n);
-
-/** 机器是否真的可用（网页的 "Available" 判定） */
-export const isMachineFree = (m) => m.status === 'enabled' && m.state === 'available';
-
-/**
- * in_use 机器的剩余秒数。
- * 只有烘干机(dryer)的 job 里带 ticket.number_of_minutes，洗衣机没有 → 返回 null。
- * 结果可能为负：已到预计结束时间但衣物未取，机器仍报 in_use。
- */
-export function machineRemainingSeconds(machine, now = Date.now()) {
-  const job = machine.job;
-  const mins = job?.ticket?.number_of_minutes;
-  if (!job?.created_at || typeof mins !== 'number') return null;
-  return Math.round((new Date(job.created_at).getTime() + mins * 60000 - now) / 1000);
-}
-
-/** in_use 机器已运行的秒数（所有机型都可用） */
-export function machineElapsedSeconds(machine, now = Date.now()) {
-  const created = machine.job?.created_at;
-  if (!created) return null;
-  return Math.round((now - new Date(created).getTime()) / 1000);
-}
-
-export function fmtDuration(sec) {
-  if (sec == null) return '';
-  const sign = sec < 0 ? '-' : '';
-  const s = Math.abs(sec);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  if (h) return sign + `${h}h${String(m).padStart(2, '0')}m`;
-  return sign + `${m}m${String(ss).padStart(2, '0')}s`;
-}
 
 /* ---------------- CLI ---------------- */
 
@@ -141,11 +122,11 @@ const asJson = argv.includes('--json');
 const positional = argv.filter((a) => !a.startsWith('--'));
 const cmd = positional[0] ?? 'machines';
 
-function stateLabel(m) {
-  if (m.status !== 'enabled') return C.red(m.status); // disabled / on_hold / maintenance
-  if (m.state === 'available') return C.green('available');
-  if (m.state === 'in_use') return C.yellow('in_use');
-  return C.dim(String(m.state)); // offline
+function stateLabel(machine) {
+  if (machine.status !== 'enabled') return C.red(machine.status); // disabled / on_hold / maintenance
+  if (machine.state === 'available') return C.green('available');
+  if (machine.state === 'in_use') return C.yellow('in_use');
+  return C.dim(String(machine.state)); // offline
 }
 
 try {
@@ -158,21 +139,26 @@ try {
       for (const room of data) {
         console.log(C.bold(`\n${room.laundry_room_name}`));
         const groups = { washer: [], dryer: [] };
-        for (const m of room.machines) groups[m.service_type.machine_type]?.push(m);
+        for (const raw of room.machines) {
+          const machine = normalizeMachine(raw, now);
+          groups[machine.kind]?.push(machine);
+        }
         for (const [type, list] of Object.entries(groups)) {
           if (!list.length) continue;
-          const free = list.filter(isMachineFree).length;
+          const free = list.filter((machine) => machine.available).length;
           console.log(`  ${type}s: ${C.bold(`${free}/${list.length} free`)}`);
-          for (const m of list) {
-            const rem = machineRemainingSeconds(m, now);
-            const elapsed = machineElapsedSeconds(m, now);
+          for (const machine of list) {
             let extra = '';
-            if (rem != null) {
-              extra = rem > 0 ? C.dim(` (剩 ${fmtDuration(rem)})`) : C.dim(` (已到点 ${fmtDuration(-rem)}，可能未取衣)`);
-            } else if (elapsed != null) {
-              extra = C.dim(` (已运行 ${fmtDuration(elapsed)}，洗衣机无预计时长)`);
+            if (machine.remainingSeconds != null) {
+              const remaining = formatRemaining(machine.remainingSeconds);
+              extra =
+                machine.remainingSeconds > 0
+                  ? C.dim(` (剩 ${remaining})`)
+                  : C.dim(` (已到点 ${formatRemaining(-machine.remainingSeconds)}，可能未取衣)`);
+            } else if (machine.elapsedSeconds != null) {
+              extra = C.dim(` (已运行 ${formatRemaining(machine.elapsedSeconds)}，洗衣机无预计时长)`);
             }
-            console.log(`    ${m.name.padEnd(18)} ${stateLabel(m)}${extra}`);
+            console.log(`    ${String(machine.name).padEnd(18)} ${stateLabel(machine)}${extra}`);
           }
         }
       }
@@ -184,7 +170,9 @@ try {
     else {
       console.log(`${list.length} 张 Available Tickets`);
       for (const t of list) {
-        console.log(`  ${t.display_id}  ${String(t.machine_type).padEnd(6)} ${(t.number_of_minutes ? t.number_of_minutes + ' min' : 'fixed').padEnd(7)} 过期 ${t.expire_at.slice(0, 10)}  id=${t._id}`);
+        console.log(
+          `  ${t.display_id}  ${String(t.machine_type).padEnd(6)} ${(t.number_of_minutes ? t.number_of_minutes + ' min' : 'fixed').padEnd(7)} 过期 ${t.expire_at.slice(0, 10)}  id=${t._id}`,
+        );
       }
     }
   } else if (cmd === 'used') {
@@ -195,7 +183,9 @@ try {
     else {
       console.log(`最近 ${list.length} 张 Used Tickets`);
       for (const t of list) {
-        const when = t.used_at ? new Date(t.used_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '-';
+        const when = t.used_at
+          ? new Date(t.used_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+          : '-';
         const machine = t.selected_machine?.name ?? t.selected_machine_id ?? '-';
         console.log(`  ${t.display_id}  ${String(t.machine_type).padEnd(6)} ${machine.padEnd(18)} used_at=${when}`);
       }
@@ -206,7 +196,9 @@ try {
     else {
       const now = Date.now();
       for (const t of all) {
-        console.log(`  ${t.display_id}  ${String(t.machine_type).padEnd(6)} ${classifyTicket(t, now).padEnd(9)} pay=${t.payment_status}  exp=${t.expire_at.slice(0, 10)}`);
+        console.log(
+          `  ${t.display_id}  ${String(t.machine_type).padEnd(6)} ${classifyTicket(t, now).padEnd(9)} pay=${t.payment_status}  exp=${t.expire_at.slice(0, 10)}`,
+        );
       }
     }
   } else if (cmd === 'rooms') {

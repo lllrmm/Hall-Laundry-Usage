@@ -818,16 +818,6 @@ main {
     height: 300px;
   }
 
-  .heatmap {
-    grid-template-columns: 34px repeat(1440, 3px);
-    gap: 2px 1px;
-  }
-
-  .heatmap-cell {
-    width: 3px;
-    height: 16px;
-  }
-
   .heatmap-hour {
     font-size: 8px;
   }

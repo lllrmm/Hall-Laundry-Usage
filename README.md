@@ -124,6 +124,7 @@ docs/openapi.json             OpenAPI 3.0 规格
 packages/laundry-machines/    机器状态查询库（ESM + TS 类型 + CLI，Node ≥18）
 packages/laundry-monitor/     采集服务：轮询 + 原始快照库 + 日序列库（stats/export/rebuild）
 packages/laundry-dashboard/   只读看板：零依赖 HTTP + 浏览器端聚合 + Chart.js
+packages/shared/              跨包共享契约：序列字节编码、本地日界、洗粉映射
 ```
 
 各包的详细说明、配置项和设计细节见各自的 README：
@@ -155,7 +156,6 @@ cd packages/laundry-dashboard && npm test
 
 # 端到端（需要采集 + 看板都在跑）
 cd packages/laundry-dashboard && node scripts/e2e-check.mjs
-cd packages/laundry-dashboard && node scripts/probe-services.mjs
 ```
 
 ## 注意事项
