@@ -18,15 +18,10 @@ bun add hkust-laundry-machines
 ```bash
 cd packages/laundry-machines
 npm install          # 只有 typescript 一个 devDependency
-npm test             # node --test（每个测试文件一个子进程）
-npm run test:bun     # bun test（单进程）
+npm test             # 运行全部测试
 npm run typecheck    # 校验 index.d.ts 与用法
 npm run smoke        # 打真实接口的冒烟测试（需要 token）
 ```
-
-> 如果环境不允许启动子进程（例如某些沙箱把 `spawn` 拦成 `EPERM`），
-> `npm test` 会因为 Node 测试运行器给每个文件起子进程而失败，
-> 改用 `npm run test:in-process`（`--test-isolation=none`）或 `bun test` 即可。
 
 ## 获取 token
 

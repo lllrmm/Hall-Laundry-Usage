@@ -186,21 +186,18 @@ node laundry.mjs machines --json   # 原始 JSON
 
 ```bash
 # 机器状态库
-cd packages/laundry-machines && npm run test:in-process && npm run typecheck
+cd packages/laundry-machines && npm test && npm run typecheck
 
 # 采集 / 存储 / 序列
-cd packages/laundry-monitor && npm run test:in-process
+cd packages/laundry-monitor && npm test
 
 # 看板：数据层 + HTTP API + 聚合/取数纯函数 + jsdom 前端
-cd packages/laundry-dashboard && npm run test:in-process
+cd packages/laundry-dashboard && npm test
 
 # 端到端（需要采集 + 看板都在跑）
 cd packages/laundry-dashboard && node scripts/e2e-check.mjs
 cd packages/laundry-dashboard && node scripts/probe-services.mjs
 ```
-
-> 当前沙箱不允许启动子进程，Node 测试要用 `test:in-process`（单进程）；
-> 普通机器上 `npm test` / `bun test` 均可。
 
 ## 注意事项
 

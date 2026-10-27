@@ -153,7 +153,7 @@ netsh advfirewall firewall add rule name="Laundry Dashboard 8787" dir=in action=
 ## 测试
 
 ```bash
-npm run test:in-process     # node：数据层 + HTTP API + 聚合/取数纯函数 + jsdom 前端
+npm test                    # node：数据层 + HTTP API + 聚合/取数纯函数 + jsdom 前端
 bun test                    # jsdom 渲染测试只在 node 下跑，其余用例在 bun 下同样执行
 
 # 端到端（需要采集服务也在跑）
@@ -163,13 +163,9 @@ node scripts/probe-services.mjs     # 探针：数据库尾部数据 + 看板可
 
 - `test/frontend.dom.test.mjs` 用 jsdom 真实加载 `public/` 页面并执行 `app.js`（含 Chart.js）：校验状态卡片、两张 Chart.js 图表、热力图 Canvas、机器/日期/星期交互，并断言**只有 data range 变化 / 新选机器缺数据时才会请求 `/api/days`，自动刷新只请求今天**；页面不应有 JS 错误。
 - `test/aggregate.test.mjs` / `test/history.test.mjs` 用 `node:vm` 直接执行浏览器端纯函数，覆盖热力图/剖面/状态占比与「只补 diff」的取数计划。
-- 本环境装不上原生 `canvas`（沙箱禁止 install 脚本 spawn），测试里用一个轻量 2D context stub 让 Chart.js 能初始化；
-  **Canvas 的实际绘制由 Chart.js 自身保证**，我们断言的是喂给它的数据与配置。
+- 测试用 jsdom + 轻量 Canvas 2D context stub 让 Chart.js 能初始化；**Canvas 的实际绘制由 Chart.js 自身保证**，测试断言的是喂给它的数据与配置。
 
 > 开发依赖：`jsdom`（测试）与 `chart.js`（仅用于 `scripts/vendor-chartjs.mjs` 复制 UMD 构建，部署时不需要 `node_modules`）。
-
-> 本环境不允许启动子进程，`npm test`（默认多进程）会被 `spawn EPERM` 拦住，用 `test:in-process`；
-> 普通机器上 `npm test` / `bun test` 均可。
 
 ## 与采集服务的关系
 
