@@ -44,19 +44,38 @@ test('weekdayOfDay：0=周一 … 6=周日（与日期所在时区无关）', ()
   assert.equal(Agg.weekdayOfDay('bad'), null);
 });
 
+test('isOperational / isInUse：on_hold 计入分子和分母', () => {
+  assert.equal(Agg.isOperational(BYTE.available), true);
+  assert.equal(Agg.isOperational(BYTE.inUse), true);
+  assert.equal(Agg.isOperational(BYTE.onHold), true, 'on_hold 计入使用率分母');
+  assert.equal(Agg.isOperational(BYTE.maintenance), false);
+  assert.equal(Agg.isOperational(BYTE.offline), false);
+  assert.equal(Agg.isOperational(BYTE.noData), false);
+
+  assert.equal(Agg.isInUse(BYTE.inUse), true);
+  assert.equal(Agg.isInUse(BYTE.onHold), true, 'on_hold 计入使用率分子');
+  assert.equal(Agg.isInUse(BYTE.available), false);
+  assert.equal(Agg.isInUse(BYTE.maintenance), false);
+});
+
 test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () => {
   const records = [
     {
       machineId: 'w1',
       day: MONDAY,
-      seq: sequence({ 600: BYTE.inUse, 601: BYTE.available, 602: BYTE.maintenance }),
+      seq: sequence({
+        600: BYTE.inUse,
+        601: BYTE.available,
+        602: BYTE.maintenance,
+        603: BYTE.onHold,
+      }),
     },
     { machineId: 'd1', day: TUESDAY, seq: sequence({ 600: BYTE.available }) },
   ];
 
   const heatmap = Agg.buildHeatmap(records);
   assert.equal(heatmap.minutes, 1440);
-  assert.equal(heatmap.samples, 3, '维护/离线/no_data 不计入样本');
+  assert.equal(heatmap.samples, 4, '维护/离线/no_data 不计入样本；on_hold 计入');
 
   const monday600 = cellAt(heatmap.cells, 0, 600);
   assert.equal(monday600.samples, 1);
@@ -65,6 +84,10 @@ test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () =
   const monday601 = cellAt(heatmap.cells, 0, 601);
   assert.equal(monday601.samples, 1);
   assert.equal(monday601.usageRatio, 0);
+
+  const monday603 = cellAt(heatmap.cells, 0, 603);
+  assert.equal(monday603.samples, 1, 'on_hold 计入分母');
+  assert.equal(monday603.usageRatio, 1, 'on_hold 计入分子');
 
   assert.equal(cellAt(heatmap.cells, 0, 602), undefined, '维护样本不产生热力图格子');
   const tuesday600 = cellAt(heatmap.cells, 1, 600);
@@ -77,7 +100,12 @@ test('buildProfile：1 分钟槽位，按机型拆分，可筛选星期', () => 
     {
       machineId: 'w1',
       day: MONDAY,
-      seq: sequence({ 600: BYTE.inUse, 601: BYTE.available, 602: BYTE.maintenance }),
+      seq: sequence({
+        600: BYTE.inUse,
+        601: BYTE.available,
+        602: BYTE.maintenance,
+        603: BYTE.onHold,
+      }),
     },
     { machineId: 'd1', day: TUESDAY, seq: sequence({ 600: BYTE.available }) },
   ];
@@ -86,6 +114,12 @@ test('buildProfile：1 分钟槽位，按机型拆分，可筛选星期', () => 
   const profile = Agg.buildProfile(records, { kindById });
   assert.equal(profile.bucketSeconds, 60);
   assert.equal(profile.slots.length, 1440);
+
+  const slot603 = profile.slots[603];
+  assert.equal(slot603.samples, 1, 'on_hold 计入剖面分母');
+  assert.equal(slot603.usageRatio, 1);
+  assert.equal(slot603.washerSamples, 1);
+  assert.equal(slot603.washerUsage, 1, 'on_hold 计入剖面分子');
 
   const slot600 = profile.slots[600];
   assert.equal(slot600.samples, 2);

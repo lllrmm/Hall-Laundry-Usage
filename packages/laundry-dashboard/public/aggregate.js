@@ -45,9 +45,14 @@
     { key: 'unknownRatio', label: 'Unknown' },
   ]);
 
-  /** 可运营状态：只有"在用/空闲"才计入使用率分母 */
+  /** 可运营状态：在用 / 空闲 / on_hold（on_hold 是启动流程中的占用态，也计入分母） */
   function isOperational(byte) {
-    return byte === BYTE.inUse || byte === BYTE.available;
+    return byte === BYTE.inUse || byte === BYTE.available || byte === BYTE.onHold;
+  }
+
+  /** 计入使用率分子的状态：in_use（on_hold 视作占用，同样计入） */
+  function isInUse(byte) {
+    return byte === BYTE.inUse || byte === BYTE.onHold;
   }
 
   /**
@@ -65,7 +70,8 @@
 
   /**
    * 星期 × 分钟热力图。
-   * cells 只包含有可运营样本的格子：usageRatio = 在用分钟数 / 可运营分钟数。
+   * cells 只包含有可运营样本的格子：usageRatio = 占用分钟数 / 可运营分钟数。
+   * 可运营 = available / in_use / on_hold；占用 = in_use / on_hold。
    * @param {Array<{day: string, seq: Uint8Array}>} records 已按机器/日期过滤的机器·天序列
    */
   function buildHeatmap(records = []) {
@@ -84,7 +90,7 @@
         if (!isOperational(byte)) continue;
         const index = base + minute;
         samples[index] += 1;
-        if (byte === BYTE.inUse) usage[index] += 1;
+        if (isInUse(byte)) usage[index] += 1;
       }
     }
 
@@ -128,7 +134,7 @@
       for (let minute = 0; minute < limit; minute += 1) {
         const byte = seq[minute];
         if (!isOperational(byte)) continue;
-        const inUse = byte === BYTE.inUse ? 1 : 0;
+        const inUse = isInUse(byte) ? 1 : 0;
         samples[minute] += 1;
         usage[minute] += inUse;
         if (kind === 'washer') {
@@ -284,6 +290,7 @@
     STATE_CATEGORIES,
     BYTE,
     isOperational,
+    isInUse,
     weekdayOfDay,
     buildHeatmap,
     buildProfile,
