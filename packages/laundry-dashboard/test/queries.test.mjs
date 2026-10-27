@@ -111,7 +111,9 @@ test('meta：最后更新时间、轮询次数、机器数', () => {
     assert.equal(meta.firstObservedAt, new Date(T0).toISOString());
     assert.equal(meta.lastObservedAt, new Date(T0 + 120_000).toISOString());
     assert.equal(meta.lastPoll.ok, true);
-    assert.equal(meta.lastPoll.durationMs, 110);
+    // 不对外暴露数据库绝对路径与轮询耗时
+    assert.equal('database' in meta, false, 'meta 不应包含 database 路径');
+    assert.equal('durationMs' in meta.lastPoll, false, 'lastPoll 不应包含 durationMs');
   });
 });
 

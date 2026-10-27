@@ -101,7 +101,6 @@ export class DashboardDatabase {
     const generatedAt = new Date().toISOString();
     const base = {
       available: false,
-      database: this.filePath,
       generatedAt,
       firstObservedAt: null,
       lastObservedAt: null,
@@ -145,7 +144,6 @@ export class DashboardDatabase {
           ? {
               startedAt: poll.started_at,
               finishedAt: poll.finished_at,
-              durationMs: poll.duration_ms,
               ok: bool(poll.ok),
               errorCode: poll.error_code ?? null,
               errorMessage: poll.error_message ?? null,

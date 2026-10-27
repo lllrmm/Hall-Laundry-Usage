@@ -73,6 +73,11 @@ check(
 
 const state = await get('/api/state');
 check('/api/state meta', state.meta?.available === true, `lastObserved=${state.meta?.lastObservedAt}`);
+check(
+  '/api/state meta 不含内部字段',
+  state.meta && !('database' in state.meta) && !('durationMs' in (state.meta.lastPoll ?? {})),
+  'database / durationMs 已移除',
+);
 check('/api/state 机器数', state.latest?.length === 12, `${state.latest?.length} 台`);
 check('/api/state 最新状态完整', state.latest?.every((m) => typeof m.available === 'boolean' && m.name), '');
 check('/api/state firstObservedAt', Boolean(state.meta?.firstObservedAt), `${state.meta?.firstObservedAt}`);

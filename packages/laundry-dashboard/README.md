@@ -135,6 +135,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 - `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；
 - `/api/series` 的分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；
 - `/api/days` 的参数校验错误统一返回 `400 { error: "..." }`（例如缺 `machines`、缺日期、`from` 晚于 `to`、`days` 含非法日期、`from/to` 与 `days` 同时存在）；
+- `meta` 不返回服务器数据库绝对路径（`database`），`lastPoll` 不返回轮询耗时（`durationMs`）；
 - `powder` 字段：`washing_machine_with_powder` → `"with"`，`washing_machine_without_powder` → `"without"`，烘干机为 `null`；
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
 - 响应体 ≥ 1 KB 且请求头 `Accept-Encoding` 含 gzip 时自动 gzip（JSON 与 `.html/.js/.css/.svg` 静态文件），响应带 `Vary: accept-encoding`；静态文件的压缩结果按 `path + mtime + size` 缓存，不会每次重复压缩；
