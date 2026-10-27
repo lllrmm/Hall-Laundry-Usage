@@ -248,7 +248,12 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.deepEqual(Array.from(bars.data.datasets, (dataset) => dataset.label), ['In use', 'Free', 'Unavailable']);
     assert.equal(bars.data.labels.length, 4, '始终展示全部 4 台机器');
     assert.ok(bars.data.datasets[0].data.some((value) => value > 0), '烘干机应有 in use 占比');
-    assert.equal(document.getElementById('bars-range').textContent, '24 hours', '占比图右上角显示当前时间范围');
+    const barsRangeText = document.getElementById('bars-range').textContent;
+    assert.match(
+      barsRangeText,
+      /^\d{2}-\d{2} \d{2}:\d{2} – \d{2}-\d{2} \d{2}:\d{2}$/,
+      '占比图右上角显示开始 – 结束时段',
+    );
 
     // 按小时：24 根柱子；不再显示 Best time 文案
     const hourly = charts().hourly;
@@ -314,7 +319,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: '7 days chip 高亮' },
     );
     await waitFor(() => charts().trend, { label: '切换跨度后趋势图仍在' });
-    assert.equal(document.getElementById('bars-range').textContent, '7 days', '占比图范围文案跟随时间跨度');
+    await waitFor(() => document.getElementById('bars-range').textContent !== barsRangeText, {
+      label: '占比图时段跟随时间跨度更新',
+    });
+    assert.match(document.getElementById('bars-range').textContent, /^\d{2}-\d{2} \d{2}:\d{2} – /);
 
     // 6) 主题：Auto → Light → Dark，图表用深色色板重建
     const root = document.documentElement;

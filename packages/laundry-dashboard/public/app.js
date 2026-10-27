@@ -62,13 +62,6 @@
     ['all', 'All'],
   ];
 
-  /** 时间范围 → 展示用文案（State breakdown 右上角） */
-  function rangeLabel(range) {
-    const found = RANGES.find(([value]) => value === range);
-    if (!found) return '';
-    return found[0] === 'all' ? 'All time' : found[1];
-  }
-
   const state = {
     range: '24h',
     selected: new Set(),
@@ -148,6 +141,12 @@
       return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
     return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  /** 时段展示用：MM-DD HH:mm（本地时间） */
+  function fmtRangeTime(iso) {
+    const d = new Date(iso);
+    return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   }
 
   /** "UG4 Dryer (51)" → "Dryer (51)"，窄屏图表标签用短名 */
@@ -729,9 +728,6 @@
     // State breakdown 只跟时间范围走，始终展示所有机器（不带 machines 过滤）
     const barsParams = new URLSearchParams({ since: state.range });
 
-    const barsRangeEl = $('bars-range');
-    if (barsRangeEl) barsRangeEl.textContent = rangeLabel(state.range);
-
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;
 
@@ -752,6 +748,13 @@
 
       state.bars = bars;
       renderBarsChart(); // 无论选择什么，都展示全部机器的状态占比
+
+      // 右上角显示实际时段：开始 – 结束
+      const barsRangeEl = $('bars-range');
+      if (barsRangeEl) {
+        barsRangeEl.textContent =
+          bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '';
+      }
 
       if (series) {
         state.series = series;

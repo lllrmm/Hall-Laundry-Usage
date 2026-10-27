@@ -169,8 +169,14 @@ test('series：分桶、按机器过滤、totals 对齐', () => {
 
 test('bars：时间窗内状态占比', () => {
   withDashboard((dashboard) => {
-    const { rows } = dashboard.bars({ since: new Date(T0 - 60_000).toISOString(), machineIds: [] });
+    const since = new Date(T0 - 60_000).toISOString();
+    const bars = dashboard.bars({ since, machineIds: [] });
+    const { rows } = bars;
     assert.equal(rows.length, 2);
+
+    // 返回实际时段，供前端显示"开始 – 结束"
+    assert.equal(bars.since, since);
+    assert.ok(bars.until && Date.parse(bars.until) > Date.parse(since), 'bars 应返回 until');
 
     const dryer = rows.find((row) => row.id === 'm-dryer');
     assert.equal(dryer.samples, 3);
@@ -178,6 +184,14 @@ test('bars：时间窗内状态占比', () => {
 
     const washer = rows.find((row) => row.id === 'm-washer');
     assert.equal(washer.availableRatio, 1);
+
+    // since 为空（全部时间）时，用最早一条观测作为开始
+    const all = dashboard.bars({ since: null, machineIds: [] });
+    const earliest = rows.reduce(
+      (min, row) => (row.firstSeenAt < min ? row.firstSeenAt : min),
+      rows[0].firstSeenAt,
+    );
+    assert.equal(all.since, earliest, '全部时间时应回退到最早观测');
   });
 });
 

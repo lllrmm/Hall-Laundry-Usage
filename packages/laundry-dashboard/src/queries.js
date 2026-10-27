@@ -423,9 +423,15 @@ export class DashboardDatabase {
           lastSeenAt: row.last_seen_at,
         }));
 
-      return { available: true, since, rows };
+      const observedSince = rows.length
+        ? rows.reduce((earliest, row) => (row.firstSeenAt < earliest ? row.firstSeenAt : earliest), rows[0].firstSeenAt)
+        : null;
+      const effectiveSince = since ?? observedSince;
+      const until = new Date().toISOString();
+
+      return { available: true, since: effectiveSince, until, rows };
     } catch {
-      return { available: false, since, rows: [] };
+      return { available: false, since, until: null, rows: [] };
     }
   }
 

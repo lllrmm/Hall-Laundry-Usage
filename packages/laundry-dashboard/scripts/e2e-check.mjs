@@ -52,6 +52,7 @@ check(
 
 const bars = await get('/api/bars?since=1h');
 check('/api/bars', bars.rows?.length === 12, `${bars.rows?.length} 行`);
+check('/api/bars 时段', Boolean(bars.since && bars.until), `${bars.since} – ${bars.until}`);
 
 const hourly = await get('/api/hourly?since=24h');
 check('/api/hourly', hourly.hours?.length === 24 && hourly.hours.some((h) => h.samples > 0), '');
