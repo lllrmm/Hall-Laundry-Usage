@@ -268,7 +268,7 @@
     const powder = powderText(machine);
     let powderLine = null;
     if (powder) {
-      // detergent 标签独立一行显示（在机器名下方、状态上方）
+      // detergent 标签独立一行，放在卡片最下方
       powderLine = document.createElement('div');
       powderLine.className = 'powder-line';
       const badge = document.createElement('span');
@@ -286,9 +286,8 @@
     sub.className = 'sub';
     sub.textContent = machineSubText(machine);
 
-    div.append(head);
+    div.append(head, st, sub);
     if (powderLine) div.appendChild(powderLine);
-    div.append(st, sub);
     div.title = `${machine.name}${powder ? ' · ' + powder : ''}\nObserved: ${fmtDateTime(machine.observedAt)}`;
     return div;
   }

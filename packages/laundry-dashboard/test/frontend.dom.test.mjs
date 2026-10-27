@@ -229,13 +229,20 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.deepEqual(machineGroups.map((group) => group.querySelector('h3').textContent), ['Washers', 'Dryers']);
     assert.deepEqual(machineGroups.map((group) => group.querySelectorAll('.machine').length), [2, 2]);
 
-    // Washers 的 detergent 标签独立成行（不再和机器名挤在同一行）
+    // Washers 的 detergent 标签独立成行，且在卡片最下方
     const powderBadges = [...document.querySelectorAll('.machine .powder')];
     assert.equal(powderBadges.length, 2, '两台洗衣机显示 detergent 标签');
     assert.equal(document.querySelectorAll('.machine-head .powder').length, 0, '标签不在机器名行内');
     assert.ok(
       powderBadges.every((badge) => badge.closest('.powder-line')),
       'detergent 标签在独立行',
+    );
+    assert.ok(
+      powderBadges.every((badge) => {
+        const card = badge.closest('.machine');
+        return card.lastElementChild === badge.closest('.powder-line');
+      }),
+      'detergent 标签位于卡片最下方',
     );
 
     // 2) Chart.js 图表（State breakdown + 历史剖面）
