@@ -833,7 +833,7 @@
 
     if (hint) {
       hint.textContent =
-        'click weekday labels to filter · drag the top axis (30-min steps) to select a time range';
+        'click weekday labels to filter · drag the top axis to select a time range';
     }
   }
 

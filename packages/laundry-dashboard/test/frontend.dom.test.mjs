@@ -291,8 +291,13 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     const heatmapHint = document.getElementById('heatmap-hint').textContent;
     assert.match(heatmapHint, /drag the top axis/, '热力图提示说明可拖动选择时段');
+    assert.doesNotMatch(heatmapHint, /30-min steps/, '提示里不再写 30-min steps');
     assert.doesNotMatch(heatmapHint, /\d{2}-\d{2} \d{2}:\d{2}/, '提示里不再显示覆盖时段');
     assert.doesNotMatch(heatmapHint, /samples/, '提示里不再显示样本数');
+    assert.ok(
+      [...document.querySelectorAll('h2')].some((node) => node.textContent === 'Inspection'),
+      '剖面标题为 Inspection',
+    );
 
     // 顶部时间轴交互（拖选时段 / 单击选分钟）
     const axis = document.getElementById('heatmap-hours');
@@ -493,7 +498,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '恢复全选后热力图恢复',
     });
 
-    // 4b) Historical profile 跟随机器选择：只选洗衣机 → 只显示洗衣机线
+    // 4b) Inspection 跟随机器选择：只选洗衣机 → 只显示洗衣机线
     document.getElementById('select-all').click(); // Clear all
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 0, {
       label: '清空选择',

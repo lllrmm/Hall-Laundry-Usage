@@ -93,6 +93,8 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /Current status/);
     assert.match(html, /Usage heatmap/);
     assert.doesNotMatch(html, /weekday × minute/, '热力图标题不应再带 weekday × minute');
+    assert.match(html, /<h2>Inspection<\/h2>/, 'Historical profile 改名为 Inspection');
+    assert.doesNotMatch(html, /Historical profile/, '旧标题 Historical profile 应已移除');
     assert.match(html, /chart-bars/);
     assert.match(html, /chart-profile/);
     assert.doesNotMatch(html, /chart-trend|chart-hourly/, '趋势图与按小时图已移除');
