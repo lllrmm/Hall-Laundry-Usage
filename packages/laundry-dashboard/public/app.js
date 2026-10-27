@@ -68,8 +68,6 @@
     ['all', 'All'],
     ['washer', 'Washers only'],
     ['dryer', 'Dryers only'],
-    ['free', 'Free now'],
-    ['busy', 'In use now'],
   ];
 
   const state = {
@@ -335,13 +333,10 @@
   function applyPreset(preset) {
     const all = state.machines.map((machine) => machine.id);
     const byKind = (kind) => state.machines.filter((machine) => machine.kind === kind).map((machine) => machine.id);
-    const current = new Map(state.latest.map((machine) => [machine.id, machine]));
 
     if (preset === 'all') state.selected = new Set(all);
     else if (preset === 'washer') state.selected = new Set(byKind('washer'));
     else if (preset === 'dryer') state.selected = new Set(byKind('dryer'));
-    else if (preset === 'free') state.selected = new Set(all.filter((id) => current.get(id)?.available));
-    else if (preset === 'busy') state.selected = new Set(all.filter((id) => current.get(id)?.state === 'in_use'));
 
     renderMachineChips();
     loadCharts();

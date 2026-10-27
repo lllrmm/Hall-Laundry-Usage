@@ -183,18 +183,26 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
-    assert.equal(document.querySelectorAll('#presets .chip').length, 5, '5 个快捷选择');
+    const presetLabels = [...document.querySelectorAll('#presets .chip')].map((chip) => chip.textContent);
+    assert.deepEqual(presetLabels, ['All', 'Washers only', 'Dryers only'], 'Presets 只保留按机型筛选');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
-    // 4) 交互：取消一台机器 → chip 取消高亮；切到 7 天 → chip 高亮
+    // 4) 交互：取消一台机器 → chip 取消高亮；Preset 按机型筛选；切到 7 天 → chip 高亮
     const firstMachineChip = document.querySelector('#machine-chips .chip');
     firstMachineChip.click();
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 3, {
       label: '取消勾选后只选中 3 台',
     });
     assert.match(document.getElementById('selected-count').textContent, /3\/4/);
+
+    const dryersOnly = [...document.querySelectorAll('#presets .chip')].find((chip) => chip.textContent === 'Dryers only');
+    dryersOnly.click();
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 2, {
+      label: 'Dryers only 只剩 2 台烘干机',
+    });
+    assert.match(document.getElementById('selected-count').textContent, /2\/4/);
 
     const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 days'));
     weekChip.click();
