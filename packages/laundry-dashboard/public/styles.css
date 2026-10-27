@@ -560,6 +560,23 @@ main {
   width: 100%;
 }
 
+/* 热力图空状态：与 Inspection/State breakdown 的 .chart .empty 视觉一致 */
+.heatmap .heatmap-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 166px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* hidden 属性需要显式 display:none，避免被 .heatmap-head/.heatmap-body 的 display 覆盖 */
+.heatmap-head[hidden],
+.heatmap-body[hidden] {
+  display: none;
+}
+
 .heatmap-head {
   display: flex;
   align-items: center;

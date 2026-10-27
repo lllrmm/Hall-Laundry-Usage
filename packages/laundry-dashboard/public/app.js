@@ -607,6 +607,8 @@
     const labelBox = $('heatmap-row-labels');
     const tooltip = $('heatmap-tooltip');
     const hint = $('heatmap-hint');
+    const headBox = container.querySelector('.heatmap-head');
+    const bodyBox = container.querySelector('.heatmap-body');
     const cells = heatmap?.cells ?? [];
     const focus = state.heatmapFocus;
 
@@ -629,6 +631,9 @@
       hoursBox.innerHTML = '';
       labelBox.innerHTML = '';
       canvas.dataset.minutes = '0';
+      // 空状态：隐藏热力图网格，显示与 Inspection 一致的空状态占位
+      if (headBox) headBox.hidden = true;
+      if (bodyBox) bodyBox.hidden = true;
       const empty = document.createElement('div');
       empty.className = 'empty heatmap-empty';
       empty.textContent = emptyMessage;
@@ -637,6 +642,8 @@
       return;
     }
     container.querySelector('.heatmap-empty')?.remove();
+    if (headBox) headBox.hidden = false;
+    if (bodyBox) bodyBox.hidden = false;
 
     const colors = chartColors();
     const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));

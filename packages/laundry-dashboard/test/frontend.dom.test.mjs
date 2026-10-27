@@ -639,6 +639,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ],
       '空状态统一显示 No data in the selected range',
     );
+    // 热力图空状态与 Inspection 一致：隐藏网格，居中显示 .empty 占位
+    const heatmapEmpty = document.querySelector('#heatmap .heatmap-empty');
+    assert.ok(heatmapEmpty?.classList.contains('empty'), '热力图空状态复用 .empty 样式');
+    assert.equal(document.querySelector('#heatmap .heatmap-head').hidden, true, '空状态隐藏表头');
+    assert.equal(document.querySelector('#heatmap .heatmap-body').hidden, true, '空状态隐藏网格');
     assert.equal(
       dayRequests.length,
       0,
@@ -650,6 +655,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => document.getElementById('heatmap-canvas')?.dataset.minutes === '1440', {
       label: '清除日期后热力图恢复',
     });
+    assert.equal(document.querySelector('#heatmap .heatmap-head').hidden, false, '恢复后显示表头');
+    assert.equal(document.querySelector('#heatmap .heatmap-body').hidden, false, '恢复后显示网格');
+    assert.equal(document.querySelector('#heatmap .heatmap-empty'), null, '恢复后移除空状态');
     await waitFor(() => charts().profile && charts().profile.data.datasets[0]?.data.length === 1440, {
       label: '清除日期后剖面恢复',
     });
