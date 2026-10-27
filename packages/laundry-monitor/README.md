@@ -49,7 +49,7 @@ token 获取：登录 <https://laundry.ust.hk/ldr/app/> → DevTools → Applica
 | `bearer` | *必填* | Bearer token；可写 `${LDR_TOKEN}` 引用环境变量 |
 | `bearerEnv` | — | 环境变量名，`bearer` 为空时使用 |
 | `baseUrl` | `https://laundry.ust.hk/ldr/api` | API 基址 |
-| `pollIntervalSeconds` | `60` | 轮询间隔，最小 5，建议 ≥ 15（站点未公开限流） |
+| `pollIntervalSeconds` | `60` | 采集周期（上一轮开始 → 下一轮开始），最小 5，建议 ≥ 15（站点未公开限流） |
 | `timeoutMs` | `15000` | 单次请求超时 |
 | `database` | `./data/laundry.sqlite` | 原始库路径；相对路径以**配置文件所在目录**为基准 |
 | `seriesDatabase` | `./data/laundry-series.sqlite` | 序列库路径（日级压缩派生层） |
@@ -219,7 +219,7 @@ db.close();
 - **失败不影响状态判断**：失败轮询不更新 `machine_last_state`，下一轮仍以最后一次成功状态为基准；
 - **优雅退出**：`SIGINT`/`SIGTERM` 会等当前采集结束再关闭数据库；
 - **历史清理**：按 `retentionDays` 定期删除旧快照/跳变，机器维度表保留；
-- **轮询不堆积**：上一轮结束后才开始计时，请求慢时自动拉长实际间隔。
+- **轮询不堆积（固定节拍）**：从上一轮开始计时，sleep 时间 = 周期 − 本轮耗时；单次请求超过周期时下一轮立即开始，不补跑、不叠加。
 
 ## 注意
 

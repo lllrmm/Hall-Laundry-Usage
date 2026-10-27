@@ -27,6 +27,7 @@ export async function startMonitor({ client, db, series, config, logger, signal,
   );
 
   while (!signal?.aborted) {
+    const startedAt = Date.now();
     await pollOnce({ client, db, series, logger });
     polls += 1;
 
@@ -44,10 +45,16 @@ export async function startMonitor({ client, db, series, config, logger, signal,
     }
 
     if (signal?.aborted) break;
-    await delay(intervalMs, signal);
+    // 固定节拍：从本轮开始计时，扣掉本轮耗时，保证 start-to-start ≈ pollIntervalMs
+    await delay(computeSleepMs(intervalMs, Date.now() - startedAt), signal);
   }
 
   logger.info(`监控已停止（共完成 ${polls} 次采集）`);
+}
+
+/** 固定节拍下本轮还应 sleep 多久（本轮已耗时可能超过周期时返回 0） */
+export function computeSleepMs(intervalMs, elapsedMs) {
+  return Math.max(0, intervalMs - Math.max(0, elapsedMs));
 }
 
 /** 可被 AbortSignal 打断的 sleep */

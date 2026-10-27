@@ -23,7 +23,7 @@
     "stats": "node bin/cli.mjs stats --config monitor.config.json",
     "machines": "node bin/machines.mjs",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/machines-normalize.test.mjs test/machines-client.test.mjs test/db.test.mjs test/collector.test.mjs test/series.test.mjs",
+    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/machines-normalize.test.mjs test/machines-client.test.mjs test/db.test.mjs test/collector.test.mjs test/monitor.test.mjs test/series.test.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "smoke": "node test/machines-live-smoke.mjs"
   },
