@@ -64,12 +64,6 @@
     ['all', 'All'],
   ];
 
-  const PRESETS = [
-    ['all', 'All'],
-    ['washer', 'Washers only'],
-    ['dryer', 'Dryers only'],
-  ];
-
   const state = {
     range: '24h',
     selected: new Set(),
@@ -365,29 +359,13 @@
     }
   }
 
-  function applyPreset(preset) {
-    const all = state.machines.map((machine) => machine.id);
-    const byKind = (kind) => state.machines.filter((machine) => machine.kind === kind).map((machine) => machine.id);
-
-    if (preset === 'all') state.selected = new Set(all);
-    else if (preset === 'washer') state.selected = new Set(byKind('washer'));
-    else if (preset === 'dryer') state.selected = new Set(byKind('dryer'));
-
+  /** 全选 / 全不选（按钮文字随状态切换） */
+  function toggleSelectAll() {
+    if (!state.machines.length) return;
+    if (state.selected.size === state.machines.length) state.selected.clear();
+    else state.selected = new Set(state.machines.map((machine) => machine.id));
     renderMachineChips();
     loadCharts();
-  }
-
-  function renderPresetChips() {
-    const box = $('presets');
-    box.innerHTML = '';
-    for (const [value, label] of PRESETS) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'chip plain';
-      button.textContent = label;
-      button.onclick = () => applyPreset(value);
-      box.appendChild(button);
-    }
   }
 
   function renderMachineChips() {
@@ -820,37 +798,49 @@
   /* ---------------- 图表数据装载 ---------------- */
 
   async function loadCharts() {
-    if (!state.selected.size) {
-      $('trend-hint').textContent = 'No machines selected';
-      renderEmpty($('chart-trend'), 'Select at least one machine');
-      renderEmpty($('chart-bars'), 'Select at least one machine');
-      return;
-    }
+    const hasSelection = state.selected.size > 0;
 
     const params = new URLSearchParams({
       since: state.range,
       machines: [...state.selected].join(','),
     });
+    // State breakdown 只跟时间范围走，始终展示所有机器（不带 machines 过滤）
+    const barsParams = new URLSearchParams({ since: state.range });
 
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;
 
+    if (!hasSelection) {
+      $('trend-hint').textContent = 'No machines selected';
+      renderEmpty($('chart-trend'), 'Select at least one machine');
+      renderEmpty($('chart-hourly'), 'Select at least one machine');
+    }
+
     try {
-      const [series, bars, hourly] = await Promise.all([
-        api(`/api/series?${params}`),
-        api(`/api/bars?${params}`),
-        api(`/api/hourly?${params}`),
+      const [bars, series, hourly] = await Promise.all([
+        api(`/api/bars?${barsParams}`),
+        hasSelection ? api(`/api/series?${params}`) : Promise.resolve(null),
+        hasSelection ? api(`/api/hourly?${params}`) : Promise.resolve(null),
       ]);
 
       if (requestId !== state.requestId) return; // 只渲染最新一次请求
 
-      state.series = series;
       state.bars = bars;
-      state.hourly = hourly;
+      renderBarsChart(); // 无论选择什么，都展示全部机器的状态占比
 
-      renderTrend(series);
-      renderBarsChart();
-      drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
+      if (series) {
+        state.series = series;
+        renderTrend(series);
+      } else {
+        state.series = null;
+      }
+
+      if (hourly) {
+        state.hourly = hourly;
+        drawHourlyBars($('chart-hourly'), hourly.hours ?? []);
+      } else {
+        state.hourly = null;
+      }
     } catch (error) {
       console.error('Failed to load charts', error);
       $('db-badge').textContent = `Load failed: ${error.message}`;
@@ -870,9 +860,12 @@
   }
 
   function renderTrend(series) {
-    const totals = series.totals ?? { inUse: [] };
-    // 只画"在用"一条线：Y 轴按实际峰值自适应（至少 1 台）
-    const values = (totals.inUse ?? []).filter((v) => v !== null);
+    // 按机型各画一条线：washer / dryer 的在用台数
+    const byKind = series.totalsByKind ?? {};
+    const washerInUse = byKind.washer?.inUse ?? [];
+    const dryerInUse = byKind.dryer?.inUse ?? [];
+
+    const values = [...washerInUse, ...dryerInUse].filter((value) => value !== null);
     const peak = values.length ? Math.max(...values) : 0;
     const yMax = Math.max(1, Math.ceil(peak));
 
@@ -886,7 +879,20 @@
       yMax,
       yFormat: (value) => `${Math.round(value)}`,
       lines: [
-        { label: 'In use', color: cssVar('--busy', '#f59e0b'), values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
+        {
+          label: 'Washers in use',
+          color: cssVar('--chart-washer', '#0891b2'),
+          values: washerInUse,
+          step: false,
+          valueFormat: (value) => `${value.toFixed(1)}`,
+        },
+        {
+          label: 'Dryers in use',
+          color: cssVar('--chart-dryer', '#f59e0b'),
+          values: dryerInUse,
+          step: false,
+          valueFormat: (value) => `${value.toFixed(1)}`,
+        },
       ],
     });
   }
@@ -920,6 +926,13 @@
 
   function updateSelectedCount() {
     $('selected-count').textContent = `${state.selected.size}/${state.machines.length} selected`;
+
+    const button = $('select-all');
+    if (button) {
+      const allSelected = state.machines.length > 0 && state.selected.size === state.machines.length;
+      button.textContent = allSelected ? 'Clear all' : 'Select all';
+      button.disabled = state.machines.length === 0;
+    }
   }
 
   let refreshing = false;
@@ -1012,6 +1025,7 @@
   function bindEvents() {
     $('refresh').addEventListener('click', () => refreshAll());
     $('theme-toggle').addEventListener('click', () => cycleTheme());
+    $('select-all').addEventListener('click', () => toggleSelectAll());
 
     $('auto').addEventListener('change', (event) => {
       state.auto = event.target.checked;
@@ -1035,7 +1049,6 @@
 
   async function init() {
     renderRangeChips();
-    renderPresetChips();
     applyTheme(readThemeMode(), { redraw: false });
     watchSystemTheme();
     bindEvents();

@@ -71,18 +71,15 @@
           <div id="ranges" class="chips"></div>
         </div>
         <div class="control-row">
-          <span class="label">Presets</span>
-          <div id="presets" class="chips"></div>
-        </div>
-        <div class="control-row">
           <span class="label">Machines <span id="selected-count" class="hint"></span></span>
           <div id="machine-chips" class="chips machine-chips"></div>
+          <button id="select-all" class="chip plain select-all" type="button">Select all</button>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">
-          <h2>Overall trend · machines in use</h2>
+          <h2>Overall trend · in use by type</h2>
           <span class="hint" id="trend-hint"></span>
         </div>
         <div id="chart-trend" class="chart"></div>
@@ -91,7 +88,7 @@
       <section class="card">
         <div class="card-head">
           <h2>State breakdown in window</h2>
-          <span class="hint">Aggregated over selected machines</span>
+          <span class="hint">All machines</span>
         </div>
         <div id="chart-bars" class="chart tall"></div>
       </section>

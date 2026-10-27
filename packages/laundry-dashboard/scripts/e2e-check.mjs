@@ -33,6 +33,11 @@ const series = await get('/api/series?since=1h');
 check('/api/series 桶', Array.isArray(series.buckets) && series.buckets.length > 0, `${series.buckets?.length} 桶 / ${series.bucketSeconds}s`);
 check('/api/series 机器', series.machines?.length === 12, `${series.machines?.length} 台`);
 check('/api/series 数据点', Object.keys(series.series ?? {}).length === 12 && series.totals.available.some((v) => v !== null), '');
+check(
+  '/api/series 按机型聚合',
+  series.totalsByKind?.washer?.inUse?.length > 0 && series.totalsByKind?.dryer?.inUse?.length > 0,
+  `byKind: ${Object.keys(series.totalsByKind ?? {}).join(', ')}`,
+);
 
 const bars = await get('/api/bars?since=1h');
 check('/api/bars', bars.rows?.length === 12, `${bars.rows?.length} 行`);

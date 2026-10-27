@@ -27,9 +27,9 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、Refresh now、自动刷新倒计时 |
 | 当前状态 Current status | 分为 **Washers / Dryers 两个区域**，各自显示 `x/y free` 统计；卡片按 Free / In use / Unavailable 着色，在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
 | 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
-| 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；快捷选择 Presets：All / Washers only / Dryers only |
-| Overall trend | 折线图：所选机器中 in use 台数随时间变化（只画在用一条线，Y 轴按峰值自适应） |
-| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠） |
+| 机器筛选 | 每台机器一个可勾选 chip（带颜色），**Washers / Dryers 分两栏显示**；右侧 **Select all / Clear all** 一键全选或清空 |
+| Overall trend | 折线图：**Washers / Dryers 各一条线**，显示所选机器中在用台数随时间变化（Y 轴按峰值自适应） |
+| State breakdown in window | 横向堆叠柱状图：每台机器 In use / Free / Unavailable 的时间占比（按此顺序堆叠）；**始终显示全部机器，只跟随时间范围变化** |
 | Free rate by hour | 24 根柱状图（本地时间），越高越容易抢到机器，并标出 Best time |
 
 图表全部用原生 SVG 手绘（无图表库），鼠标悬停显示该时刻数值；数据每 30 秒自动刷新，窗口 resize 自动重绘。
@@ -71,7 +71,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | `GET /api/state` | meta + 机器维度 + 最新一轮全部机器状态（页面首屏用这一个请求） |
 | `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
 | `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
-| `GET /api/series?since=24h&machines=id1,id2` | 时间序列（自动分桶，返回 `buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals`） |
+| `GET /api/series?since=24h&machines=id1,id2` | 时间序列（自动分桶，返回 `buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`） |
 | `GET /api/bars?since=24h&machines=...` | 时间窗内每台机器的状态占比 |
 | `GET /api/hourly?since=7d&machines=...` | 按本地小时聚合的空闲率（24 桶） |
 

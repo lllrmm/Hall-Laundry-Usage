@@ -151,6 +151,19 @@ test('series：分桶、按机器过滤、totals 对齐', () => {
     assert.equal(filtered.machines.length, 1);
     assert.equal(filtered.machines[0].id, 'm-washer');
     assert.equal(filtered.series['m-dryer'], undefined);
+
+    // 按机型聚合：washer / dryer 各自的在用台数序列
+    assert.ok(series.totalsByKind, 'series 应返回 totalsByKind');
+    assert.equal(series.totalsByKind.washer.inUse.length, series.buckets.length);
+    assert.equal(series.totalsByKind.dryer.inUse.length, series.buckets.length);
+    assert.ok(
+      series.totalsByKind.washer.inUse.every((value) => value === null || value === 0),
+      '洗衣机全程空闲，在用台数应恒为 0',
+    );
+    const dryerInUse = series.totalsByKind.dryer.inUse.filter((value) => value !== null);
+    assert.ok(dryerInUse.some((value) => value > 0), '烘干机应有在用时段');
+    const dryerMachineCounts = series.totalsByKind.dryer.machines.filter((value) => value !== null);
+    assert.ok(dryerMachineCounts.length > 0 && dryerMachineCounts.every((count) => count === 1), 'dryer 机型 1 台');
   });
 });
 

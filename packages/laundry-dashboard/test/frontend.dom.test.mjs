@@ -171,18 +171,17 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
 
     // 2) 三张图表都渲染出 SVG（每台机器空闲率图已移除）
     assert.equal(document.querySelector('#chart-series'), null, '不再渲染每台机器空闲率图');
+    assert.equal(document.querySelector('#presets'), null, 'Presets 已移除');
     for (const id of ['chart-trend', 'chart-bars', 'chart-hourly']) {
       await waitFor(() => document.querySelector(`#${id} svg`), { label: `${id} 图表渲染` });
     }
 
     const trendSvg = document.querySelector('#chart-trend svg');
     assert.ok(trendSvg, '趋势图应有 svg');
-    const trendLines = trendSvg.querySelectorAll('path.series-line');
-    assert.equal(trendLines.length, 1, '趋势图只画"在用"一条线');
-    assert.ok(
-      ['#f59e0b', '#fbbf24'].includes(trendLines[0].getAttribute('stroke')),
-      `趋势线应为 in-use 颜色，实际 ${trendLines[0].getAttribute('stroke')}`,
-    );
+    const trendLines = [...trendSvg.querySelectorAll('path.series-line')];
+    assert.equal(trendLines.length, 2, '趋势图按 washer / dryer 画两条线');
+    const trendStrokes = trendLines.map((line) => line.getAttribute('stroke')).sort();
+    assert.deepEqual(trendStrokes, ['#0891b2', '#d97706'], '两条线分别为 washer / dryer 颜色');
     assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
 
     // 占比图堆叠顺序：In use → Free → Unavailable
@@ -203,8 +202,6 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
-    const presetLabels = [...document.querySelectorAll('#presets .chip')].map((chip) => chip.textContent);
-    assert.deepEqual(presetLabels, ['All', 'Washers only', 'Dryers only'], 'Presets 只保留按机型筛选');
     assert.equal(document.querySelectorAll('#machine-chips .chip').length, 4, '4 个机器 chip');
     assert.equal(document.querySelectorAll('#machine-chips .chip-tag').length, 2, 'washer chips carry detergent tags');
 
@@ -218,20 +215,40 @@ test('jsdom 渲染：状态卡片 + 三张图表 + 筛选交互', { skip: isBun 
     assert.deepEqual(chipGroups.map((group) => group.querySelectorAll('.chip').length), [2, 2]);
     assert.match(document.getElementById('selected-count').textContent, /4\/4/);
 
-    // 4) 交互：取消一台机器 → chip 取消高亮；Preset 按机型筛选；切到 7 天 → chip 高亮
+    const selectAllButton = document.getElementById('select-all');
+    assert.ok(selectAllButton, '应有 Select all 按钮');
+    assert.equal(selectAllButton.textContent, 'Clear all', '全部选中时按钮显示 Clear all');
+
+    // 4) 交互：单台取消 → Select all 恢复 → Clear all 清空 → 图表仍显示全部机器
     const firstMachineChip = document.querySelector('#machine-chips .chip');
     firstMachineChip.click();
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 3, {
       label: '取消勾选后只选中 3 台',
     });
     assert.match(document.getElementById('selected-count').textContent, /3\/4/);
+    assert.equal(document.getElementById('select-all').textContent, 'Select all');
 
-    const dryersOnly = [...document.querySelectorAll('#presets .chip')].find((chip) => chip.textContent === 'Dryers only');
-    dryersOnly.click();
-    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 2, {
-      label: 'Dryers only 只剩 2 台烘干机',
+    document.getElementById('select-all').click(); // Select all
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
+      label: 'Select all 恢复全选',
     });
-    assert.match(document.getElementById('selected-count').textContent, /2\/4/);
+    assert.equal(document.getElementById('select-all').textContent, 'Clear all');
+
+    document.getElementById('select-all').click(); // Clear all
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 0, {
+      label: 'Clear all 清空选择',
+    });
+    assert.match(document.getElementById('selected-count').textContent, /0\/4/);
+
+    // State breakdown 不跟随机器选择：清空选择后仍显示全部 4 台
+    await waitFor(() => document.querySelectorAll('#chart-bars svg text.bar-label').length === 4, {
+      label: '状态占比始终显示全部 4 台机器',
+    });
+
+    document.getElementById('select-all').click(); // 恢复全选，供后续断言使用
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
+      label: '恢复全选',
+    });
 
     const weekChip = [...document.querySelectorAll('#ranges .chip')].find((chip) => chip.textContent.includes('7 days'));
     weekChip.click();

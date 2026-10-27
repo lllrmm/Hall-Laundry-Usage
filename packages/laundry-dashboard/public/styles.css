@@ -19,6 +19,8 @@
   --busy: #f59e0b;
   --busy-strong: #b45309;
   --busy-tint: #fffaf1;
+  --chart-washer: #0891b2;
+  --chart-dryer: #d97706;
   --off: #94a3b8;
   --ok: #047857;
   --ok-soft: #ecfdf5;
@@ -52,6 +54,8 @@
   --busy: #fbbf24;
   --busy-strong: #fcd34d;
   --busy-tint: #2a2110;
+  --chart-washer: #22d3ee;
+  --chart-dryer: #fbbf24;
   --off: #64748b;
   --ok: #34d399;
   --ok-soft: #10291f;
@@ -473,6 +477,18 @@ footer {
   display: none;
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.select-all {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .machine-chips {
   flex: 1;
   display: flex;
@@ -699,6 +715,11 @@ footer {
   .chip {
     padding: 5px 9px;
     font-size: 11px;
+  }
+
+  .select-all {
+    margin-left: 0;
+    align-self: flex-start;
   }
 
   .machine-chips {

@@ -35,6 +35,7 @@ function emptySeries(since, until, bucketSeconds) {
     machines: [],
     series: {},
     totals: { available: [], inUse: [], machines: [] },
+    totalsByKind: {},
   };
 }
 
@@ -257,6 +258,7 @@ export class DashboardDatabase {
 
     const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
     const idFilter = filterIds.length > 0 ? `AND machine_id IN (${placeholders(filterIds.length)})` : '';
+    const idFilterAliased = filterIds.length > 0 ? `AND s.machine_id IN (${placeholders(filterIds.length)})` : '';
     const idParams = filterIds;
 
     try {
@@ -284,6 +286,23 @@ export class DashboardDatabase {
            FROM machine_snapshots
            WHERE observed_at >= ? ${idFilter}
            GROUP BY bucket
+           ORDER BY bucket`,
+        )
+        .all(bucketSeconds, effectiveSince, ...idParams);
+
+      // 按机型聚合（washer / dryer 各自一条线）
+      const byKindRows = db
+        .prepare(
+          `SELECT CAST(CAST(strftime('%s', s.observed_at) AS INTEGER) / ? AS INTEGER) AS bucket,
+                  COALESCE(m.kind, 'unknown') AS kind,
+                  SUM(s.available) AS available_count,
+                  SUM(CASE WHEN s.state = 'in_use' THEN 1 ELSE 0 END) AS in_use_count,
+                  COUNT(*) AS samples,
+                  COUNT(DISTINCT s.machine_id) AS machine_count
+           FROM machine_snapshots s
+           LEFT JOIN machines m ON m.id = s.machine_id
+           WHERE s.observed_at >= ? ${idFilterAliased}
+           GROUP BY bucket, kind
            ORDER BY bucket`,
         )
         .all(bucketSeconds, effectiveSince, ...idParams);
@@ -328,6 +347,26 @@ export class DashboardDatabase {
         totals.machines[index] = machineCount;
       }
 
+      /** 按机型的平均台数（available / inUse） */
+      const totalsByKind = {};
+      for (const row of byKindRows) {
+        const index = indexByBucket.get(bucketToIso(row.bucket));
+        if (index === undefined) continue;
+
+        const kind = String(row.kind);
+        totalsByKind[kind] ??= {
+          available: new Array(bucketIsoList.length).fill(null),
+          inUse: new Array(bucketIsoList.length).fill(null),
+          machines: new Array(bucketIsoList.length).fill(null),
+        };
+
+        const machineCount = Number(row.machine_count);
+        const samples = Number(row.samples) || 1;
+        totalsByKind[kind].available[index] = Number(((Number(row.available_count) / samples) * machineCount).toFixed(2));
+        totalsByKind[kind].inUse[index] = Number(((Number(row.in_use_count) / samples) * machineCount).toFixed(2));
+        totalsByKind[kind].machines[index] = machineCount;
+      }
+
       return {
         available: true,
         since: effectiveSince,
@@ -337,6 +376,7 @@ export class DashboardDatabase {
         machines: machineList,
         series,
         totals,
+        totalsByKind,
       };
     } catch {
       return emptySeries(effectiveSince, new Date(now).toISOString(), bucketSeconds);
