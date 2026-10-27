@@ -475,6 +475,55 @@ export class DashboardDatabase {
     }
   }
 
+  /** 星期 × 小时热力图：每格的平均使用率（weekday 0 = 周一 … 6 = 周日） */
+  heatmap({ since = null, machineIds = [] } = {}) {
+    const db = this._ensure();
+    if (!db || !this._hasSchema(db)) return { available: false, since, until: null, cells: [] };
+
+    const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
+    const idFilter = filterIds.length > 0 ? `AND machine_id IN (${placeholders(filterIds.length)})` : '';
+    const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
+
+    try {
+      const rows = db
+        .prepare(
+          `SELECT (CAST(strftime('%w', observed_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
+                  CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) AS hour,
+                  COUNT(*) AS samples,
+                  AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
+           FROM machine_snapshots
+           WHERE observed_at >= ? ${idFilter}
+           GROUP BY weekday, hour
+           ORDER BY weekday, hour`,
+        )
+        .all(...params);
+
+      const cells = rows.map((row) => ({
+        weekday: Number(row.weekday),
+        hour: Number(row.hour),
+        samples: Number(row.samples),
+        usageRatio: Number(row.usage_ratio),
+      }));
+
+      const span = db
+        .prepare(
+          `SELECT MIN(observed_at) AS first, MAX(observed_at) AS last
+           FROM machine_snapshots
+           WHERE observed_at >= ? ${idFilter}`,
+        )
+        .get(...params);
+
+      return {
+        available: true,
+        since: since ?? span?.first ?? null,
+        until: span?.last ?? null,
+        cells,
+      };
+    } catch {
+      return { available: false, since, until: null, cells: [] };
+    }
+  }
+
   /** 根据 id 列表返回机器信息（保持 kind/name 顺序） */
   _selectedMachines(machineIds) {
     const all = this.machines();

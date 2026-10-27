@@ -124,6 +124,13 @@ export function createDashboardServer({ config, logger = console }) {
       return true;
     }
 
+    if (route === '/api/heatmap') {
+      const range = parseRange(sinceParam);
+      const key = `${route}?${range.label}:${machineIds.sort().join(',')}`;
+      sendJson(res, 200, cached(key, () => database.heatmap({ since: range.since, machineIds })));
+      return true;
+    }
+
     return false;
   };
 

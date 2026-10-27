@@ -265,6 +265,23 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.doesNotMatch(document.getElementById('hourly-hint').textContent, /Best time/);
     assert.match(document.getElementById('hourly-hint').textContent, /busier/, '提示文案改为使用率语义');
 
+    // 热力图：纵轴周几（7 行）、横轴小时（24 列），有数据的格子带 usage/samples
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
+      label: '热力图 7×24 格子渲染',
+    });
+    const heatCells = [...document.querySelectorAll('#heatmap .heatmap-cell')];
+    assert.equal(heatCells.length, 168);
+    assert.deepEqual(
+      [...document.querySelectorAll('#heatmap .heatmap-row-label')].map((node) => node.textContent),
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      '纵轴为周一到周日',
+    );
+    const filledCells = heatCells.filter((cell) => cell.dataset.samples);
+    assert.ok(filledCells.length >= 1, '至少有一个有数据的格子');
+    assert.ok(Number(filledCells[0].dataset.usage) >= 0);
+    assert.match(filledCells[0].title, /usage \d+% · \d+ samples/);
+    assert.match(document.getElementById('heatmap-hint').textContent, /samples\/cell/);
+
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
     assert.equal(document.querySelectorAll('#presets').length, 0, 'Presets 已移除');
@@ -299,9 +316,10 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     });
     assert.match(document.getElementById('selected-count').textContent, /0\/4/);
 
-    // 清空选择后：趋势图/小时图显示占位，状态占比仍是 4 台机器
+    // 清空选择后：趋势图/小时图/热力图显示占位，状态占比仍是 4 台机器
     await waitFor(() => document.querySelector('#chart-trend .empty'), { label: '趋势图空状态' });
     assert.equal(charts().trend, null, '清空选择后趋势图实例应销毁');
+    await waitFor(() => document.querySelector('#heatmap .empty'), { label: '热力图空状态' });
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
       label: '状态占比始终显示全部 4 台机器',
     });
@@ -309,6 +327,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     document.getElementById('select-all').click(); // 恢复全选
     await waitFor(() => charts().trend && charts().bars && charts().hourly, {
       label: '恢复全选后图表重建',
+    });
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
+      label: '恢复全选后热力图重建',
     });
 
     // 5) 时间跨度切换

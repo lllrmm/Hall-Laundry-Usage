@@ -134,6 +134,15 @@ test('GET /api/bars 与 /api/hourly', async () => {
 
     const hourly = await (await fetch(`${base}/api/hourly?since=24h`)).json();
     assert.equal(hourly.hours.length, 24);
+
+    const heatmap = await (await fetch(`${base}/api/heatmap?since=24h`)).json();
+    assert.equal(heatmap.cells.length, 1);
+    const cell = heatmap.cells[0];
+    assert.ok(cell.weekday >= 0 && cell.weekday <= 6);
+    assert.ok(cell.hour >= 0 && cell.hour <= 23);
+    assert.equal(cell.samples, 1);
+    assert.equal(cell.usageRatio, 0);
+    assert.ok(heatmap.since && heatmap.until);
   });
 });
 

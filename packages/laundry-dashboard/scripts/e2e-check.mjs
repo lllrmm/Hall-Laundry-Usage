@@ -63,6 +63,16 @@ check(
   '',
 );
 
+const heatmap = await get('/api/heatmap?since=30d');
+check(
+  '/api/heatmap',
+  heatmap.cells?.length > 0 &&
+    heatmap.cells.every(
+      (cell) => cell.weekday >= 0 && cell.weekday <= 6 && cell.hour >= 0 && cell.hour <= 23 && cell.samples > 0,
+    ),
+  `${heatmap.cells?.length} 个格子`,
+);
+
 const filtered = await get('/api/series?since=1h&machines=' + state.latest.filter((m) => m.kind === 'dryer').map((m) => m.id).join(','));
 check('/api/series 按机器过滤', filtered.machines?.length === 6, `${filtered.machines?.length} 台烘干机`);
 

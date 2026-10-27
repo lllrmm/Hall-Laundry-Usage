@@ -207,6 +207,25 @@ test('hourly：总是返回 24 个小时桶', () => {
   });
 });
 
+test('heatmap：按星期 × 小时聚合使用率', () => {
+  withDashboard((dashboard) => {
+    const since = new Date(T0 - 60_000).toISOString();
+    const { cells, since: effectiveSince } = dashboard.heatmap({ since, machineIds: [] });
+    assert.ok(cells.length >= 1, '应有至少一个格子');
+    assert.equal(effectiveSince, since);
+
+    for (const cell of cells) {
+      assert.ok(cell.weekday >= 0 && cell.weekday <= 6, 'weekday 0=周一 … 6=周日');
+      assert.ok(cell.hour >= 0 && cell.hour <= 23);
+      assert.ok(cell.samples > 0);
+      assert.ok(cell.usageRatio >= 0 && cell.usageRatio <= 1);
+    }
+
+    const keys = new Set(cells.map((cell) => `${cell.weekday}-${cell.hour}`));
+    assert.equal(keys.size, cells.length, '每个 星期/小时 组合只出现一次');
+  });
+});
+
 test('洗粉标注：洗衣机 powder 字段（with / without），烘干机为 null', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-powder-'));
   const file = path.join(dir, 'test.sqlite');

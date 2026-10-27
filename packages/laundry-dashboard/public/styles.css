@@ -9,6 +9,7 @@
   --muted: #6b7893;
   --line: #e4e8f2;
   --grid: #eef1f7;
+  --heat-empty: #f1f5f9;
   --track: #f1f5f9;
   --brand: #1b4dc1;
   --brand-soft: #eef2ff;
@@ -44,6 +45,7 @@
   --muted: #93a0b8;
   --line: #243044;
   --grid: #1e2a3d;
+  --heat-empty: #162032;
   --track: #1a2434;
   --brand: #6d9eff;
   --brand-soft: #1a2740;
@@ -528,6 +530,46 @@ main {
   font-size: 12px;
 }
 
+/* ---------- 热力图（星期 × 小时） ---------- */
+
+.heatmap {
+  display: grid;
+  grid-template-columns: 42px repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.heatmap-corner {
+  height: 12px;
+}
+
+.heatmap-hour {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1;
+}
+
+.heatmap-row-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.heatmap-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 3px;
+  background: var(--heat-empty);
+}
+
+.heatmap-cell.sparse {
+  opacity: 0.5;
+}
+
+.heatmap-cell:hover {
+  outline: 2px solid var(--busy);
+  outline-offset: -2px;
+}
+
 @media (max-width: 720px) {
   body {
     font-size: 13px;
@@ -658,6 +700,15 @@ main {
 
   .chart.tall {
     height: 300px;
+  }
+
+  .heatmap {
+    grid-template-columns: 30px repeat(24, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .heatmap-hour {
+    font-size: 8px;
   }
 }
 

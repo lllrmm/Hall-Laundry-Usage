@@ -71,6 +71,7 @@
     series: null,
     bars: null,
     hourly: null,
+    heatmap: null,
     charts: { trend: null, bars: null, hourly: null },
     auto: true,
     refreshSeconds: 30,
@@ -713,6 +714,89 @@
     });
   }
 
+  /** #rrggbb → rgba(...)，用于热力图按使用率调透明度 */
+  function hexToRgba(hex, alpha) {
+    const value = String(hex || '').trim();
+    const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+    if (!match) return `rgba(245, 158, 11, ${alpha})`;
+    let full = match[1];
+    if (full.length === 3) full = full.split('').map((char) => char + char).join('');
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function renderHeatmap(heatmap, emptyMessage = 'No data yet (waiting for polls)') {
+    const container = $('heatmap');
+    const hint = $('heatmap-hint');
+    const cells = heatmap?.cells ?? [];
+
+    if (!cells.length) {
+      if (hint) hint.textContent = '';
+      container.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'empty';
+      div.textContent = emptyMessage;
+      container.appendChild(div);
+      return;
+    }
+
+    const colors = chartColors();
+    const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.hour}`, cell]));
+    const maxSamples = Math.max(...cells.map((cell) => cell.samples));
+    const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    container.innerHTML = '';
+
+    const corner = document.createElement('div');
+    corner.className = 'heatmap-corner';
+    container.appendChild(corner);
+
+    for (let hour = 0; hour < 24; hour += 1) {
+      const tick = document.createElement('div');
+      tick.className = 'heatmap-hour';
+      tick.textContent = hour % 3 === 0 ? pad2(hour) : '';
+      container.appendChild(tick);
+    }
+
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      const label = document.createElement('div');
+      label.className = 'heatmap-row-label';
+      label.textContent = weekdayLabels[weekday];
+      container.appendChild(label);
+
+      for (let hour = 0; hour < 24; hour += 1) {
+        const cell = byKey.get(`${weekday}-${hour}`);
+        const node = document.createElement('div');
+        node.className = 'heatmap-cell';
+        node.dataset.weekday = String(weekday);
+        node.dataset.hour = String(hour);
+
+        if (!cell) {
+          node.classList.add('no-data');
+          node.title = `${weekdayLabels[weekday]} ${pad2(hour)}:00 · no data`;
+        } else {
+          const percent = Math.round(cell.usageRatio * 100);
+          node.dataset.usage = String(percent);
+          node.dataset.samples = String(cell.samples);
+          node.style.backgroundColor = hexToRgba(colors.busy, 0.08 + 0.9 * (percent / 100));
+          if (cell.samples < 60) node.classList.add('sparse');
+          node.title = `${weekdayLabels[weekday]} ${pad2(hour)}:00 · usage ${percent}% · ${cell.samples} samples`;
+        }
+
+        container.appendChild(node);
+      }
+    }
+
+    if (hint) {
+      hint.textContent =
+        heatmap.since && heatmap.until
+          ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)} · max ${maxSamples} samples/cell`
+          : '';
+    }
+  }
+
   /* ---------------- 图表数据装载 ---------------- */
 
   async function loadCharts() {
@@ -732,13 +816,15 @@
       $('trend-hint').textContent = 'No machines selected';
       showChartEmpty('trend', $('chart-trend'), 'Select at least one machine');
       showChartEmpty('hourly', $('chart-hourly'), 'Select at least one machine');
+      renderHeatmap(null, 'Select at least one machine');
     }
 
     try {
-      const [bars, series, hourly] = await Promise.all([
+      const [bars, series, hourly, heatmap] = await Promise.all([
         api(`/api/bars?${barsParams}`),
         hasSelection ? api(`/api/series?${params}`) : Promise.resolve(null),
         hasSelection ? api(`/api/hourly?${params}`) : Promise.resolve(null),
+        hasSelection ? api(`/api/heatmap?${params}`) : Promise.resolve(null),
       ]);
 
       if (requestId !== state.requestId) return; // 只渲染最新一次请求
@@ -765,6 +851,13 @@
         renderHourlyChart(hourly);
       } else {
         state.hourly = null;
+      }
+
+      if (heatmap) {
+        state.heatmap = heatmap;
+        renderHeatmap(heatmap);
+      } else {
+        state.heatmap = null;
       }
     } catch (error) {
       console.error('Failed to load charts', error);
@@ -868,6 +961,7 @@
     if (state.series) renderTrendChart(state.series);
     if (state.bars) renderBarsChart();
     if (state.hourly) renderHourlyChart(state.hourly);
+    if (state.heatmap) renderHeatmap(state.heatmap);
   }
 
   /** 监听系统深浅色变化（仅 Auto 模式下跟随） */
