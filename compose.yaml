@@ -1,7 +1,7 @@
 name: hall-laundry-usage
 
 x-service: &service
-  image: hall-laundry-usage:local
+  image: ${LAUNDRY_IMAGE:-hall-laundry-usage:local}
   build:
     context: .
   restart: unless-stopped
