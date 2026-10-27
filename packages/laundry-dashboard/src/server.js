@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { DashboardDatabase } from './queries.js';
@@ -15,6 +16,16 @@ import { parseRange } from './time.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const CACHE_MS = 4000;
+
+/** 小于该字节数的响应不压缩（压缩反而更大/不值得） */
+const GZIP_MIN_BYTES = 1024;
+
+/** 适合压缩的静态文件类型 */
+const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.svg']);
+
+/** 静态文件 gzip 结果缓存：`path:mtime:size` → Buffer */
+const STATIC_GZIP_CACHE = new Map();
+const STATIC_GZIP_CACHE_LIMIT = 32;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -26,13 +37,47 @@ const MIME_TYPES = {
   '.png': 'image/png',
 };
 
+function acceptsGzip(req) {
+  return /\bgzip\b/i.test(String(req?.headers?.['accept-encoding'] ?? ''));
+}
+
+/** 压缩静态文件并缓存结果（按 path + mtime + size 失效） */
+function gzipStatic(filePath, content) {
+  let stat = null;
+  try {
+    stat = fs.statSync(filePath);
+  } catch {
+    // 文件刚被删除等，按内容长度缓存
+  }
+  const key = `${filePath}:${stat?.mtimeMs ?? 0}:${content.length}`;
+  let gzipped = STATIC_GZIP_CACHE.get(key);
+  if (!gzipped) {
+    gzipped = zlib.gzipSync(content);
+    if (STATIC_GZIP_CACHE.size >= STATIC_GZIP_CACHE_LIMIT) STATIC_GZIP_CACHE.clear();
+    STATIC_GZIP_CACHE.set(key, gzipped);
+  }
+  return gzipped;
+}
+
+/**
+ * 发送 JSON：响应体 ≥ 1KB 且客户端支持 gzip 时压缩。
+ * 用 res.req 取请求头，调用方不用改签名。
+ */
 function sendJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
+  const json = JSON.stringify(payload);
+  const raw = Buffer.from(json, 'utf8');
+  const useGzip = raw.length >= GZIP_MIN_BYTES && acceptsGzip(res.req);
+  const body = useGzip ? zlib.gzipSync(raw) : raw;
+
+  const headers = {
     'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
+    'content-length': body.length,
     'cache-control': 'no-store',
-  });
+    vary: 'accept-encoding',
+  };
+  if (useGzip) headers['content-encoding'] = 'gzip';
+
+  res.writeHead(statusCode, headers);
   res.end(body);
 }
 
@@ -151,13 +196,25 @@ export function createDashboardServer({ config, logger = console }) {
         sendText(res, 404, 'Not found');
         return;
       }
-      const type = MIME_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
-      res.writeHead(200, {
+      const extension = path.extname(filePath).toLowerCase();
+      const type = MIME_TYPES[extension] ?? 'application/octet-stream';
+      const headers = {
         'content-type': type,
-        'content-length': content.length,
         'cache-control': 'no-cache',
-      });
-      res.end(content);
+        vary: 'accept-encoding',
+      };
+      let body = content;
+      if (
+        COMPRESSIBLE_EXTENSIONS.has(extension) &&
+        content.length >= GZIP_MIN_BYTES &&
+        acceptsGzip(res.req)
+      ) {
+        body = gzipStatic(filePath, content);
+        headers['content-encoding'] = 'gzip';
+      }
+      headers['content-length'] = body.length;
+      res.writeHead(200, headers);
+      res.end(body);
     });
   };
 

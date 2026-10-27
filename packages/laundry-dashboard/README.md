@@ -55,7 +55,7 @@ GET /api/days?machines=<id,id>&from=YYYY-MM-DD&to=YYYY-MM-DD
 | 机器取消选择 / 选星期 / 拖时段 / 点分钟 / 切换主题 / 改窗口大小 | 否 | 纯本地重算 + 重绘 |
 | 自动 / 手动刷新 | 是（仅今天） | 只重取**今天**、已选机器的序列（今天的字节还在增长）；Date range 不包含今天时不请求 |
 
-历史数据优先读监控服务的**日序列库**（`machine_days`，每台机器每天 1,440 字节）；序列库不存在或还没覆盖某天时，自动回退到**原始快照库**即时生成同样的日序列，因此只跑过采集、还没执行过 `laundry-monitor rebuild` 的库也能直接看。
+历史数据优先读监控服务的**日序列库**（`machine_days`，每台机器每天 1,440 字节）；序列库不存在或还没覆盖某天时，自动回退到**原始快照库**即时生成同样的日序列，因此只跑过采集、还没执行过 `laundry-monitor rebuild` 的库也能直接看。`/api/days` 的 JSON 会按需 gzip（实测当前 1 天 × 12 台：JSON 24.6 KB → gzip 后约 0.8 KB），历史天数变多时首屏体积也不会等比膨胀。
 
 状态字节编码（与 `laundry-monitor/src/series.js` 一致）：
 
@@ -132,6 +132,7 @@ GET /api/days?machines=<id,id>&from=YYYY-MM-DD&to=YYYY-MM-DD
 - `/api/series` 的分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；
 - `powder` 字段：`washing_machine_with_powder` → `"with"`，`washing_machine_without_powder` → `"without"`，烘干机为 `null`；
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
+- 响应体 ≥ 1 KB 且请求头 `Accept-Encoding` 含 gzip 时自动 gzip（JSON 与 `.html/.js/.css/.svg` 静态文件），响应带 `Vary: accept-encoding`；静态文件的压缩结果按 `path + mtime + size` 缓存，不会每次重复压缩；
 - 数据库以**只读**方式打开（失败时退回 `PRAGMA query_only`），绝不会写入采集数据。
 - 旧的 `/api/bars`、`/api/heatmap`、`/api/profile`、`/api/profile/days`、`/api/hourly` 已删除——聚合改由浏览器端完成，交互不再触发后端计算。
 

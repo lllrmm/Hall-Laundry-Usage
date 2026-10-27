@@ -165,6 +165,34 @@ test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', as
   });
 });
 
+test('gzip：大响应压缩、小响应不压缩、静态 JS 也压缩', async () => {
+  await withServer(async (base) => {
+    // /api/days 返回 1440 字节日序列，JSON > 1KB，应被 gzip
+    const compressed = await fetch(`${base}/api/days`, { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(compressed.status, 200);
+    assert.equal(compressed.headers.get('content-encoding'), 'gzip');
+    assert.match(compressed.headers.get('vary') ?? '', /accept-encoding/i);
+    const parsed = await compressed.json();
+    assert.equal(parsed.count, 1, 'gzip 响应解压后仍是合法 JSON');
+
+    const plain = await fetch(`${base}/api/days`, { headers: { 'accept-encoding': 'identity' } });
+    assert.equal(plain.headers.get('content-encoding'), null);
+    assert.equal((await plain.json()).count, parsed.count);
+
+    // meta JSON 很小，即使客户端支持 gzip 也不压缩
+    const meta = await fetch(`${base}/api/meta`, { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(meta.status, 200);
+    assert.equal(meta.headers.get('content-encoding'), null, '小响应不应压缩');
+
+    // 静态 JS > 1KB，应压缩
+    const script = await fetch(`${base}/app.js`, { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(script.status, 200);
+    assert.equal(script.headers.get('content-encoding'), 'gzip');
+    const source = await script.text();
+    assert.match(source, /LaundryAggregate/, 'gzip 响应解压后内容完整');
+  });
+});
+
 test('非法时间窗口返回 500 错误 JSON', async () => {
   await withServer(async (base) => {
     const response = await fetch(`${base}/api/series?since=bogus`);

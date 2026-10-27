@@ -132,6 +132,32 @@ check(
   removed.join(' '),
 );
 
+// gzip：大响应压缩、静态 JS 压缩、小响应不压缩
+const gzDays = await fetch(`${BASE}/api/days`, { headers: { 'accept-encoding': 'gzip' } });
+const gzDaysBody = await gzDays.json();
+check(
+  'gzip /api/days',
+  gzDays.headers.get('content-encoding') === 'gzip' &&
+    /accept-encoding/i.test(gzDays.headers.get('vary') ?? '') &&
+    gzDaysBody.count > 0,
+  `content-encoding=${gzDays.headers.get('content-encoding')} content-length=${gzDays.headers.get('content-length')}`,
+);
+
+const gzScript = await fetch(`${BASE}/app.js`, { headers: { 'accept-encoding': 'gzip' } });
+const gzScriptText = await gzScript.text();
+check(
+  'gzip 静态 JS',
+  gzScript.headers.get('content-encoding') === 'gzip' && gzScriptText.includes('LaundryAggregate'),
+  `content-length=${gzScript.headers.get('content-length')}`,
+);
+
+const plainMeta = await fetch(`${BASE}/api/meta`);
+check(
+  '小响应不压缩',
+  plainMeta.headers.get('content-encoding') === null,
+  `content-length=${plainMeta.headers.get('content-length')}`,
+);
+
 console.log('\nlastObservedAt:', state.meta.lastObservedAt);
 console.log('lastPoll:', JSON.stringify(state.meta.lastPoll));
 console.log('pollCount:', state.meta.pollCount, '| snapshots:', state.meta.snapshots);
