@@ -56,33 +56,21 @@ cd packages/laundry-dashboard && npm start
 看板监听 `0.0.0.0`，同一局域网内的手机/平板用电脑 IP 访问即可，例如
 `http://<电脑 IP>:8787`（用系统工具查看本机局域网 IP）。
 
-## 看板功能
+## 看板
 
-| 区块 | 说明 |
-|---|---|
-| Current status | Washers / Dryers 分区卡片：Free / In use / Unavailable、剩余时间、已运行时长；洗衣机在卡片最下方显示 `With detergent` / `No detergent` |
-| Date range | 本地日期范围（含首尾）；选 **All dates** 时两个日期框显示数据实际覆盖范围（内部仍按全部历史处理） |
-| Machines | 12 台机器 chip，可多选；新勾选的机器只补它缺的「机器·天」数据 |
-| Usage heatmap | 7 天 × 1440 分钟的 Canvas 热力图，压缩到视口宽；颜色 = 可运营样本中的使用率；顶部时间轴（00–23）拖动选择时段：**桌面 30 分钟粒度、移动端 1 小时粒度，支持手指滑动**；点行标签多选星期；热力图内部点击只弹 tooltip |
-| Inspection | 热力图剖面：1 分钟使用率线图（始终显示 Washers / Dryers 两条图例，横轴 `HH:mm` 时间刻度）；点分钟/拖时段后变为 Mon–Sun 柱状图（横轴固定 7 个标签），**点某根柱子会跳到该星期的线图** |
-| State breakdown | 每台机器的状态占比（横向堆叠柱），图例固定 7 项、顺序为 `In use → On hold → Maintenance → Offline → Disabled → Unknown → Free`；右上角显示「星期 · 时段」筛选范围 |
+浏览器端单页看板，主要包含：
 
-- 主题：Auto / Light / Dark（Auto 跟随系统）；
-- 响应式：≤720px 顶栏静态、控件竖排、图表切紧凑参数；
-- 所有交互（选星期、拖时段、勾机器、切日期）都**只重算内存数据**，不经后端；
-- 看板刷新仍只取**今天**已选机器的序列。
+- **Current status**：洗衣机 / 烘干机实时状态、倒计时、洗粉标注；
+- **Usage heatmap**：星期 × 分钟使用率热力图，可多选星期、拖动时间轴筛选时段；
+- **Inspection**：1 分钟使用率线图，按星期柱状图，点柱子可下钻到某一天；
+- **State breakdown**：每台机器各种状态的堆叠占比；
+- 支持日期范围 / 机器筛选、深浅色主题、移动端触摸操作；所有图表聚合在浏览器端完成，交互不再请求后端。
 
-### 取数策略（只补 diff）
+详细行为与交互说明见 [packages/laundry-dashboard/README.md](packages/laundry-dashboard/README.md)。
 
-历史图表唯一数据源是 `GET /api/days`：每台机器每天一条 1440 字节的分钟状态序列。
-浏览器按 `(machineId, day)` 缓存：
+### 取数策略
 
-| 触发 | 请求内容 |
-|---|---|
-| 首次加载 | 数据覆盖范围（`/api/state` 的 `meta.span`）× 当前已选机器 |
-| Date range 变化 | 只补新范围里还没缓存的机器·天（连续日期合并，已缓存的跳过） |
-| 机器从不选变选 | 只补该机器在当前范围里还没缓存的天 |
-| 自动 / 手动刷新 | 只重取**今天**、已选机器的序列 |
+历史图表按 `(machineId, day)` 在浏览器端缓存，只向后台请求缺失的机器·天；首次加载取数据覆盖范围，自动刷新只重取今天。详见 [dashboard README](packages/laundry-dashboard/README.md)。
 
 ## 采集与数据
 
@@ -100,7 +88,7 @@ cd packages/laundry-monitor
 node bin/cli.mjs rebuild --config monitor.config.json
 node bin/cli.mjs series  --config monitor.config.json   # 查看序列库统计
 npm run stats -- --since 24h                            # 汇总：可用率/使用次数/平均时长
-npm run once                                            # 只采一次（cron / 排查）
+npm run once                                            # 只采一次（手动补采/排查）
 ```
 
 ### 分钟字节编码
