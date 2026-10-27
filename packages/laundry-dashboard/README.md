@@ -83,7 +83,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 | `GET /api/bars?since=all&weekday=0&weekdays=0,2&minute=720` | 每台机器状态占比（`samples` 为可运营样本数，`excludedSamples` 为被排除的维护/离线样本）；`weekday` / `weekdays`、`hour`、`minute`、`fromMinute`/`toMinute` 组合筛选，返回 `scope` |
 | `GET /api/hourly?since=7d&machines=...` | 按本地小时聚合的使用率 / 空闲率（24 桶，含 `usageRatio` / `freeRatio`） |
 | `GET /api/heatmap?since=...&until=...&machines=...` | 星期 × 分钟热力图：`cells[]`（`weekday` 0=周一 … 6=周日、`minute` 0–1439、`samples`（可运营样本）、`usageRatio`）+ 覆盖时段 |
-| `GET /api/profile?since=...&until=...&weekday=...&weekdays=0,2&bucketSeconds=60` | 时间剖面：默认 5 分钟（288 槽），`bucketSeconds=60` 时 1 分钟（1440 槽）；`weekday`/`weekdays` 可多选；含总/洗衣机/烘干机的 `usageRatio` 与 `samples` |
+| `GET /api/profile?since=...&until=...&machines=...&weekday=...&weekdays=0,2&bucketSeconds=60` | 时间剖面：默认 5 分钟（288 槽），`bucketSeconds=60` 时 1 分钟（1440 槽）；`weekday`/`weekdays` 可多选；`machines` 过滤机器；含总/洗衣机/烘干机的 `usageRatio` 与 `samples` |
 | `GET /api/profile/days?since=...&until=...&fromMinute=720&toMinute=780` | 每天在指定分钟区间内的使用率：`days[]`（`day`、`samples`、`usageRatio`、按机型的 `washerUsage`/`dryerUsage`） |
 
 - `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；

@@ -461,6 +461,26 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       label: '恢复全选后热力图恢复',
     });
 
+    // 4b) Historical profile 跟随机器选择：只选洗衣机 → 只显示洗衣机线
+    document.getElementById('select-all').click(); // Clear all
+    await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 0, {
+      label: '清空选择',
+    });
+    document.querySelector('#machine-chips .chip-group[data-kind="washer"] .chip').click();
+    await waitFor(
+      () =>
+        charts().profile &&
+        charts().profile.data.datasets.length === 1 &&
+        charts().profile.data.datasets[0].label === 'Washers in use',
+      { label: 'Profile 只显示勾选的洗衣机' },
+    );
+    assert.match(document.getElementById('selected-count').textContent, /1\/4/);
+
+    document.getElementById('select-all').click(); // 恢复全选
+    await waitFor(() => charts().profile && charts().profile.data.datasets.length === 2, {
+      label: '恢复全选后 Profile 两条线',
+    });
+
     // 5) Date range：热力图 / 剖面 / State breakdown 都跟随
     const fromInput = document.getElementById('date-from');
     const toInput = document.getElementById('date-to');

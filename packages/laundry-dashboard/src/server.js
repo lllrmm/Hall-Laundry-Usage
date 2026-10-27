@@ -205,12 +205,12 @@ export function createDashboardServer({ config, logger = console }) {
       const bucketSeconds = Number.parseInt(url.searchParams.get('bucketSeconds') ?? '', 10);
       const bucket = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? bucketSeconds : 300;
       const weekdays = parseWeekdays(url.searchParams);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${weekdays.join(',')}:${bucket}`;
+      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${weekdays.join(',')}:${machineIds.sort().join(',')}:${bucket}`;
       sendJson(
         res,
         200,
         cached(key, () =>
-          database.profile({ since: range.since, until, weekday, weekdays, bucketSeconds: bucket }),
+          database.profile({ since: range.since, until, weekday, weekdays, machineIds, bucketSeconds: bucket }),
         ),
       );
       return true;

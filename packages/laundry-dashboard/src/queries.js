@@ -608,7 +608,7 @@ export class DashboardDatabase {
    * 按 5 分钟精度的时间剖面（每天 288 个槽位）。
    * weekday 0=周一…6=周日；不传则汇总所有天（按样本数加权由调用方处理，这里返回逐槽聚合值）。
    */
-  profile({ since = null, until = null, weekday = null, weekdays = [], bucketSeconds = 300 } = {}) {
+  profile({ since = null, until = null, weekday = null, weekdays = [], machineIds = [], bucketSeconds = 300 } = {}) {
     const db = this._ensure();
     const slotsPerDay = Math.round(86400 / bucketSeconds);
     const slotsPerHour = slotsPerDay / 24;
@@ -616,7 +616,9 @@ export class DashboardDatabase {
       return { available: false, since, until: null, bucketSeconds, slots: [] };
     }
 
-    const params = [since ?? '0000-01-01T00:00:00.000Z'];
+    const filterIds = (machineIds ?? []).filter((id) => typeof id === 'string' && id.length > 0);
+    const idFilter = filterIds.length > 0 ? `AND s.machine_id IN (${placeholders(filterIds.length)})` : '';
+    const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
     let weekdayFilter = '';
     const weekdayList = (Array.isArray(weekdays) ? weekdays : []).filter(
       (value) => Number.isInteger(value) && value >= 0 && value <= 6,
@@ -645,7 +647,7 @@ export class DashboardDatabase {
                   SUM(CASE WHEN s.state = 'in_use' AND s.status = 'enabled' THEN 1 ELSE 0 END) AS in_use
            FROM machine_snapshots s
            LEFT JOIN machines m ON m.id = s.machine_id
-           WHERE s.observed_at >= ? ${weekdayFilter} ${untilFilter}
+           WHERE s.observed_at >= ? ${idFilter} ${weekdayFilter} ${untilFilter}
            GROUP BY slot, kind
            HAVING samples > 0
            ORDER BY slot`,
@@ -701,7 +703,7 @@ export class DashboardDatabase {
         .prepare(
           `SELECT MIN(s.observed_at) AS first, MAX(s.observed_at) AS last
            FROM machine_snapshots s
-           WHERE s.observed_at >= ? ${weekdayFilter} ${untilFilter}`,
+           WHERE s.observed_at >= ? ${idFilter} ${weekdayFilter} ${untilFilter}`,
         )
         .get(...params);
 

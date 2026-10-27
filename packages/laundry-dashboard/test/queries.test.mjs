@@ -307,6 +307,15 @@ test('profile：5 分钟精度（每天 288 槽）', () => {
     const multiDays = dashboard.profile({ since, weekdays: [0, 1, 2, 3, 4, 5, 6] });
     const sum = (result) => result.slots.reduce((total, slot) => total + slot.samples, 0);
     assert.equal(sum(multiDays), sum(allDays), '多选全部星期时剖面样本总数一致');
+
+    // 机器筛选：只选洗衣机时不应出现烘干机样本，反之亦然
+    const sumKey = (result, key) => result.slots.reduce((total, slot) => total + (slot[key] ?? 0), 0);
+    const onlyWasher = dashboard.profile({ since, machineIds: ['m-washer'] });
+    assert.ok(sumKey(onlyWasher, 'washerSamples') > 0, '只选洗衣机应有洗衣机样本');
+    assert.equal(sumKey(onlyWasher, 'dryerSamples'), 0, '只选洗衣机不应有烘干机样本');
+    const onlyDryer = dashboard.profile({ since, machineIds: ['m-dryer'] });
+    assert.ok(sumKey(onlyDryer, 'dryerSamples') > 0, '只选烘干机应有烘干机样本');
+    assert.equal(sumKey(onlyDryer, 'washerSamples'), 0, '只选烘干机不应有洗衣机样本');
   });
 });
 
