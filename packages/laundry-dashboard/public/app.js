@@ -655,8 +655,8 @@
     for (let hour = 0; hour < 24; hour += 1) {
       const label = document.createElement('div');
       label.className = 'heatmap-hour';
-      // 时间轴只显示整点：01、02、…、23（00 是起点，不标）
-      label.textContent = hour === 0 ? '' : pad2(hour);
+      // 时间轴只显示整点：00、01、…、23
+      label.textContent = pad2(hour);
       label.title = `Drag here to select a time range`;
       hoursBox.appendChild(label);
     }

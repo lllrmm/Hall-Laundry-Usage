@@ -303,8 +303,8 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(document.querySelectorAll('#heatmap .heatmap-hour').length, 24, '24 个小时表头');
     assert.deepEqual(
       [...document.querySelectorAll('#heatmap .heatmap-hour')].map((node) => node.textContent),
-      ['', ...Array.from({ length: 23 }, (_, index) => String(index + 1).padStart(2, '0'))],
-      '时间轴只显示整点 01–23（00 为起点不标）',
+      Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0')),
+      '时间轴按整点显示 00–23',
     );
     assert.ok(
       [...document.querySelectorAll('h2')].some((node) => node.textContent === 'Usage heatmap'),
