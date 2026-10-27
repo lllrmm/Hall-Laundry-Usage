@@ -104,10 +104,8 @@ export function powderFor(serviceValue) {
 /** 归一化后的机器对象 → 一个字节 */
 export function stateByte(machine) {
   if (!machine) return STATE_BYTES.no_data;
-  if (machine.available) return STATE_BYTES.available;
-  if (machine.state === 'in_use') return STATE_BYTES.in_use;
-  if (machine.state === 'offline') return STATE_BYTES.offline;
-  if (machine.state === 'available') return STATE_BYTES.available;
+  // 非 enabled 的 status 优先：维护中的机器 state 也可能是 "available"，
+  // 必须先落成 maintenance/disabled/on_hold，才不会被当成可运营样本。
   switch (machine.status) {
     case 'maintenance':
       return STATE_BYTES.maintenance;
@@ -116,16 +114,17 @@ export function stateByte(machine) {
     case 'on_hold':
       return STATE_BYTES.on_hold;
     default:
-      return STATE_BYTES.unknown;
+      break;
   }
+  if (machine.available) return STATE_BYTES.available;
+  if (machine.state === 'in_use') return STATE_BYTES.in_use;
+  if (machine.state === 'offline') return STATE_BYTES.offline;
+  if (machine.state === 'available') return STATE_BYTES.available;
+  return STATE_BYTES.unknown;
 }
 
 /** 原始快照行 → 一个字节（rebuild 用） */
 export function snapshotByte(row) {
-  if (row.available === 1 || row.available === true) return STATE_BYTES.available;
-  if (row.state === 'in_use') return STATE_BYTES.in_use;
-  if (row.state === 'offline') return STATE_BYTES.offline;
-  if (row.state === 'available') return STATE_BYTES.available;
   switch (row.status) {
     case 'maintenance':
       return STATE_BYTES.maintenance;
@@ -134,8 +133,13 @@ export function snapshotByte(row) {
     case 'on_hold':
       return STATE_BYTES.on_hold;
     default:
-      return STATE_BYTES.unknown;
+      break;
   }
+  if (row.available === 1 || row.available === true) return STATE_BYTES.available;
+  if (row.state === 'in_use') return STATE_BYTES.in_use;
+  if (row.state === 'offline') return STATE_BYTES.offline;
+  if (row.state === 'available') return STATE_BYTES.available;
+  return STATE_BYTES.unknown;
 }
 
 function createDayBuffer() {

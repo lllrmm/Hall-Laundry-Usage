@@ -76,11 +76,25 @@ test('字节编码：机器状态 → 1 byte', () => {
   assert.equal(stateByte({ available: false, state: 'x', status: 'on_hold' }), STATE_BYTES.on_hold);
   assert.equal(stateByte({ available: false, state: 'weird', status: 'enabled' }), STATE_BYTES.unknown);
   assert.equal(stateByte(null), STATE_BYTES.no_data);
+  // 维护中的机器 state 也可能是 available：status 必须优先，不能被当成可运营样本
+  assert.equal(
+    stateByte({ available: false, state: 'available', status: 'maintenance' }),
+    STATE_BYTES.maintenance,
+  );
+  assert.equal(
+    stateByte({ available: false, state: 'available', status: 'disabled' }),
+    STATE_BYTES.disabled,
+  );
 
   assert.equal(snapshotByte({ available: 1 }), STATE_BYTES.available);
   assert.equal(snapshotByte({ available: 0, state: 'in_use' }), STATE_BYTES.in_use);
   assert.equal(snapshotByte({ available: 0, state: 'offline' }), STATE_BYTES.offline);
   assert.equal(snapshotByte({ available: 0, state: 'x', status: 'maintenance' }), STATE_BYTES.maintenance);
+  assert.equal(
+    snapshotByte({ available: 0, state: 'available', status: 'maintenance' }),
+    STATE_BYTES.maintenance,
+    'raw 回填同样要 status 优先',
+  );
 
   const date = new Date(2026, 9, 27, 14, 45, 12); // 本地时间
   assert.equal(dayKey(date), '2026-10-27');
