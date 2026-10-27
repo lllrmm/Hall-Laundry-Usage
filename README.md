@@ -70,7 +70,7 @@ cd packages/laundry-dashboard-webpage && npm start
 
 ## Docker 部署
 
-仓库自带 `Dockerfile` + `compose.yaml`，一条命令启动采集 + API + 前端（三个 Node 服务都没有运行时依赖，镜像里无需 `npm install`）：
+仓库自带 `Dockerfile` + `compose.yaml`，一条命令启动采集 + API + 前端：
 
 ```bash
 cp .env.example .env      # 填 LDR_TOKEN（网页 localStorage["ldr_student"].token）
@@ -95,34 +95,6 @@ docker compose down -v              # 连数据卷一起删除
 # 在容器里重建序列库
 docker compose run --rm monitor node packages/laundry-monitor/bin/cli.mjs rebuild --config /config/monitor.config.json
 ```
-
-### 发布到 Docker Hub（GitHub Actions）
-
-仓库内置 `.github/workflows/docker-publish.yml`：推 `main`、推 `v*` tag 或手动触发时，先跑三套测试，再构建 `linux/amd64` + `linux/arm64` 镜像并推送到：
-
-```
-<DOCKERHUB_USERNAME>/hall-laundry-usage
-```
-
-准备：
-
-1. Docker Hub 创建仓库 `hall-laundry-usage`；
-2. GitHub 仓库 → Settings → Secrets and variables → Actions，添加：
-   - `DOCKERHUB_USERNAME`：Docker Hub 用户名
-   - `DOCKERHUB_TOKEN`：Docker Hub Access Token（Read & Write）
-3. push 后镜像 tag：`latest`（main 分支）、`sha-xxxx`（每次提交）、`vX.Y.Z`（打 git tag 时）。
-
-在服务器上直接使用 Docker Hub 镜像：
-
-```bash
-echo 'LAUNDRY_IMAGE=<dockerhub-user>/hall-laundry-usage:latest' >> .env
-docker compose pull
-docker compose up -d --no-build
-```
-
-本地改代码需要重新构建时，删掉/注释 `.env` 里的 `LAUNDRY_IMAGE`，再 `docker compose up -d --build`。
-
-> 镜像默认是公开的（Docker Hub 仓库）；不想公开就把 Docker Hub 仓库设为 private，并记得 `docker login`。
 
 ## 采集与数据
 
