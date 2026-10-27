@@ -10,39 +10,41 @@
 
 ## 快速开始
 
-要求：**Node.js ≥ 22.5**（`node:sqlite`），Windows 可直接双击 `.cmd`。
+要求：**Node.js ≥ 22.5**（`node:sqlite`）。
 
 ### 1. 准备 token
 
 1. 登录 <https://laundry.ust.hk/ldr/app/tickets>；
 2. DevTools → Application → Local Storage → `ldr_student`，复制其中的 `token`；
-3. 写入仓库根目录 `token.txt`（已被 git 忽略），或设置环境变量 `LDR_TOKEN`，
-   或写进 `packages/laundry-monitor/monitor.config.json` 的 `bearer` 字段。
+3. token 的用法：填进采集配置 `monitor.config.json` 的 `bearer` 字段（下一步创建），
+   或设置 `LDR_TOKEN` 环境变量；根目录 `laundry.mjs` CLI 也可以读取 `./token.txt`。
 
 token 会在网页重新登录后失效；失效时看板会显示错误，重新复制即可。
 
-### 2. 启动（Windows 一把梭）
+### 2. 启动
 
-```bat
-start-all.cmd
+首次运行先准备采集配置（已被 git 忽略）：
+
+```bash
+cp packages/laundry-monitor/monitor.config.example.json packages/laundry-monitor/monitor.config.json
+# 编辑 monitor.config.json，把 bearer 换成 token；或在启动前设置 LDR_TOKEN 环境变量
+cd packages/laundry-monitor && npm install
 ```
 
-会打开两个独立窗口：
+两个服务互相独立，分别启动即可：
 
-| 窗口 | 服务 | 地址 |
+```bash
+# 终端 1：采集（每 60s 一次，写两个 SQLite）
+cd packages/laundry-monitor && npm start
+
+# 终端 2：只读看板
+cd packages/laundry-dashboard && npm start
+```
+
+| 服务 | 作用 | 地址 |
 |---|---|---|
 | `laundry-monitor` | 采集（每 60s 一次，写两个 SQLite） | 无（后台写库） |
 | `laundry-dashboard` | 只读看板 | <http://127.0.0.1:8787> / `http://<本机局域网 IP>:8787` |
-
-也可以手动分别启动：
-
-```bash
-# 终端 1：采集
-cd packages/laundry-monitor && npm install && npm start
-
-# 终端 2：看板
-cd packages/laundry-dashboard && npm start
-```
 
 - 停采集：看板仍可访问，只是数据停在最后一次采集；
 - 停看板：采集继续，数据库继续增长；
@@ -51,16 +53,8 @@ cd packages/laundry-dashboard && npm start
 
 ### 3. 局域网 / 手机访问
 
-看板当前配置为 `"host": "0.0.0.0"`，同一局域网内的手机/平板可直接访问电脑 IP，例如
-`http://192.168.10.68:8787`（Windows 用 `ipconfig` 查看 IPv4 地址）。
-
-如果其他设备打不开，通常是 **Windows 防火墙**拦了入站 8787，管理员 PowerShell 放行一次：
-
-```powershell
-netsh advfirewall firewall add rule name="Laundry Dashboard 8787" dir=in action=allow protocol=TCP localport=8787
-```
-
-> 看板没有登录鉴权（只读数据），只在可信网络里开；不用时把 `host` 改回 `127.0.0.1` 并重启。
+看板监听 `0.0.0.0`，同一局域网内的手机/平板用电脑 IP 访问即可，例如
+`http://<电脑 IP>:8787`（用系统工具查看本机局域网 IP）。
 
 ## 看板功能
 
@@ -156,7 +150,6 @@ npm run once                                            # 只采一次（cron / 
 ## 目录结构
 
 ```
-start-all.cmd                 一键启动采集 + 看板两个窗口
 laundry.mjs                   只读 CLI：machines / available / used（见 docs/API.md）
 token.txt                     Bearer token（git 忽略）
 docs/API.md                   站点 API 文档
@@ -164,7 +157,6 @@ docs/openapi.json             OpenAPI 3.0 规格
 packages/laundry-machines/    机器状态查询库（ESM + TS 类型 + CLI，Node ≥18）
 packages/laundry-monitor/     采集服务：轮询 + 原始快照库 + 日序列库（stats/export/rebuild）
 packages/laundry-dashboard/   只读看板：零依赖 HTTP + 浏览器端聚合 + Chart.js
-browser/                      逆向阶段的浏览器抓包/调试记录（不含 token）
 ```
 
 各包的详细说明、配置项和设计细节见各自的 README：
@@ -205,6 +197,4 @@ cd packages/laundry-dashboard && node scripts/probe-services.mjs
 - 采样粒度为 **1 分钟/台**：同一分钟多次轮询只保留最后一次；历史图表以此为最小单位；
 - 原始库默认只保留 30 天（`retentionDays`），序列库长期保留；
 - 站点若改字段/接口，采集会记录错误码（`poll_runs.ok=0`），看板顶栏会显示连接/加载失败；
-- token、券的 `token` 字段、邮箱/楼层等属于敏感信息，不要提交或外传；
-- 站点未公布限流策略，轮询建议 ≥ 15s（当前 60s）；
-- 本文档不含写操作接口说明，请勿在未确认后果的情况下调用购券/预约接口。
+- 站点未公布限流策略，轮询建议 ≥ 15s（当前 60s）。

@@ -19,7 +19,7 @@ monitor.config.json
         │                └─ 失败：写 poll_runs(ok=0, error_code=...)，不中断循环
         ▼
    data/laundry.sqlite（WAL）──► stats / export / 任意 SQL 分析
-   data/laundry-series.sqlite ──► 看板只读：热力图 / 剖面 / 趋势
+   data/laundry-series.sqlite ──► 看板只读：热力图 / 剖面 / 状态占比
 ```
 
 ## 快速开始
@@ -95,24 +95,14 @@ laundry-monitor init   [--config monitor.config.json]   # 生成配置模板
 - 序列库写失败只告警、不影响原始库；
 - 误删/重建：`laundry-monitor rebuild` 从原始库回填（可重复执行，幂等）。
 
-### 定时任务示例
+### 定时执行
 
-`crontab`（每 5 分钟采一次，适合不想常驻）：
+不想常驻时，可以用系统自带的计划任务（cron / systemd / 任务计划程序等）定时执行一次采集：
 
-```cron
-*/5 * * * * cd /path/to/packages/laundry-monitor && node bin/cli.mjs once >> data/cron.log 2>&1
+```bash
+cd packages/laundry-monitor
+node bin/cli.mjs once --config monitor.config.json
 ```
-
-Linux systemd：
-
-```ini
-[Service]
-WorkingDirectory=/path/to/packages/laundry-monitor
-ExecStart=/usr/bin/node bin/cli.mjs run --config monitor.config.json
-Restart=always
-```
-
-Windows 计划任务：程序填 `node`，参数填 `bin\cli.mjs once --config monitor.config.json`，起始目录填包目录。
 
 ## 数据库结构
 
@@ -213,8 +203,7 @@ db.close();
 ## 注意
 
 - token 过期后 `poll_runs` 会持续记录 `4032` 失败，重新登录网页换 `token` 后即可恢复（历史数据不受影响）；
-- 长期运行建议 `pollIntervalSeconds >= 60`，一个月的快照量约 12 台 × 1440 次/天 × 30 ≈ 52 万行，SQLite 完全够用；
-- 数据库、配置文件含凭据，已在仓库 `.gitignore` 中排除，不要提交。
+- 长期运行建议 `pollIntervalSeconds >= 60`，一个月的快照量约 12 台 × 1440 次/天 × 30 ≈ 52 万行，SQLite 完全够用。
 
 ## License
 

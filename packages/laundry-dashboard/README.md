@@ -12,7 +12,7 @@ HKUST 洗衣房监控的**只读前端服务**：读取采集服务写入的 SQL
 ```bash
 cd packages/laundry-dashboard
 npm start                       # http://127.0.0.1:8787
-# 或双击 run.cmd / 直接 node bin/serve.mjs --config dashboard.config.json
+# 或：node bin/serve.mjs --config dashboard.config.json
 ```
 
 ```bash
@@ -20,7 +20,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite \
   --series ../laundry-monitor/data/laundry-series.sqlite --port 8787
 ```
 
-打开 <http://127.0.0.1:8787> 即可；本机/LAN 访问地址也可用 `http://<电脑局域网 IP>:8787`（当前配置 `host=0.0.0.0`，见下方配置说明）。
+打开 <http://127.0.0.1:8787> 即可；局域网访问用 `http://<电脑 IP>:8787`。
 
 ## 页面内容（界面为英文）
 
@@ -104,15 +104,7 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 - 图表在 `resize`/横竖屏切换时按容器实际宽度重建；窄屏下"状态占比"柱状图使用短机器名（去掉 `UG4` 前缀）；
 - 触摸屏：Chart.js 自带触摸 tooltip，按住/滑动图表即可查看对应数值。
 
-**手机上打开**：当前 `dashboard.config.json` 已设置 `"host": "0.0.0.0"`（监听所有网卡），手机/平板与电脑在同一局域网时，直接访问电脑的局域网 IP 即可，例如 `http://192.168.1.23:8787`；本机仍可用 `http://127.0.0.1:8787`。
-如果其他设备打不开，通常是 **Windows 防火墙**拦了入站 8787 端口，需要管理员权限放行一次，例如：
-
-```powershell
-# 管理员 PowerShell
-netsh advfirewall firewall add rule name="Laundry Dashboard 8787" dir=in action=allow protocol=TCP localport=8787
-```
-
-服务没有登录鉴权，只暴露洗衣房状态（只读），请只在可信网络（家里/宿舍 WiFi）里这样开；不想被局域网访问时，把 `host` 改回 `127.0.0.1` 并重启看板即可。
+**手机上打开**：`dashboard.config.json` 监听 `0.0.0.0`，手机/平板与电脑在同一局域网时，访问 `http://<电脑 IP>:8787` 即可；本机仍可用 `http://127.0.0.1:8787`。
 
 ### 深浅色主题
 
