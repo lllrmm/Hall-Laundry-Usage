@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_CONFIG_FILE = 'dashboard.config.json';
+export const DEFAULT_CONFIG_FILE = 'dashboard-api.config.json';
 
 export const DEFAULTS = {
   database: '../laundry-monitor/data/laundry.sqlite',

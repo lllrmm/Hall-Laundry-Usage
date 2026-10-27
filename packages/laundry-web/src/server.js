@@ -1,9 +1,9 @@
 /**
  * 看板前端 HTTP 服务：只做静态文件托管 + `/api/*` 反向代理。
  *
- * 与 laundry-dashboard 完全解耦：
+ * 与 laundry-dashboard-api 完全解耦：
  *   browser ──静态资源──► laundry-web
- *   browser ──/api/*────► laundry-web ──反向代理──► laundry-dashboard（只读 API）
+ *   browser ──/api/*────► laundry-web ──反向代理──► laundry-dashboard-api（只读 API）
  * 这样浏览器始终同源，生产环境也可以把静态资源换成 Nginx/CDN，API 继续走 dashboard。
  */
 

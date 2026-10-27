@@ -1,5 +1,5 @@
 {
-  "_comment": "前端静态服务配置：host/port 是浏览器访问地址；apiTarget 是 /api/* 反向代理到的 laundry-dashboard 地址（设 null 则不代理）。",
+  "_comment": "前端静态服务配置：host/port 是浏览器访问地址；apiTarget 是 /api/* 反向代理到的 laundry-dashboard-api 地址（设 null 则不代理）。",
   "host": "127.0.0.1",
   "port": 8788,
   "apiTarget": "http://127.0.0.1:8787"

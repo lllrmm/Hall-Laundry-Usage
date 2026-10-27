@@ -4,7 +4,7 @@
 
 - 机器状态查询库 / CLI（`packages/laundry-monitor/src/machines/`、`laundry.mjs`）
 - 常驻采集服务（`packages/laundry-monitor`）：按 60s 轮询，写原始快照库 + 日级压缩序列库
-- 只读 API 服务（`packages/laundry-dashboard`）：当前状态与历史分钟序列，只发数据不渲染页面
+- 只读 API 服务（`packages/laundry-dashboard-api`）：当前状态与历史分钟序列，只发数据不渲染页面
 - 独立前端（`packages/laundry-web`）：静态页面 + 本地 Chart.js + 图表聚合，通过反向代理调用 API
 
 > 只做查询：机器状态、Available Tickets、Used Tickets。不含购券/支付/预约等写操作。
@@ -39,7 +39,7 @@ cd packages/laundry-monitor && npm install
 cd packages/laundry-monitor && npm start
 
 # 终端 2：只读 API
-cd packages/laundry-dashboard && npm start
+cd packages/laundry-dashboard-api && npm start
 
 # 终端 3：前端静态服务 + /api 反向代理
 cd packages/laundry-web && npm start
@@ -48,14 +48,14 @@ cd packages/laundry-web && npm start
 | 服务 | 作用 | 地址 |
 |---|---|---|
 | `laundry-monitor` | 采集（每 60s 一次，写两个 SQLite） | 无（后台写库） |
-| `laundry-dashboard` | 只读 JSON API | <http://127.0.0.1:8787>（只给前端/程序调用） |
+| `laundry-dashboard-api` | 只读 JSON API | <http://127.0.0.1:8787>（只给前端/程序调用） |
 | `laundry-web` | 前端页面 + 反向代理 | <http://127.0.0.1:8788> / `http://<本机局域网 IP>:8788` |
 
 - 停采集：看板仍可访问，只是数据停在最后一次采集；
-- 停 `laundry-dashboard`：页面能打开，但图表/状态请求失败；
+- 停 `laundry-dashboard-api`：页面能打开，但图表/状态请求失败；
 - 停 `laundry-web`：API 仍在，但浏览器无页面可访问；
 - 采集周期 / token / 数据保留天数在 `packages/laundry-monitor/monitor.config.json`；
-- dashboard 端口/数据库路径在 `packages/laundry-dashboard/dashboard.config.json`；
+- dashboard 端口/数据库路径在 `packages/laundry-dashboard-api/dashboard-api.config.json`；
 - 前端端口 / API 反代地址在 `packages/laundry-web/web.config.json`。
 
 ### 3. 局域网 / 手机访问
@@ -66,7 +66,7 @@ cd packages/laundry-web && npm start
 ### 4. 可选：前端发布到 GitHub Pages
 
 前端是纯静态的，可以用仓库内的 `.github/workflows/pages.yml` 发布到 GitHub Pages；页面用
-`?api=https://<API 地址>` 指定公网 API。API 需要在 `laundry-dashboard` 的 `dashboard.config.json`
+`?api=https://<API 地址>` 指定公网 API。API 需要在 `laundry-dashboard-api` 的 `dashboard-api.config.json`
 里配置允许 Pages 的 `corsOrigins`（例如 `["https://<user>.github.io"]`），并且是可用的 HTTPS 地址。
 采集与 API 仍需一台常开机器，Pages 只负责静态页面。
 
@@ -102,7 +102,7 @@ npm run once                                            # 只采一次（手动�
 ```
 
 序列库的分钟字节编码与使用率口径（含 on_hold 细分）详见
-[monitor README](packages/laundry-monitor/README.md) 与 [dashboard README](packages/laundry-dashboard/README.md)。
+[monitor README](packages/laundry-monitor/README.md) 与 [dashboard README](packages/laundry-dashboard-api/README.md)。
 
 ## HTTP API（站点侧，只读）
 
@@ -136,7 +136,7 @@ token.txt                     Bearer token（git 忽略）
 docs/API.md                   站点 API 文档
 docs/openapi.json             OpenAPI 3.0 规格
 packages/laundry-monitor/     采集服务 + 上游机器客户端（src/machines）：轮询、原始库、序列库、stats/export/rebuild
-packages/laundry-dashboard/   只读 JSON API：meta / state / machines / days
+packages/laundry-dashboard-api/   只读 JSON API：meta / state / machines / days
 packages/laundry-web/         独立前端：静态页面 + Chart.js + /api 反向代理
 packages/shared/              跨包共享契约：序列字节编码、本地日界、洗粉映射
 ```
@@ -144,7 +144,7 @@ packages/shared/              跨包共享契约：序列字节编码、本地�
 各包的详细说明、配置项和设计细节见各自的 README：
 
 - [packages/laundry-monitor/README.md](packages/laundry-monitor/README.md)
-- [packages/laundry-dashboard/README.md](packages/laundry-dashboard/README.md)
+- [packages/laundry-dashboard-api/README.md](packages/laundry-dashboard-api/README.md)
 - [packages/laundry-web/README.md](packages/laundry-web/README.md)
 
 ## CLI 快速查询
@@ -163,13 +163,13 @@ node laundry.mjs machines --json   # 原始 JSON
 cd packages/laundry-monitor && npm test && npm run typecheck
 
 # 只读 API（数据层 + HTTP）
-cd packages/laundry-dashboard && npm test
+cd packages/laundry-dashboard-api && npm test
 
 # 前端（静态托管/反代 + 浏览器端聚合 + jsdom）
 cd packages/laundry-web && npm test
 
 # 端到端（需要采集 + dashboard + web 都在跑）
-cd packages/laundry-dashboard && node scripts/e2e-check.mjs
+cd packages/laundry-dashboard-api && node scripts/e2e-check.mjs
 #   DASHBOARD_URL / WEB_URL 可覆盖默认的 8787 / 8788
 ```
 

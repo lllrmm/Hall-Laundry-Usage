@@ -5,7 +5,7 @@
  * 目的：所有交互（勾选星期、拖动时段、选择机器、切换日期）都只重算内存数据，
  * 不再往返后端；后端只负责发原始日序列。
  *
- * 字节编码（与 laundry-monitor/src/series.js、laundry-dashboard/src/days.js 一致）：
+ * 字节编码（与 laundry-monitor/src/series.js、laundry-dashboard-api/src/days.js 一致）：
  *   0x00 in_use        0x01 available   0x02 maintenance  0x03 disabled  0x04 offline
  *   0x05 on_hold(旧)   0x06 on_hold+in_use   0x07 on_hold+available
  *   0x08 on_hold+offline  0x09 on_hold+unknown

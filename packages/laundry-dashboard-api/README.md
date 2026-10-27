@@ -1,4 +1,4 @@
-# hkust-laundry-dashboard
+# hkust-laundry-dashboard-api
 
 HKUST 洗衣房监控的**只读 JSON API**：读取采集服务写入的 SQLite，给独立部署的前端提供当前状态与历史分钟序列。
 
@@ -18,7 +18,7 @@ laundry-monitor（写）
    └─► data/laundry-series.sqlite   日序列库（1,440 字节/机器·天）
                  │
                  ▼ 只读
-laundry-dashboard（本服务，JSON API，默认 :8787）
+laundry-dashboard-api（本服务，JSON API，默认 :8787）
                  ▲
                  │ /api/* 反向代理
 laundry-web（静态前端 + 转发，默认 :8788）◄── 浏览器
@@ -30,9 +30,9 @@ laundry-web（静态前端 + 转发，默认 :8788）◄── 浏览器
 ## 启动
 
 ```bash
-cd packages/laundry-dashboard
+cd packages/laundry-dashboard-api
 npm start                       # http://127.0.0.1:8787（只读 API）
-# 或：node bin/serve.mjs --config dashboard.config.json
+# 或：node bin/serve.mjs --config dashboard-api.config.json
 ```
 
 浏览器请访问前端服务（默认 <http://127.0.0.1:8788>），不要直接打开 8787。
@@ -83,7 +83,7 @@ npm start                       # http://127.0.0.1:8787（只读 API）
 
 ## 配置
 
-`dashboard.config.json`（已被 git 忽略；模板见 `dashboard.config.example.json`）：
+`dashboard-api.config.json`（已被 git 忽略；模板见 `dashboard-api.config.example.json`）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|

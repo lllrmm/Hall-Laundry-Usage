@@ -37,7 +37,7 @@ const HELP = `用法: laundry-web [选项]
   --api <url>       反向代理的 API 地址，例如 http://127.0.0.1:8787
   -h, --help        显示帮助
 
-浏览器只访问本服务：静态资源由这里托管，/api/* 转发到 laundry-dashboard。
+浏览器只访问本服务：静态资源由这里托管，/api/* 转发到 laundry-dashboard-api。
 `;
 
 async function main() {

@@ -3,7 +3,7 @@
 HKUST 洗衣房看板的**独立前端**：纯静态 HTML/CSS/JS + 本地 Chart.js，无框架、无构建步骤。
 
 - 页面与所有图表聚合都在浏览器端完成（`public/aggregate.js`、`public/history.js`、`public/app.js`）；
-- 数据来自只读 API（[`laundry-dashboard`](../laundry-dashboard)）：本服务把 `/api/*` 反向代理过去，浏览器始终同源；
+- 数据来自只读 API（[`laundry-dashboard-api`](../laundry-dashboard-api)）：本服务把 `/api/*` 反向代理过去，浏览器始终同源；
 - 静态资源由本服务直接托管，也可以换成 Nginx / CDN，API 仍指向 dashboard。
 
 ## 启动
@@ -44,7 +44,7 @@ window.__LAUNDRY_API_BASE__ = 'http://192.168.1.23:8787';
 1. 仓库 Settings → Pages → Source 选 **GitHub Actions**；
 2. 访问 `https://<user>.github.io/<repo>/?api=https%3A%2F%2Fyour-api.example.com`；
 3. API 地址也可以带子路径，末尾 `/` 会自动去掉；必须支持 **HTTPS**（Pages 是 HTTPS，浏览器会拦截 HTTP 混合内容）；
-4. API 需允许 Pages 的 origin 跨域：在 `laundry-dashboard` 的 `dashboard.config.json` 里填
+4. API 需允许 Pages 的 origin 跨域：在 `laundry-dashboard-api` 的 `dashboard-api.config.json` 里填
    ```json
    { "corsOrigins": ["https://<user>.github.io"] }
    ```

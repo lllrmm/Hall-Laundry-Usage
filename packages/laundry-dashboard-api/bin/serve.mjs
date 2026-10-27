@@ -2,14 +2,14 @@
 /**
  * 只读 API 服务启动入口（页面由 laundry-web 独立托管）。
  *
- *   laundry-dashboard --config dashboard.config.json
- *   laundry-dashboard --db ../laundry-monitor/data/laundry.sqlite --port 8787
+ *   laundry-dashboard-api --config dashboard-api.config.json
+ *   laundry-dashboard-api --db ../laundry-monitor/data/laundry.sqlite --port 8787
  */
 
 import { loadConfig, DEFAULT_CONFIG_FILE } from '../src/config.js';
 import { createDashboardServer } from '../src/server.js';
 
-const HELP = `用法: laundry-dashboard [选项]
+const HELP = `用法: laundry-dashboard-api [选项]
 
 选项:
   --config <path>   配置文件路径，默认 ${DEFAULT_CONFIG_FILE}

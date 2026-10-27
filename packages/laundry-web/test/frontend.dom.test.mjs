@@ -17,7 +17,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { normalizeResponse } from '../../laundry-monitor/src/machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
-import { createDashboardServer } from '../../laundry-dashboard/src/server.js';
+import { createDashboardServer } from '../../laundry-dashboard-api/src/server.js';
 import { createWebServer } from '../src/server.js';
 
 const isBun = Boolean(process.versions.bun);
@@ -82,7 +82,7 @@ function machine(id, name, kind, state, serviceValue = null) {
 }
 
 function buildFixtureDb() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-dashboard-dom-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-dashboard-api-dom-'));
   const file = path.join(dir, 'test.sqlite');
   const db = new MonitorDatabase(file, { journalMode: 'DELETE' });
 

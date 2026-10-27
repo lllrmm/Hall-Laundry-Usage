@@ -1,23 +1,23 @@
 {
-  "name": "hkust-laundry-dashboard",
+  "name": "hkust-laundry-dashboard-api",
   "version": "0.1.0",
   "description": "Read-only JSON API for the HKUST laundry monitor: latest machine status and raw per-machine-day history series for the separately hosted frontend.",
   "type": "module",
   "main": "./src/server.js",
   "bin": {
-    "laundry-dashboard": "./bin/serve.mjs"
+    "laundry-dashboard-api": "./bin/serve.mjs"
   },
   "files": [
     "bin",
     "src",
-    "dashboard.config.example.json",
+    "dashboard-api.config.example.json",
     "README.md"
   ],
   "engines": {
     "node": ">=22.5"
   },
   "scripts": {
-    "start": "node bin/serve.mjs --config dashboard.config.json",
+    "start": "node bin/serve.mjs --config dashboard-api.config.json",
     "test": "node --test test/",
     "test:in-process": "node --test-isolation=none --test test/queries.test.mjs test/days.test.mjs test/server.test.mjs"
   },

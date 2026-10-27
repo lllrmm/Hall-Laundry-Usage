@@ -1,7 +1,7 @@
 /**
  * 看板前端配置：监听地址、端口，以及反向代理的 API 地址。
  *
- * `apiTarget` 让浏览器始终同源请求 `/api/*`，由本服务转发到 laundry-dashboard：
+ * `apiTarget` 让浏览器始终同源请求 `/api/*`，由本服务转发到 laundry-dashboard-api：
  *   - 生产/局域网：默认 http://127.0.0.1:8787，前端与 API 可以分开部署；
  *   - 设为 null 则不做代理，此时前端需要配置 window.__LAUNDRY_API_BASE__（见 public/config.js）。
  */

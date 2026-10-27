@@ -1,4 +1,4 @@
-/** 端到端自检：前端（laundry-web）+ 只读 API（laundry-dashboard），独立于轮询进程 */
+/** 端到端自检：前端（laundry-web）+ 只读 API（laundry-dashboard-api），独立于轮询进程 */
 const API_BASE = process.env.DASHBOARD_URL || 'http://127.0.0.1:8787';
 const WEB_BASE = process.env.WEB_URL || 'http://127.0.0.1:8788';
 
