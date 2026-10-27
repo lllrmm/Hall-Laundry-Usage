@@ -773,24 +773,25 @@
       return Math.max(0, Math.min(6, Math.floor((y - top) / rowH)));
     };
 
-    // 热力图内：单击选分钟 + hover tooltip（时段选择在顶部时间轴完成）
-    canvas.onclick = (event) => {
-      setHeatmapFocus('minute', minuteAt(event));
-    };
-
-    canvas.onmousemove = (event) => {
+    const showTooltip = (event) => {
       const minute = minuteAt(event);
       const weekday = weekdayAt(event);
       const cell = byKey.get(`${weekday}-${minute}`);
-      if (tooltip) {
-        const rect = rectOf();
-        tooltip.textContent = cell
-          ? `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · usage ${Math.round(cell.usageRatio * 100)}% · ${cell.samples} samples`
-          : `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · no data`;
-        tooltip.style.left = `${event.clientX - rect.left}px`;
-        tooltip.style.top = `${event.clientY - rect.top}px`;
-        tooltip.classList.add('visible');
-      }
+      if (!tooltip) return;
+      const rect = rectOf();
+      tooltip.textContent = cell
+        ? `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · usage ${Math.round(cell.usageRatio * 100)}% · ${cell.samples} samples`
+        : `${WEEKDAY_LABELS[weekday]} ${hhmm(minute)} · no data`;
+      tooltip.style.left = `${event.clientX - rect.left}px`;
+      tooltip.style.top = `${event.clientY - rect.top}px`;
+      tooltip.classList.add('visible');
+    };
+
+    // 热力图内：点击/悬停只弹标签显示该点信息，不改变选择
+    canvas.onclick = (event) => showTooltip(event);
+
+    canvas.onmousemove = (event) => {
+      showTooltip(event);
     };
 
     canvas.onmouseleave = () => {

@@ -294,6 +294,18 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
     assert.match(xOptions.ticks.callback(720), /^12:00$/, '刻度标签仍按 hh:mm 显示');
 
+    // 热力图内部点击：只弹出标签显示信息，不改变选择
+    const profileHintBefore = document.getElementById('profile-hint').textContent;
+    const canvas = document.getElementById('heatmap-canvas');
+    canvas.dispatchEvent(
+      new dom.window.MouseEvent('click', { clientX: (720 / 1440) * 900, clientY: 30, bubbles: true }),
+    );
+    const tooltip = document.getElementById('heatmap-tooltip');
+    assert.ok(tooltip.classList.contains('visible'), '点击热力图应弹出标签');
+    assert.match(tooltip.textContent, /(usage \d+% · \d+ samples|no data)/, '标签应显示该点信息');
+    assert.equal(document.getElementById('profile-hint').textContent, profileHintBefore, '点击不改变选择');
+    assert.equal(document.querySelectorAll('#heatmap .heatmap-row-label.active').length, 0);
+
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
     );
