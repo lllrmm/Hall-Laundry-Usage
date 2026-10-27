@@ -82,11 +82,6 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-}
-
 /* ---------- 顶栏 ---------- */
 
 .topbar {
@@ -161,13 +156,6 @@ body {
 .meta-item b {
   font-size: 13px;
   font-weight: 600;
-}
-
-.meta-item.wide b {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .btn {
@@ -619,10 +607,6 @@ footer {
 
   .meta-item b {
     font-size: 12px;
-  }
-
-  .meta-item.wide {
-    display: none;
   }
 
   .btn {

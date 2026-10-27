@@ -247,8 +247,6 @@
         if (meta.pollCount) pollText += ` · ${meta.pollCount} polls`;
       }
       $('poll-state').textContent = pollText;
-      $('db-path').textContent = meta.database;
-      $('db-path').title = meta.database;
       $('latest-time').textContent = meta.lastObservedAt
         ? `Data time ${fmtDateTime(meta.lastObservedAt)}`
         : '';

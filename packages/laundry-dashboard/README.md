@@ -24,7 +24,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 
 | 区块 | 说明 |
 |---|---|
-| 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、数据库路径、Refresh now、自动刷新倒计时 |
+| 顶栏 | 数据最后更新时间（绝对 + 相对）、最近一次采集是否成功/耗时、Refresh now、自动刷新倒计时 |
 | 当前状态 Current status | 12 台机器卡片，按 Free / In use / Unavailable 着色；在用显示预计剩余时间，洗衣机显示已运行时长；**洗衣机额外标注 "With detergent / No detergent"**（来自 `service_type.value`，烘干机不显示） |
 | 时间跨度 Time range | 1 hour / 6 hours / 24 hours / 7 days / 30 days / All |
 | 机器筛选 | 每台机器一个可勾选 chip（带颜色）；快捷选择 Presets：All / Washers only / Dryers only / Free now / In use now |
@@ -37,7 +37,7 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite --port 8787
 
 ### 移动端适配
 
-- `≤ 720px`：顶栏改为静态（不吸顶）、隐藏数据库路径、控件竖排、机器卡片两列起、图表自动切窄屏参数（更小边距、更少刻度标签、更矮画布）；
+- `≤ 720px`：顶栏改为静态（不吸顶）、控件竖排、机器卡片两列起、图表自动切窄屏参数（更小边距、更少刻度标签、更矮画布）；
 - `≤ 420px`：机器卡片固定两列，洗粉徽标换行显示；
 - 图表在 `resize`/横竖屏切换时按容器实际宽度重绘；窄屏下"状态占比"柱状图使用短机器名（去掉 `UG4` 前缀）；
 - 触摸屏：在趋势图上按住/拖动可查看对应时刻数值，抬手 2 秒后自动隐藏（鼠标悬停行为不变）。
