@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 
 import { DashboardDatabase } from './queries.js';
 import { DaysDatabase, normalizeDay } from './days.js';
-import { parseRange } from './time.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const CACHE_MS = 4000;
@@ -125,7 +124,6 @@ export function createDashboardServer({ config, logger = console }) {
 
   const handleApi = (url, res) => {
     const route = url.pathname;
-    const sinceParam = url.searchParams.get('since');
     const machineIds = parseMachineIds(url.searchParams);
 
     if (route === '/api/meta') {
@@ -153,13 +151,6 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/machines') {
       sendJson(res, 200, { machines: database.machinesWithLatest() });
-      return true;
-    }
-
-    if (route === '/api/series') {
-      const range = parseRange(sinceParam);
-      const key = `${route}?${range.label}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => database.series({ since: range.since, windowSeconds: range.windowSeconds, machineIds })));
       return true;
     }
 

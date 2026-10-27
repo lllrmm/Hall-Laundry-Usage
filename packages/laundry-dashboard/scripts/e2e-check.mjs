@@ -102,10 +102,6 @@ check(
 const allIds = state.machines.map((machine) => machine.id).join(',');
 const { firstDay, lastDay } = state.meta.span;
 
-const series = await get('/api/series?since=1h');
-check('/api/series 桶', Array.isArray(series.buckets) && series.buckets.length > 0, `${series.buckets?.length} 桶 / ${series.bucketSeconds}s`);
-check('/api/series 机器', series.machines?.length === 12, `${series.machines?.length} 台`);
-
 const days = await get(`/api/days?machines=${allIds}&from=${firstDay}&to=${lastDay}`);
 check(
   '/api/days 日序列',
@@ -177,6 +173,7 @@ check(
 
 const removed = [];
 for (const route of [
+  '/api/series',
   '/api/latest',
   '/api/bars',
   '/api/hourly',

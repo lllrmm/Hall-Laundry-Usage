@@ -129,17 +129,14 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 | `GET /api/state` | meta（含 `span`）+ `machines`（机器维度 + **已合并的最新状态**；页面首屏用这一个请求） |
 | `GET /api/machines` | 机器维度 + 最新状态合并后的 `machines` 数组（含 `serviceValue` / `serviceLabel` / `powder` / `available` / `state` / 剩余时间等） |
 | `GET /api/days?machines=id1,id2&from=YYYY-MM-DD&to=YYYY-MM-DD` | **历史图表唯一数据源**：每台机器每天的 1440 字节分钟状态序列（`seq` 为 base64）。`machines` **必填**；日期用 `from`+`to`（含首尾）或 `days=YYYY-MM-DD,YYYY-MM-DD` 日期列表（互斥，列表最多 366 天）；优先读序列库、缺失时回退原始快照；返回 `source`（`series`/`raw`/`mixed`）与 `encoding` 编码表；参数缺失/非法返回 **400** |
-| `GET /api/series?since=24h&machines=id1,id2` | 原始快照的分桶时间序列（`buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`），供脚本/外部工具使用 |
 
-- `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；
-- `/api/series` 的分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；
 - `/api/days` 的参数校验错误统一返回 `400 { error: "..." }`（例如缺 `machines`、缺日期、`from` 晚于 `to`、`days` 含非法日期、`from/to` 与 `days` 同时存在）；
 - `meta` 不返回服务器数据库绝对路径（`database`），`lastPoll` 不返回轮询耗时（`durationMs`）；
 - `powder` 字段：`washing_machine_with_powder` → `"with"`，`washing_machine_without_powder` → `"without"`，烘干机为 `null`；
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
 - 响应体 ≥ 1 KB 且请求头 `Accept-Encoding` 含 gzip 时自动 gzip（JSON 与 `.html/.js/.css/.svg` 静态文件），响应带 `Vary: accept-encoding`；静态文件的压缩结果按 `path + mtime + size` 缓存，不会每次重复压缩；
 - 数据库以**只读**方式打开（失败时退回 `PRAGMA query_only`），绝不会写入采集数据。
-- 旧的 `/api/latest`（已并入 `machines`）、`/api/bars`、`/api/heatmap`、`/api/profile`、`/api/profile/days`、`/api/hourly` 已删除——聚合改由浏览器端完成，交互不再触发后端计算。
+- 已删除：`/api/series`（旧趋势图的服务端分桶聚合）、`/api/latest`（已并入 `machines`）、`/api/bars`、`/api/heatmap`、`/api/profile`、`/api/profile/days`、`/api/hourly`——图表聚合改由浏览器端完成，交互不再触发后端计算。
 
 ## 测试
 

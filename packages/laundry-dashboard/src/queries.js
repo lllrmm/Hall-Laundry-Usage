@@ -1,15 +1,13 @@
 /**
  * 只读数据访问层：直接读监控服务写的 SQLite（不跟轮询服务通信，两个服务解耦）。
  *
- * 连接以只读方式打开（失败时退回读写连接 + PRAGMA query_only），
- * 所有查询都带时间范围，按窗口自动分桶，保证返回给前端的点数可控。
+ * 连接以只读方式打开（失败时退回读写连接 + PRAGMA query_only）。
+ * 看板只需要：元信息、机器维度 + 最新状态；历史图表聚合全部在浏览器端完成。
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-
-import { buildBuckets, chooseBucketSeconds, MAX_WINDOW_SECONDS } from './time.js';
 
 /** 机器状态 0/1 → boolean */
 const bool = (value) => value === 1 || value === true;
@@ -23,25 +21,6 @@ const POWDER_BY_SERVICE_VALUE = {
 /** @returns {'with'|'without'|null} */
 function powderOf(serviceValue) {
   return POWDER_BY_SERVICE_VALUE[serviceValue] ?? null;
-}
-
-function emptySeries(since, until, bucketSeconds) {
-  return {
-    available: false,
-    since,
-    until,
-    bucketSeconds,
-    buckets: [],
-    machines: [],
-    series: {},
-    totals: { available: [], inUse: [], machines: [] },
-    totalsByKind: {},
-  };
-}
-
-/** 生成 SQL 的 in (...) 占位符 */
-function placeholders(count) {
-  return Array.from({ length: count }, () => '?').join(',');
 }
 
 export class DashboardDatabase {
@@ -226,173 +205,5 @@ export class DashboardDatabase {
     } catch {
       return [];
     }
-  }
-
-  /**
-   * 时间序列（按桶聚合）。
-   * @param {object} options
-   * @param {string|null} options.since ISO 时间；null 表示从最早数据开始（上限 MAX_WINDOW_SECONDS）
-   * @param {number} options.windowSeconds 窗口长度（用于选分桶粒度）
-   * @param {string[]} [options.machineIds] 只统计这些机器；空表示全部
-   */
-  series({ since = null, windowSeconds = 24 * 3600, machineIds = [] } = {}) {
-    const now = Date.now();
-    const db = this._ensure();
-
-    if (!db || !this._hasSchema(db)) {
-      return emptySeries(since, new Date(now).toISOString(), chooseBucketSeconds(windowSeconds));
-    }
-
-    let effectiveSince = since;
-    if (!effectiveSince) {
-      try {
-        const first = db.prepare('SELECT MIN(observed_at) AS first FROM machine_snapshots').get();
-        effectiveSince = first?.first ?? new Date(now).toISOString();
-      } catch {
-        effectiveSince = new Date(now).toISOString();
-      }
-      // "全部"窗口也限制在 MAX_WINDOW_SECONDS 内
-      const floor = new Date(now - MAX_WINDOW_SECONDS * 1000).toISOString();
-      if (effectiveSince < floor) effectiveSince = floor;
-    }
-
-    const actualWindowSeconds = Math.max(60, Math.round((now - Date.parse(effectiveSince)) / 1000));
-    const bucketSeconds = chooseBucketSeconds(actualWindowSeconds);
-    // SQL 里的 bucket = epoch秒 / bucketSeconds，这里换回 ISO 时间
-    const bucketToIso = (bucket) => new Date(Number(bucket) * bucketSeconds * 1000).toISOString();
-
-    const filterIds = machineIds.filter((id) => typeof id === 'string' && id.length > 0);
-    const idFilter = filterIds.length > 0 ? `AND machine_id IN (${placeholders(filterIds.length)})` : '';
-    const idFilterAliased = filterIds.length > 0 ? `AND s.machine_id IN (${placeholders(filterIds.length)})` : '';
-    const idParams = filterIds;
-
-    try {
-      const rows = db
-        .prepare(
-          `SELECT machine_id AS id,
-                  CAST(CAST(strftime('%s', observed_at) AS INTEGER) / ? AS INTEGER) AS bucket,
-                  AVG(available) AS available_ratio,
-                  AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS in_use_ratio,
-                  COUNT(*) AS samples
-           FROM machine_snapshots
-           WHERE observed_at >= ? ${idFilter}
-           GROUP BY id, bucket
-           ORDER BY bucket`,
-        )
-        .all(bucketSeconds, effectiveSince, ...idParams);
-
-      const totalsRows = db
-        .prepare(
-          `SELECT CAST(CAST(strftime('%s', observed_at) AS INTEGER) / ? AS INTEGER) AS bucket,
-                  SUM(available) AS available_count,
-                  SUM(CASE WHEN state = 'in_use' THEN 1 ELSE 0 END) AS in_use_count,
-                  COUNT(*) AS samples,
-                  COUNT(DISTINCT machine_id) AS machine_count
-           FROM machine_snapshots
-           WHERE observed_at >= ? ${idFilter}
-           GROUP BY bucket
-           ORDER BY bucket`,
-        )
-        .all(bucketSeconds, effectiveSince, ...idParams);
-
-      // 按机型聚合（washer / dryer 各自一条线）
-      const byKindRows = db
-        .prepare(
-          `SELECT CAST(CAST(strftime('%s', s.observed_at) AS INTEGER) / ? AS INTEGER) AS bucket,
-                  COALESCE(m.kind, 'unknown') AS kind,
-                  SUM(s.available) AS available_count,
-                  SUM(CASE WHEN s.state = 'in_use' THEN 1 ELSE 0 END) AS in_use_count,
-                  COUNT(*) AS samples,
-                  COUNT(DISTINCT s.machine_id) AS machine_count
-           FROM machine_snapshots s
-           LEFT JOIN machines m ON m.id = s.machine_id
-           WHERE s.observed_at >= ? ${idFilterAliased}
-           GROUP BY bucket, kind
-           ORDER BY bucket`,
-        )
-        .all(bucketSeconds, effectiveSince, ...idParams);
-
-      const bucketIsoList = buildBuckets(effectiveSince, now, bucketSeconds);
-      const indexByBucket = new Map(bucketIsoList.map((iso, index) => [iso, index]));
-
-      const machineList = this._selectedMachines(filterIds);
-      /** @type {Record<string, {availableRatio: (number|null)[], inUseRatio: (number|null)[], samples: (number|null)[]}>} */
-      const series = {};
-      for (const machine of machineList) {
-        series[machine.id] = {
-          availableRatio: new Array(bucketIsoList.length).fill(null),
-          inUseRatio: new Array(bucketIsoList.length).fill(null),
-          samples: new Array(bucketIsoList.length).fill(null),
-        };
-      }
-
-      for (const row of rows) {
-        const index = indexByBucket.get(bucketToIso(row.bucket));
-        if (index === undefined) continue;
-        const target = series[row.id];
-        if (!target) continue;
-        target.availableRatio[index] = Number(row.available_ratio);
-        target.inUseRatio[index] = Number(row.in_use_ratio);
-        target.samples[index] = Number(row.samples);
-      }
-
-      const totals = {
-        available: new Array(bucketIsoList.length).fill(null),
-        inUse: new Array(bucketIsoList.length).fill(null),
-        machines: new Array(bucketIsoList.length).fill(null),
-      };
-
-      for (const row of totalsRows) {
-        const index = indexByBucket.get(bucketToIso(row.bucket));
-        if (index === undefined) continue;
-        const machineCount = Number(row.machine_count);
-        const samples = Number(row.samples) || 1;
-        totals.available[index] = Number(((Number(row.available_count) / samples) * machineCount).toFixed(2));
-        totals.inUse[index] = Number(((Number(row.in_use_count) / samples) * machineCount).toFixed(2));
-        totals.machines[index] = machineCount;
-      }
-
-      /** 按机型的平均台数（available / inUse） */
-      const totalsByKind = {};
-      for (const row of byKindRows) {
-        const index = indexByBucket.get(bucketToIso(row.bucket));
-        if (index === undefined) continue;
-
-        const kind = String(row.kind);
-        totalsByKind[kind] ??= {
-          available: new Array(bucketIsoList.length).fill(null),
-          inUse: new Array(bucketIsoList.length).fill(null),
-          machines: new Array(bucketIsoList.length).fill(null),
-        };
-
-        const machineCount = Number(row.machine_count);
-        const samples = Number(row.samples) || 1;
-        totalsByKind[kind].available[index] = Number(((Number(row.available_count) / samples) * machineCount).toFixed(2));
-        totalsByKind[kind].inUse[index] = Number(((Number(row.in_use_count) / samples) * machineCount).toFixed(2));
-        totalsByKind[kind].machines[index] = machineCount;
-      }
-
-      return {
-        available: true,
-        since: effectiveSince,
-        until: new Date(now).toISOString(),
-        bucketSeconds,
-        buckets: bucketIsoList,
-        machines: machineList,
-        series,
-        totals,
-        totalsByKind,
-      };
-    } catch {
-      return emptySeries(effectiveSince, new Date(now).toISOString(), bucketSeconds);
-    }
-  }
-
-  /** 根据 id 列表返回机器信息（保持 kind/name 顺序） */
-  _selectedMachines(machineIds) {
-    const all = this.machines();
-    if (machineIds.length === 0) return all;
-    const wanted = new Set(machineIds);
-    return all.filter((machine) => wanted.has(machine.id));
   }
 }

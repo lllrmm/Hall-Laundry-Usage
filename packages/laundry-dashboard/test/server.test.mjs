@@ -152,19 +152,6 @@ test('GET /api/meta 与 /api/state（latest 已合并进 machines）', async () 
   });
 });
 
-test('GET /api/series 按机器过滤并返回分桶', async () => {
-  await withServer(async (base) => {
-    const series = await (await fetch(`${base}/api/series?since=1h&machines=m1`)).json();
-    assert.equal(series.available, true);
-    assert.ok(Array.isArray(series.buckets));
-    assert.equal(series.machines.length, 1);
-    assert.ok(series.bucketSeconds >= 30);
-
-    const none = await (await fetch(`${base}/api/series?since=1h&machines=nope`)).json();
-    assert.equal(none.machines.length, 0);
-  });
-});
-
 test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', async () => {
   await withServer(async (base) => {
     const payload = await (await fetch(`${base}/api/days?${DAYS_QUERY}`)).json();
@@ -235,19 +222,15 @@ test('gzip：大响应压缩、小响应不压缩、静态 JS 也压缩', async 
   });
 });
 
-test('非法时间窗口返回 500 错误 JSON', async () => {
-  await withServer(async (base) => {
-    const response = await fetch(`${base}/api/series?since=bogus`);
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.match(body.error, /Cannot parse/);
-  });
-});
-
 test('未知 API 路由 404，目录穿越被拒绝', async () => {
   await withServer(async (base) => {
     const notFound = await fetch(`${base}/api/nope`);
     assert.equal(notFound.status, 404);
+
+    // 已删除的历史聚合接口
+    for (const route of ['/api/series', '/api/bars', '/api/heatmap', '/api/profile', '/api/hourly']) {
+      assert.equal((await fetch(`${base}${route}`)).status, 404, `${route} 应已删除`);
+    }
 
     const traversal = await fetch(`${base}/%2e%2e/package.json`);
     assert.ok([403, 404].includes(traversal.status));

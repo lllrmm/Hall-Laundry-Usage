@@ -8,9 +8,8 @@ import { normalizeResponse } from '../../laundry-machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
 
 import { DashboardDatabase } from '../src/queries.js';
-import { chooseBucketSeconds, parseRange } from '../src/time.js';
 
-// 用"相对现在"的时间，保证窗口计算与真实运行一致（避免未来时间导致空桶）
+// 用"相对现在"的时间，保证与真实运行的时间窗口一致（避免未来时间导致空桶）
 const T0 = Date.now() - 30 * 60 * 1000;
 
 function statusAt(now, { washerState = 'available', dryerState = 'available', dryerJob } = {}) {
@@ -84,24 +83,6 @@ function withDashboard(fn) {
   }
 }
 
-test('parseRange / chooseBucketSeconds', () => {
-  const now = T0;
-  const day = parseRange('24h', now);
-  assert.equal(day.label, '24h');
-  assert.equal(day.windowSeconds, 86400);
-  assert.equal(day.since, new Date(now - 86400_000).toISOString());
-
-  const all = parseRange('all', now);
-  assert.equal(all.since, null);
-
-  assert.throws(() => parseRange('nonsense', now), /Cannot parse/);
-
-  assert.equal(chooseBucketSeconds(3600), 30);
-  assert.equal(chooseBucketSeconds(86400), 600);
-  assert.equal(chooseBucketSeconds(7 * 86400), 3600);
-  assert.ok(chooseBucketSeconds(30 * 86400) >= 3600);
-});
-
 test('meta：最后更新时间、轮询次数、机器数', () => {
   withDashboard((dashboard) => {
     const meta = dashboard.meta();
@@ -138,48 +119,6 @@ test('machinesWithLatest：机器维度 + 最新一轮状态合并', () => {
     assert.equal(washer.powder, 'without');
     assert.equal('serviceValue' in washer, true);
     assert.equal('status' in washer, true);
-  });
-});
-
-test('series：分桶、按机器过滤、totals 对齐', () => {
-  withDashboard((dashboard) => {
-    const since = new Date(T0 - 120_000).toISOString();
-    const series = dashboard.series({ since, windowSeconds: 3600, machineIds: [] });
-
-    assert.equal(series.available, true);
-    assert.ok(series.buckets.length >= 5, `应当有多个桶，实际 ${series.buckets.length}`);
-    assert.equal(series.machines.length, 2);
-    assert.equal(series.series['m-washer'].availableRatio.length, series.buckets.length);
-    assert.equal(series.totals.available.length, series.buckets.length);
-    assert.equal(series.totals.inUse.length, series.buckets.length);
-
-    // 洗衣机全程空闲，取到的值应当都是 100%
-    const washerValues = series.series['m-washer'].availableRatio.filter((value) => value !== null);
-    assert.ok(washerValues.length > 0);
-    assert.ok(washerValues.every((value) => value === 1));
-
-    // 烘干机中间一轮在用：样本里应当同时出现可用和不可用
-    const dryerValues = series.series['m-dryer'].availableRatio.filter((value) => value !== null);
-    assert.ok(dryerValues.includes(1));
-    assert.ok(dryerValues.includes(0));
-
-    const filtered = dashboard.series({ since, windowSeconds: 3600, machineIds: ['m-washer'] });
-    assert.equal(filtered.machines.length, 1);
-    assert.equal(filtered.machines[0].id, 'm-washer');
-    assert.equal(filtered.series['m-dryer'], undefined);
-
-    // 按机型聚合：washer / dryer 各自的在用台数序列
-    assert.ok(series.totalsByKind, 'series 应返回 totalsByKind');
-    assert.equal(series.totalsByKind.washer.inUse.length, series.buckets.length);
-    assert.equal(series.totalsByKind.dryer.inUse.length, series.buckets.length);
-    assert.ok(
-      series.totalsByKind.washer.inUse.every((value) => value === null || value === 0),
-      '洗衣机全程空闲，在用台数应恒为 0',
-    );
-    const dryerInUse = series.totalsByKind.dryer.inUse.filter((value) => value !== null);
-    assert.ok(dryerInUse.some((value) => value > 0), '烘干机应有在用时段');
-    const dryerMachineCounts = series.totalsByKind.dryer.machines.filter((value) => value !== null);
-    assert.ok(dryerMachineCounts.length > 0 && dryerMachineCounts.every((count) => count === 1), 'dryer 机型 1 台');
   });
 });
 
@@ -252,10 +191,6 @@ test('数据库不存在时优雅降级', () => {
     assert.equal(meta.lastObservedAt, null);
     assert.deepEqual(dashboard.machines(), []);
     assert.deepEqual(dashboard.machinesWithLatest(), []);
-
-    const series = dashboard.series({ since: null, windowSeconds: 3600 });
-    assert.equal(series.available, false);
-    assert.deepEqual(series.buckets, []);
   } finally {
     dashboard.close();
   }
