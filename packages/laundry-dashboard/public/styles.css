@@ -551,13 +551,20 @@ main {
   font-size: 12px;
 }
 
-/* ---------- 热力图（星期 × 小时） ---------- */
+/* ---------- 热力图（星期 × 分钟，横向滚动） ---------- */
+
+.heatmap-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
 
 .heatmap {
   display: grid;
-  grid-template-columns: 42px repeat(24, minmax(0, 1fr));
-  gap: 3px;
+  grid-template-columns: 46px repeat(1440, 4px);
+  gap: 2px 1px;
   align-items: center;
+  width: max-content;
 }
 
 .heatmap-corner {
@@ -567,8 +574,11 @@ main {
 .heatmap-hour {
   font-size: 9px;
   color: var(--muted);
-  text-align: center;
+  text-align: left;
   line-height: 1;
+  padding-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .heatmap-row-label {
@@ -577,8 +587,9 @@ main {
 }
 
 .heatmap-cell {
-  aspect-ratio: 1 / 1;
-  border-radius: 3px;
+  width: 4px;
+  height: 20px;
+  border-radius: 1px;
   background: var(--heat-empty);
 }
 
@@ -747,8 +758,13 @@ main {
   }
 
   .heatmap {
-    grid-template-columns: 30px repeat(24, minmax(0, 1fr));
-    gap: 2px;
+    grid-template-columns: 34px repeat(1440, 3px);
+    gap: 2px 1px;
+  }
+
+  .heatmap-cell {
+    width: 3px;
+    height: 16px;
   }
 
   .heatmap-hour {

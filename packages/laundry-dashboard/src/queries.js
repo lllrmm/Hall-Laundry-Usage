@@ -383,8 +383,8 @@ export class DashboardDatabase {
     }
   }
 
-  /** 每台机器的状态占比（柱状图用）；可按星期几 / 小时筛选（对应热力图选中行/列） */
-  bars({ since = null, machineIds = [], weekday = null, hour = null } = {}) {
+  /** 每台机器的状态占比（柱状图用）；可按日期范围 / 机器 / 星期几 / 分钟筛选 */
+  bars({ since = null, until = null, machineIds = [], weekday = null, hour = null, minute = null } = {}) {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return { available: false, since, until: null, rows: [] };
 
@@ -393,8 +393,18 @@ export class DashboardDatabase {
     const params = [since ?? '0000-01-01T00:00:00.000Z', ...filterIds];
 
     let scopeFilter = '';
+    if (until) {
+      scopeFilter += ' AND s.observed_at < ?';
+      params.push(until);
+    }
+    const hasMinute = Number.isInteger(minute) && minute >= 0 && minute <= 1439;
     const hasWeekday = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6;
     const hasHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
+    if (hasMinute) {
+      scopeFilter += ` AND (CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * 60
+                         + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER)) = ?`;
+      params.push(minute);
+    }
     if (hasWeekday) {
       // 热力图 weekday 0=周一 … 6=周日
       scopeFilter += ` AND (CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) + 6) % 7 = ?`;
@@ -449,7 +459,11 @@ export class DashboardDatabase {
         available: true,
         since: effectiveSince,
         until,
-        scope: { weekday: hasWeekday ? weekday : null, hour: hasHour ? hour : null },
+        scope: {
+          weekday: hasWeekday ? weekday : null,
+          hour: hasHour ? hour : null,
+          minute: hasMinute ? minute : null,
+        },
         rows,
       };
     } catch {
@@ -497,7 +511,7 @@ export class DashboardDatabase {
     }
   }
 
-  /** 星期 × 小时热力图：每格的平均使用率（weekday 0 = 周一 … 6 = 周日） */
+  /** 星期 × 分钟热力图：每格的平均使用率（weekday 0 = 周一 … 6 = 周日，minute 0–1439） */
   heatmap({ since = null, until = null, machineIds = [] } = {}) {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return { available: false, since, until: null, cells: [] };
@@ -515,19 +529,20 @@ export class DashboardDatabase {
       const rows = db
         .prepare(
           `SELECT (CAST(strftime('%w', observed_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
-                  CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) AS hour,
+                  CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) * 60
+                    + CAST(strftime('%M', observed_at, 'localtime') AS INTEGER) AS minute,
                   COUNT(*) AS samples,
                   AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
            FROM machine_snapshots
            WHERE observed_at >= ? ${idFilter} ${untilFilter}
-           GROUP BY weekday, hour
-           ORDER BY weekday, hour`,
+           GROUP BY weekday, minute
+           ORDER BY weekday, minute`,
         )
         .all(...params);
 
       const cells = rows.map((row) => ({
         weekday: Number(row.weekday),
-        hour: Number(row.hour),
+        minute: Number(row.minute),
         samples: Number(row.samples),
         usageRatio: Number(row.usage_ratio),
       }));

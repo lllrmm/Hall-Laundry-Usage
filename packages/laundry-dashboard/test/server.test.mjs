@@ -141,7 +141,7 @@ test('GET /api/bars 与 /api/hourly', async () => {
     assert.equal(heatmap.cells.length, 1);
     const cell = heatmap.cells[0];
     assert.ok(cell.weekday >= 0 && cell.weekday <= 6);
-    assert.ok(cell.hour >= 0 && cell.hour <= 23);
+    assert.ok(cell.minute >= 0 && cell.minute <= 1439);
     assert.equal(cell.samples, 1);
     assert.equal(cell.usageRatio, 0);
     assert.ok(heatmap.since && heatmap.until);
@@ -150,6 +150,10 @@ test('GET /api/bars 与 /api/hourly', async () => {
     assert.equal(profile.slots.length, 288);
     assert.equal(profile.bucketSeconds, 300);
     assert.ok(profile.slots.some((slot) => slot.samples > 0));
+
+    const minuteProfile = await (await fetch(`${base}/api/profile?since=all&bucketSeconds=60`)).json();
+    assert.equal(minuteProfile.slots.length, 1440, '1 分钟精度每天 1440 槽');
+    assert.equal(minuteProfile.bucketSeconds, 60);
 
     const weekdayProfile = await (await fetch(`${base}/api/profile?since=all&weekday=2`)).json();
     assert.equal(weekdayProfile.slots.length, 288);

@@ -80,15 +80,15 @@ check(
   '/api/heatmap',
   heatmap.cells?.length > 0 &&
     heatmap.cells.every(
-      (cell) => cell.weekday >= 0 && cell.weekday <= 6 && cell.hour >= 0 && cell.hour <= 23 && cell.samples > 0,
+      (cell) => cell.weekday >= 0 && cell.weekday <= 6 && cell.minute >= 0 && cell.minute <= 1439 && cell.samples > 0,
     ),
-  `${heatmap.cells?.length} 个格子`,
+  `${heatmap.cells?.length} 个格子（1 分钟）`,
 );
 
-const profile = await get('/api/profile?since=all&weekday=1');
+const profile = await get('/api/profile?since=all&weekday=1&bucketSeconds=60');
 check(
-  '/api/profile 5 分钟剖面',
-  profile.slots?.length === 288 && profile.bucketSeconds === 300,
+  '/api/profile 1 分钟剖面',
+  profile.slots?.length === 1440 && profile.bucketSeconds === 60,
   `${profile.slots?.filter((slot) => slot.samples > 0).length ?? 0} 个有数据槽`,
 );
 

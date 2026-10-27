@@ -247,11 +247,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     );
 
     // 热力图：纵轴周几（7 行）、横轴小时（24 列），有数据的格子带 usage/samples
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
       label: '热力图 7×24 格子渲染',
     });
     const heatCells = [...document.querySelectorAll('#heatmap .heatmap-cell')];
-    assert.equal(heatCells.length, 168);
+    assert.equal(heatCells.length, 10080);
     assert.deepEqual(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].map((node) => node.textContent),
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -263,13 +263,13 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.match(filledCells[0].title, /usage \d+% · \d+ samples/);
     assert.match(
       document.getElementById('heatmap-hint').textContent,
-      /samples · click a row or column/,
+      /samples · click a row label or a cell/,
       '热力图提示说明用全部历史样本并可点行/列',
     );
 
     // 历史剖面：默认 5 分钟线图；点行 → 该周几 5 分钟线图；点列 → 该小时 7 天柱状图
-    await waitFor(() => charts().profile && charts().profile.data.labels.length === 288, {
-      label: '默认剖面（5 分钟 × 288 槽）',
+    await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {
+      label: '默认剖面（1 分钟 × 1440 槽）',
     });
     assert.equal(charts().profile.config.type, 'line', '默认剖面用线图');
     assert.deepEqual(
@@ -277,7 +277,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ['Washers in use', 'Dryers in use'],
       '时间剖面按机型分两条线',
     );
-    assert.match(document.getElementById('profile-hint').textContent, /All days · 5-min profile/);
+    assert.match(document.getElementById('profile-hint').textContent, /All days · 1-min profile/);
 
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
@@ -286,8 +286,8 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.labels.length === 288 &&
-        /Tue · 5-min profile/.test(document.getElementById('profile-hint').textContent),
+        charts().profile.data.labels.length === 1440 &&
+        /Tue · 1-min profile/.test(document.getElementById('profile-hint').textContent),
       { label: '点击周几行显示该天的 5 分钟剖面' },
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
@@ -301,9 +301,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ),
       '选中的周几行应高亮',
     );
-    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.row-active').length, 24, '该行所有格子高亮');
+    assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.row-active').length, 1440, '该行所有格子高亮');
 
-    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
+    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
     await waitFor(
       () =>
         charts().profile &&
@@ -318,11 +318,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     });
 
     // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
-    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
+    [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12:00').click();
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.labels.length === 288 &&
+        charts().profile.data.labels.length === 1440 &&
         /All days/.test(document.getElementById('profile-hint').textContent),
       { label: '再次点击取消选择' },
     );
@@ -348,13 +348,16 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.ok(selectAllButton, '应有 Select all 按钮');
     assert.equal(selectAllButton.textContent, 'Clear all', '全部选中时按钮显示 Clear all');
 
-    // 4) 交互：单台取消 → Select all 恢复 → Clear all 清空 → 占比图仍显示全部机器
+    // 4) 交互：单台取消 → Select all 恢复 → Clear all 清空
     document.querySelector('#machine-chips .chip').click();
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 3, {
       label: '取消勾选后只选中 3 台',
     });
     assert.match(document.getElementById('selected-count').textContent, /3\/4/);
     assert.equal(document.getElementById('select-all').textContent, 'Select all');
+    await waitFor(() => charts().bars && charts().bars.data.labels.length === 3, {
+      label: 'State breakdown 跟随机器选择（3 台）',
+    });
 
     document.getElementById('select-all').click(); // Select all
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
@@ -367,25 +370,21 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     });
     assert.match(document.getElementById('selected-count').textContent, /0\/4/);
 
-    // 清空选择后：状态占比与热力图/剖面（全部历史）不受影响
-    await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
-      label: '状态占比始终显示全部 4 台机器',
-    });
-    assert.ok(
-      document.querySelectorAll('#heatmap .heatmap-cell[data-samples]').length >= 1,
-      '热力图用全部历史样本，不随机器选择清空',
-    );
+    // 清空选择后：所有面板都显示"请选择机器"
+    await waitFor(() => document.querySelector('#chart-bars .empty'), { label: '占比图空状态' });
+    await waitFor(() => document.querySelector('#heatmap .empty'), { label: '热力图空状态' });
+    await waitFor(() => document.querySelector('#chart-profile .empty'), { label: '剖面空状态' });
+    assert.equal(charts().bars, null);
 
     document.getElementById('select-all').click(); // 恢复全选
     await waitFor(() => charts().bars && charts().profile, {
-      label: '恢复全选后图表仍在',
+      label: '恢复全选后图表重建',
     });
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
-      label: '恢复全选后热力图仍在',
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
+      label: '恢复全选后热力图恢复',
     });
 
-    // 5) Date range：只影响热力图 / 剖面，不影响 State breakdown
-    const barsRangeBefore = document.getElementById('bars-range').textContent;
+    // 5) Date range：热力图 / 剖面 / State breakdown 都跟随
     const fromInput = document.getElementById('date-from');
     const toInput = document.getElementById('date-to');
     fromInput.value = '2020-01-01';
@@ -395,16 +394,18 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
 
     await waitFor(() => document.querySelector('#heatmap .empty'), { label: '日期范围外热力图空状态' });
     await waitFor(() => document.querySelector('#chart-profile .empty'), { label: '日期范围外剖面空状态' });
-    assert.equal(document.getElementById('bars-range').textContent, barsRangeBefore, 'State breakdown 不跟随日期范围');
-    assert.equal(charts().bars.data.labels.length, 4, 'State breakdown 仍显示全部机器');
+    await waitFor(() => document.querySelector('#chart-bars .empty'), { label: '日期范围外占比图空状态' });
 
     // All dates → 恢复全部历史
     document.getElementById('date-all').click();
-    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 168, {
+    await waitFor(() => document.querySelectorAll('#heatmap .heatmap-cell').length === 10080, {
       label: '清除日期后热力图恢复',
     });
-    await waitFor(() => charts().profile && charts().profile.data.labels.length === 288, {
+    await waitFor(() => charts().profile && charts().profile.data.labels.length === 1440, {
       label: '清除日期后剖面恢复',
+    });
+    await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
+      label: '清除日期后占比图恢复',
     });
 
     // 6) 主题：Auto → Light → Dark，图表用深色色板重建

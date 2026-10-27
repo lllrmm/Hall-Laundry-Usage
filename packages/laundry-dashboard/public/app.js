@@ -326,6 +326,27 @@
     if (all) all.disabled = !state.dateFrom && !state.dateTo;
   }
 
+  function machineIdsParam() {
+    return [...state.selected].join(',');
+  }
+
+  /** 图表通用参数：日期范围 + 选中的机器（所有面板共用） */
+  function chartParams(extra = {}) {
+    const dateParams = dateRangeParams();
+    const params = new URLSearchParams({ since: dateParams.since ?? 'all' });
+    if (dateParams.until) params.set('until', dateParams.until);
+    const machines = machineIdsParam();
+    if (machines) params.set('machines', machines);
+    for (const [key, value] of Object.entries(extra)) params.set(key, String(value));
+    return params;
+  }
+
+  function dateRangeLabel() {
+    return state.dateFrom || state.dateTo
+      ? `${state.dateFrom ?? '…'} – ${state.dateTo ?? '…'}`
+      : 'all history';
+  }
+
   /** 读取日期输入并重新加载图表（热力图 / 剖面跟随日期） */
   function applyDateRange() {
     state.dateFrom = $('date-from')?.value || null;
@@ -629,9 +650,9 @@
       return;
     }
 
-    const colors = chartColors();
-    const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.hour}`, cell]));
+    const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
     const totalSamples = cells.reduce((sum, cell) => sum + cell.samples, 0);
+    const colors = chartColors();
 
     container.innerHTML = '';
 
@@ -640,46 +661,47 @@
     container.appendChild(corner);
 
     for (let hour = 0; hour < 24; hour += 1) {
-      const tick = document.createElement('div');
-      tick.className = 'heatmap-hour';
-      tick.textContent = hour % 3 === 0 ? pad2(hour) : '';
-      tick.title = `Inspect ${pad2(hour)}:00 across weekdays`;
-      if (focus && focus.kind === 'hour' && focus.value === hour) tick.classList.add('active');
-      tick.addEventListener('click', () => setHeatmapFocus('hour', hour));
-      container.appendChild(tick);
+      const label = document.createElement('div');
+      label.className = 'heatmap-hour';
+      label.style.gridColumn = 'span 60';
+      label.textContent = `${pad2(hour)}:00`;
+      label.title = `Inspect ${pad2(hour)}:00 across weekdays`;
+      label.addEventListener('click', () => setHeatmapFocus('minute', hour * 60));
+      container.appendChild(label);
     }
 
     for (let weekday = 0; weekday < 7; weekday += 1) {
       const label = document.createElement('div');
       label.className = 'heatmap-row-label';
       label.textContent = WEEKDAY_LABELS[weekday];
-      label.title = `Inspect ${WEEKDAY_LABELS[weekday]} by hour`;
+      label.title = `Inspect ${WEEKDAY_LABELS[weekday]} by minute`;
       if (focus && focus.kind === 'weekday' && focus.value === weekday) label.classList.add('active');
       label.addEventListener('click', () => setHeatmapFocus('weekday', weekday));
       container.appendChild(label);
 
-      for (let hour = 0; hour < 24; hour += 1) {
-        const cell = byKey.get(`${weekday}-${hour}`);
+      for (let minute = 0; minute < 1440; minute += 1) {
+        const cell = byKey.get(`${weekday}-${minute}`);
         const node = document.createElement('div');
         node.className = 'heatmap-cell';
         node.dataset.weekday = String(weekday);
-        node.dataset.hour = String(hour);
-
+        node.dataset.minute = String(minute);
         if (focus && focus.kind === 'weekday' && focus.value === weekday) node.classList.add('row-active');
-        if (focus && focus.kind === 'hour' && focus.value === hour) node.classList.add('col-active');
+        if (focus && focus.kind === 'minute' && focus.value === minute) node.classList.add('col-active');
 
+        const time = `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
         if (!cell) {
           node.classList.add('no-data');
-          node.title = `${WEEKDAY_LABELS[weekday]} ${pad2(hour)}:00 · no data`;
+          node.title = `${WEEKDAY_LABELS[weekday]} ${time} · no data`;
         } else {
           const percent = Math.round(cell.usageRatio * 100);
           node.dataset.usage = String(percent);
           node.dataset.samples = String(cell.samples);
           node.style.backgroundColor = hexToRgba(colors.busy, 0.08 + 0.9 * (percent / 100));
-          if (cell.samples < 60) node.classList.add('sparse');
-          node.title = `${WEEKDAY_LABELS[weekday]} ${pad2(hour)}:00 · usage ${percent}% · ${cell.samples} samples`;
+          if (cell.samples < 5) node.classList.add('sparse');
+          node.title = `${WEEKDAY_LABELS[weekday]} ${time} · usage ${percent}% · ${cell.samples} samples`;
         }
 
+        node.addEventListener('click', () => setHeatmapFocus('minute', minute));
         container.appendChild(node);
       }
     }
@@ -689,7 +711,7 @@
         heatmap.since && heatmap.until
           ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
           : 'all history';
-      hint.textContent = `${covered} · ${totalSamples} samples · click a row or column to inspect`;
+      hint.textContent = `${covered} · ${totalSamples} samples · click a row label or a cell to inspect`;
     }
   }
 
@@ -743,7 +765,7 @@
     return options;
   }
 
-  /** 历史剖面：行/默认 → 5 分钟线图；列 → 一周 7 天柱状图 */
+  /** 历史剖面：行/默认 → 1 分钟线图；列（分钟）→ 一周 7 天柱状图 */
   function renderProfile() {
     const container = $('chart-profile');
     const hint = $('profile-hint');
@@ -751,7 +773,7 @@
     const colors = chartColors();
     const compact = container.clientWidth > 0 && container.clientWidth < 520;
 
-    if (focus && focus.kind === 'hour') {
+    if (focus && focus.kind === 'minute') {
       const cells = state.heatmap?.cells ?? [];
       if (!cells.length) {
         if (hint) hint.textContent = '';
@@ -759,7 +781,7 @@
         return;
       }
 
-      const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.hour}`, cell]));
+      const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
       const labels = [];
       const values = [];
       const samples = [];
@@ -770,7 +792,8 @@
         samples.push(cell?.samples ?? 0);
       }
 
-      if (hint) hint.textContent = `${pad2(focus.value)}:00 · usage by weekday · all history`;
+      const time = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)}`;
+      if (hint) hint.textContent = `${time} · usage by weekday · ${dateRangeLabel()}`;
       mountChart('profile', container, {
         type: 'bar',
         data: {
@@ -812,58 +835,67 @@
         : 'all history';
     const title =
       focus && focus.kind === 'weekday'
-        ? `${WEEKDAY_LABELS[focus.value]} · 5-min profile · ${period}`
-        : `All days · 5-min profile · ${period}`;
+        ? `${WEEKDAY_LABELS[focus.value]} · 1-min profile · ${period}`
+        : `All days · 1-min profile · ${period}`;
     if (hint) hint.textContent = title;
+
+    // 只画有样本的机型（机器选择变化时图例自动收缩）
+    const datasets = [];
+    if (washerSamples.some((count) => count > 0)) {
+      datasets.push({
+        label: 'Washers in use',
+        data: washerValues,
+        borderColor: colors.washer,
+        backgroundColor: hexToRgba(colors.washer, 0.12),
+        borderWidth: 2,
+        tension: 0.15,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        spanGaps: false,
+        samples: washerSamples,
+      });
+    }
+    if (dryerSamples.some((count) => count > 0)) {
+      datasets.push({
+        label: 'Dryers in use',
+        data: dryerValues,
+        borderColor: colors.dryer,
+        backgroundColor: hexToRgba(colors.dryer, 0.12),
+        borderWidth: 2,
+        tension: 0.15,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        spanGaps: false,
+        samples: dryerSamples,
+      });
+    }
 
     mountChart('profile', container, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Washers in use',
-            data: washerValues,
-            borderColor: colors.washer,
-            backgroundColor: hexToRgba(colors.washer, 0.12),
-            borderWidth: 2,
-            tension: 0.15,
-            fill: false,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            spanGaps: false,
-            samples: washerSamples,
-          },
-          {
-            label: 'Dryers in use',
-            data: dryerValues,
-            borderColor: colors.dryer,
-            backgroundColor: hexToRgba(colors.dryer, 0.12),
-            borderWidth: 2,
-            tension: 0.15,
-            fill: false,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            spanGaps: false,
-            samples: dryerSamples,
-          },
-        ],
-      },
+      data: { labels, datasets },
       options: profileChartOptions(colors, compact, { showLegend: true }),
     });
   }
 
-  /** 行/默认剖面按需拉取 5 分钟数据（同一周几 60 秒内复用） */
+  /** 行/默认剖面按需拉取 5 分钟数据（同一日期/机器/周几 60 秒内复用） */
   async function refreshProfile() {
+    if (!state.selected.size) {
+      state.profile = null;
+      showChartEmpty('profile', $('chart-profile'), 'Select at least one machine');
+      return;
+    }
+
     const focus = state.heatmapFocus;
-    if (focus && focus.kind === 'hour') {
+    if (focus && focus.kind === 'minute') {
       renderProfile();
       return;
     }
 
-    const dateParams = dateRangeParams();
     const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
-    const key = `${focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all'}|${dateKey}`;
+    const machineKey = machineIdsParam();
+    const key = `${focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all'}|${dateKey}|${machineKey}`;
     const fresh = state.profileKey === key && state.profile && Date.now() - (state.profileAt ?? 0) < 60_000;
     if (fresh) {
       renderProfile();
@@ -871,10 +903,11 @@
     }
 
     try {
-      const params = new URLSearchParams({ since: dateParams.since ?? 'all', bucketSeconds: '300' });
-      if (dateParams.until) params.set('until', dateParams.until);
+      const params = chartParams();
+      params.set('bucketSeconds', '60');
       if (focus && focus.kind === 'weekday') params.set('weekday', String(focus.value));
       const data = await api(`/api/profile?${params}`);
+      if (!state.selected.size) return; // 请求期间清空了选择，丢弃结果
       state.profile = data;
       state.profileKey = key;
       state.profileAt = Date.now();
@@ -887,26 +920,30 @@
 
   /* ---------------- 图表数据装载 ---------------- */
 
-  /** State breakdown 的查询范围：跟随热力图选中的行/列；未选中时用当前时间跨度 */
+  /** State breakdown 的查询范围：日期范围 + 机器选择 + 热力图选中的行/列 */
   function barsQuery() {
     const focus = state.heatmapFocus;
+    const extra = {};
+    let label = null;
     if (focus && focus.kind === 'weekday') {
-      return {
-        params: new URLSearchParams({ since: 'all', weekday: String(focus.value) }),
-        label: `${WEEKDAY_LABELS[focus.value]} · all history`,
-      };
+      extra.weekday = focus.value;
+      label = `${WEEKDAY_LABELS[focus.value]} · ${dateRangeLabel()}`;
+    } else if (focus && focus.kind === 'minute') {
+      extra.minute = focus.value;
+      label = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)} · ${dateRangeLabel()}`;
     }
-    if (focus && focus.kind === 'hour') {
-      return {
-        params: new URLSearchParams({ since: 'all', hour: String(focus.value) }),
-        label: `${pad2(focus.value)}:00 · all history`,
-      };
-    }
-    return { params: new URLSearchParams({ since: 'all' }), label: null };
+    return { params: chartParams(extra), label };
   }
 
   /** 只刷新 State breakdown（热力图选择变化时立即生效） */
   async function loadBars() {
+    if (!state.selected.size) {
+      state.bars = null;
+      showChartEmpty('bars', $('chart-bars'), 'Select at least one machine');
+      $('bars-range').textContent = '';
+      return;
+    }
+
     const { params, label } = barsQuery();
     const requestId = (state.barsRequestId ?? 0) + 1;
     state.barsRequestId = requestId;
@@ -927,14 +964,26 @@
   }
 
   async function loadCharts() {
-    // State breakdown 只跟随热力图选中范围（行=星期几 / 列=小时）
+    // 没选机器时，所有面板都没有样本可统计
+    if (!state.selected.size) {
+      state.requestId = (state.requestId ?? 0) + 1; // 让进行中的旧请求失效
+      state.barsRequestId = (state.barsRequestId ?? 0) + 1;
+      state.bars = null;
+      state.heatmap = null;
+      state.profile = null;
+      showChartEmpty('bars', $('chart-bars'), 'Select at least one machine');
+      renderHeatmap(null, 'Select at least one machine');
+      showChartEmpty('profile', $('chart-profile'), 'Select at least one machine');
+      $('bars-range').textContent = '';
+      return;
+    }
+
+    // State breakdown = 日期范围 + 机器选择 + 热力图选中行/列
     const barsQueryInfo = barsQuery();
     const barsParams = barsQueryInfo.params;
 
-    // 热力图与剖面跟随 Date range（未选日期 = 全部历史）
-    const dateParams = dateRangeParams();
-    const heatmapParams = new URLSearchParams({ since: dateParams.since ?? 'all' });
-    if (dateParams.until) heatmapParams.set('until', dateParams.until);
+    // 热力图与剖面跟随 Date range 与 Machines selected（未选日期 = 全部历史）
+    const heatmapParams = chartParams();
 
     const requestId = (state.requestId ?? 0) + 1;
     state.requestId = requestId;

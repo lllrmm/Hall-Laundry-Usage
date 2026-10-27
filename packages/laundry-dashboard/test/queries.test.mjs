@@ -216,6 +216,10 @@ test('bars：时间窗内状态占比', () => {
     const byHour = dashboard.bars({ since: null, hour: activeHour });
     assert.equal(byHour.scope.hour, activeHour);
     assert.ok(sumSamples(byHour) > 0);
+
+    // until 早于数据 → 无样本
+    const before = dashboard.bars({ since: null, until: '2000-01-01T00:00:00.000Z' });
+    assert.equal(before.rows.length, 0, 'until 早于数据时占比图无样本');
   });
 });
 
@@ -231,7 +235,7 @@ test('hourly：总是返回 24 个小时桶', () => {
   });
 });
 
-test('heatmap：按星期 × 小时聚合使用率', () => {
+test('heatmap：按星期 × 分钟聚合使用率', () => {
   withDashboard((dashboard) => {
     const since = new Date(T0 - 60_000).toISOString();
     const { cells, since: effectiveSince } = dashboard.heatmap({ since, machineIds: [] });
@@ -240,13 +244,13 @@ test('heatmap：按星期 × 小时聚合使用率', () => {
 
     for (const cell of cells) {
       assert.ok(cell.weekday >= 0 && cell.weekday <= 6, 'weekday 0=周一 … 6=周日');
-      assert.ok(cell.hour >= 0 && cell.hour <= 23);
+      assert.ok(cell.minute >= 0 && cell.minute <= 1439, 'minute 0–1439');
       assert.ok(cell.samples > 0);
       assert.ok(cell.usageRatio >= 0 && cell.usageRatio <= 1);
     }
 
-    const keys = new Set(cells.map((cell) => `${cell.weekday}-${cell.hour}`));
-    assert.equal(keys.size, cells.length, '每个 星期/小时 组合只出现一次');
+    const keys = new Set(cells.map((cell) => `${cell.weekday}-${cell.minute}`));
+    assert.equal(keys.size, cells.length, '每个 星期/分钟 组合只出现一次');
 
     // until 早于数据 → 没有样本
     const none = dashboard.heatmap({ since: null, until: '2000-01-01T00:00:00.000Z' });

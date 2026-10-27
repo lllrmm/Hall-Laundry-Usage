@@ -80,10 +80,12 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>Usage heatmap · weekday × hour</h2>
+          <h2>Usage heatmap · weekday × minute</h2>
           <span class="hint" id="heatmap-hint"></span>
         </div>
-        <div id="heatmap" class="heatmap"></div>
+        <div class="heatmap-scroll">
+          <div id="heatmap" class="heatmap"></div>
+        </div>
       </section>
 
       <section class="card">
@@ -96,7 +98,7 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>State breakdown in window</h2>
+          <h2>State breakdown</h2>
           <span class="hint" id="bars-range"></span>
         </div>
         <div id="chart-bars" class="chart tall"></div>

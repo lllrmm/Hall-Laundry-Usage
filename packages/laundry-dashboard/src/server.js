@@ -127,13 +127,15 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/bars') {
       const range = parseRange(sinceParam);
+      const until = parseIsoParam(url.searchParams.get('until'));
       const weekday = parseOptionalInt(url.searchParams.get('weekday'), 0, 6);
       const hour = parseOptionalInt(url.searchParams.get('hour'), 0, 23);
-      const key = `${route}?${range.label}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}`;
+      const minute = parseOptionalInt(url.searchParams.get('minute'), 0, 1439);
+      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}:${minute ?? 'all'}`;
       sendJson(
         res,
         200,
-        cached(key, () => database.bars({ since: range.since, machineIds, weekday, hour })),
+        cached(key, () => database.bars({ since: range.since, until, machineIds, weekday, hour, minute })),
       );
       return true;
     }
