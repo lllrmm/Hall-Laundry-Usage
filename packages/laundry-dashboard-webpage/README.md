@@ -1,4 +1,4 @@
-# hkust-laundry-web
+# hkust-laundry-dashboard-webpage
 
 HKUST 洗衣房看板的**独立前端**：纯静态 HTML/CSS/JS + 本地 Chart.js，无框架、无构建步骤。
 
@@ -9,17 +9,17 @@ HKUST 洗衣房看板的**独立前端**：纯静态 HTML/CSS/JS + 本地 Chart.
 ## 启动
 
 ```bash
-cd packages/laundry-web
+cd packages/laundry-dashboard-webpage
 npm install                     # 仅测试 / 重新 vendor Chart.js 需要；启动本身零依赖
 npm start                       # http://127.0.0.1:8788
-# 或：node bin/serve.mjs --config web.config.json
+# 或：node bin/serve.mjs --config dashboard-webpage.config.json
 ```
 
-浏览器打开 <http://127.0.0.1:8788>。本机访问也可用 `http://<电脑 IP>:8788`（取决于 `web.config.json` 的 `host`）。
+浏览器打开 <http://127.0.0.1:8788>。本机访问也可用 `http://<电脑 IP>:8788`（取决于 `dashboard-webpage.config.json` 的 `host`）。
 
 ## 配置
 
-`web.config.json`（模板见 `web.config.example.json`）：
+`dashboard-webpage.config.json`（模板见 `dashboard-webpage.config.example.json`）：
 
 | 字段 | 默认 | 说明 |
 |---|---|---|

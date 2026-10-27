@@ -3,7 +3,7 @@
 HKUST 洗衣房监控的**只读 JSON API**：读取采集服务写入的 SQLite，给独立部署的前端提供当前状态与历史分钟序列。
 
 - **服务端零依赖**：只用 `node:http` + `node:sqlite`，没有构建步骤；
-- **只做 API**：页面/静态资源由 [`laundry-web`](../laundry-web) 独立托管，并通过反向代理调用本服务；
+- **只做 API**：页面/静态资源由 [`laundry-dashboard-webpage`](../laundry-dashboard-webpage) 独立托管，并通过反向代理调用本服务；
 - **聚合在浏览器端**：本服务只发「每台机器每天 1,440 字节的分钟状态序列」，热力图/剖面/占比全部由前端计算；
 - 数据库不存在或还没数据时也能启动（API 返回 `available: false`）。
 
@@ -20,8 +20,8 @@ laundry-monitor（写）
                  ▼ 只读
 laundry-dashboard-api（本服务，JSON API，默认 :8787）
                  ▲
-                 │ /api/* 反向代理
-laundry-web（静态前端 + 转发，默认 :8788）◄── 浏览器
+                 │ api/*
+laundry-dashboard-webpage（静态前端）◄── 浏览器
 ```
 
 - 序列库是派生数据：任何时候都能用 `node bin/cli.mjs rebuild --config monitor.config.json` 从原始库重建；
@@ -100,7 +100,7 @@ npm start                       # http://127.0.0.1:8787（只读 API）
 ```bash
 npm test                    # 数据层 + HTTP API
 
-# 端到端（需要采集服务、本 API、laundry-web 都在跑）
+# 端到端（需要采集服务、本 API、laundry-dashboard-webpage 都在跑）
 node scripts/e2e-check.mjs
 #   DASHBOARD_URL / WEB_URL 可覆盖默认的 8787 / 8788
 ```

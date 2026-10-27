@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_CONFIG_FILE = 'web.config.json';
+export const DEFAULT_CONFIG_FILE = 'dashboard-webpage.config.json';
 
 export const DEFAULTS = {
   host: '127.0.0.1',

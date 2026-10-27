@@ -1,5 +1,5 @@
 {
-  "_comment": "只读 API 配置。corsOrigins 填允许跨域访问 API 的浏览器 origin（GitHub Pages 是 https://<user>.github.io，不要带仓库路径）；同源部署/只经 laundry-web 反代时留空数组即可。",
+  "_comment": "只读 API 配置。corsOrigins 填允许跨域访问 API 的浏览器 origin（GitHub Pages 是 https://<user>.github.io，不要带仓库路径）；同源部署/只经 laundry-dashboard-webpage 反代时留空数组即可。",
   "database": "../laundry-monitor/data/laundry.sqlite",
   "seriesDatabase": "../laundry-monitor/data/laundry-series.sqlite",
   "host": "127.0.0.1",

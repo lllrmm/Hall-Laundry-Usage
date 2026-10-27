@@ -1,5 +1,5 @@
 /**
- * 看板只读 JSON API（不含前端静态资源；前端由 laundry-web 独立托管/反代）。
+ * 看板只读 JSON API（不含前端静态资源；前端由 laundry-dashboard-webpage 独立托管/反代）。
  *
  * 与轮询服务完全解耦 —— 只读同一个 SQLite 文件，两个进程可分别启停。
  */
@@ -140,7 +140,7 @@ export function createDashboardServer({ config, logger = console }) {
 
     if (route === '/api/days') {
       // 历史图表用的原始日序列（每台机器每天 1,440 字节的 base64）。
-      // 聚合全部交给前端（laundry-web 的 aggregate.js），交互不再请求后端。
+      // 聚合全部交给前端（laundry-dashboard-webpage 的 aggregate.js），交互不再请求后端。
       // 强约束：machines 必填；日期用 from+to 或 days 列表（互斥），避免无参数拉全库。
       const badRequest = (message) => {
         sendJson(res, 400, { error: message });
@@ -248,9 +248,9 @@ export function createDashboardServer({ config, logger = console }) {
         if (!handled) sendJson(res, 404, { error: `Unknown API route: ${url.pathname}` });
         return;
       }
-      // 本服务只提供 API；页面/静态资源由 laundry-web 托管
+      // 本服务只提供 API；页面/静态资源由 laundry-dashboard-webpage 托管
       sendJson(res, 404, {
-        error: 'API only. Open the dashboard via laundry-web (default http://127.0.0.1:8788/)',
+        error: 'API only. Open the dashboard via laundry-dashboard-webpage (default http://127.0.0.1:8788/)',
       });
     } catch (error) {
       logger.error?.(`请求失败 ${url.pathname}: ${error.message}`);

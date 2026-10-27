@@ -4,7 +4,7 @@
  * 优先级：
  *   1. URL 参数 ?api=https://api.example.com   （GitHub Pages 等静态托管用）
  *   2. window.__LAUNDRY_API_BASE__             （例如写死在本文件，用于固定部署）
- *   3. 空字符串                                （同源，由 laundry-web / Nginx 反代 /api）
+ *   3. 空字符串                                （同源，由 laundry-dashboard-webpage / Nginx 反代 /api）
  *
  * 只接受 http/https；地址末尾的 / 会被去掉（后续拼 /api/xxx）。
  */

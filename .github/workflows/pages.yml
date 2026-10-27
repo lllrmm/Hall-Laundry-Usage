@@ -5,7 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# 只发布静态前端（packages/laundry-web/public）；API 由外部 HTTPS 服务提供，
+# 只发布静态前端（packages/laundry-dashboard-webpage/public）；API 由外部 HTTPS 服务提供，
 # 浏览器通过页面 URL 参数 ?api=https://your-api.example.com 指定。
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site
-          cp -R packages/laundry-web/public/. _site/
+          cp -R packages/laundry-dashboard-webpage/public/. _site/
           touch _site/.nojekyll
 
       - name: Upload Pages artifact

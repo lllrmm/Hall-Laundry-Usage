@@ -2,8 +2,8 @@
 /**
  * 看板前端服务入口：静态文件 + /api/* 反向代理。
  *
- *   laundry-web --config web.config.json
- *   laundry-web --port 8788 --api http://127.0.0.1:8787
+ *   laundry-dashboard-webpage --config dashboard-webpage.config.json
+ *   laundry-dashboard-webpage --port 8788 --api http://127.0.0.1:8787
  */
 
 import { createWebServer } from '../src/server.js';
@@ -28,7 +28,7 @@ function parseArgs(argv) {
   return options;
 }
 
-const HELP = `用法: laundry-web [选项]
+const HELP = `用法: laundry-dashboard-webpage [选项]
 
 选项:
   --config <path>   配置文件，默认 ${DEFAULT_CONFIG_FILE}

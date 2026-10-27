@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 只读 API 服务启动入口（页面由 laundry-web 独立托管）。
+ * 只读 API 服务启动入口（页面由 laundry-dashboard-webpage 独立托管）。
  *
  *   laundry-dashboard-api --config dashboard-api.config.json
  *   laundry-dashboard-api --db ../laundry-monitor/data/laundry.sqlite --port 8787

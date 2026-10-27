@@ -1,4 +1,4 @@
-/** 端到端自检：前端（laundry-web）+ 只读 API（laundry-dashboard-api），独立于轮询进程 */
+/** 端到端自检：前端（laundry-dashboard-webpage）+ 只读 API（laundry-dashboard-api），独立于轮询进程 */
 const API_BASE = process.env.DASHBOARD_URL || 'http://127.0.0.1:8787';
 const WEB_BASE = process.env.WEB_URL || 'http://127.0.0.1:8788';
 
@@ -37,7 +37,7 @@ check('Date range 控件', html.includes('Date range') && !html.includes('chart-
 check(
   'dashboard 只提供 API',
   (await status('/', API_BASE)) === 404,
-  '页面已移至 laundry-web',
+  '页面已移至 laundry-dashboard-webpage',
 );
 
 const css = await get('/styles.css', false, WEB_BASE);

@@ -175,7 +175,7 @@ test('gzip：大响应压缩、小响应不压缩', async () => {
   });
 });
 
-test('未知 API 路由 404；非 API 路径提示由 laundry-web 托管', async () => {
+test('未知 API 路由 404；非 API 路径提示由 laundry-dashboard-webpage 托管', async () => {
   await withServer(async (base) => {
     const notFound = await fetch(`${base}/api/nope`);
     assert.equal(notFound.status, 404);
@@ -186,8 +186,8 @@ test('未知 API 路由 404；非 API 路径提示由 laundry-web 托管', async
     }
 
     const page = await fetch(`${base}/`);
-    assert.equal(page.status, 404, 'dashboard 只提供 API，页面由 laundry-web 托管');
-    assert.match((await page.json()).error, /laundry-web/);
+    assert.equal(page.status, 404, 'dashboard 只提供 API，页面由 laundry-dashboard-webpage 托管');
+    assert.match((await page.json()).error, /laundry-dashboard-webpage/);
   });
 });
 
