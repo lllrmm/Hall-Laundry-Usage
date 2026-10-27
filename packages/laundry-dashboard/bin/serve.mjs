@@ -13,7 +13,8 @@ const HELP = `用法: laundry-dashboard [选项]
 
 选项:
   --config <path>   配置文件路径，默认 ${DEFAULT_CONFIG_FILE}
-  --db <path>       SQLite 数据库路径（覆盖配置）
+  --db <path>       SQLite 原始快照库路径（覆盖配置）
+  --series <path>   SQLite 日序列库路径（覆盖配置）
   --host <host>     监听地址（覆盖配置，默认 127.0.0.1）
   --port <port>     监听端口（覆盖配置，默认 8787）
   -h, --help        显示帮助
@@ -35,6 +36,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--config=')) options.config = arg.slice('--config='.length);
     else if (arg === '--db') options.db = takeValue();
     else if (arg.startsWith('--db=')) options.db = arg.slice('--db='.length);
+    else if (arg === '--series') options.series = takeValue();
+    else if (arg.startsWith('--series=')) options.series = arg.slice('--series='.length);
     else if (arg === '--host') options.host = takeValue();
     else if (arg.startsWith('--host=')) options.host = arg.slice('--host='.length);
     else if (arg === '--port') options.port = Number(takeValue());
@@ -54,6 +57,7 @@ async function main() {
 
   const config = loadConfig(options.config);
   if (options.db) config.databasePath = options.db;
+  if (options.series) config.seriesDatabasePath = options.series;
   if (options.host) config.host = options.host;
   if (options.port !== undefined) config.port = options.port;
 
@@ -61,7 +65,8 @@ async function main() {
 
   const address = await app.listen();
   console.log(`洗衣房看板已启动: ${address.url}`);
-  console.log(`数据库(只读): ${config.databasePath}`);
+  console.log(`原始库(只读): ${config.databasePath}`);
+  console.log(`序列库(只读): ${config.seriesDatabasePath}`);
   console.log('Ctrl+C 停止');
 
   let stopping = false;

@@ -7,6 +7,7 @@ export const DEFAULT_CONFIG_FILE = 'dashboard.config.json';
 
 export const DEFAULTS = {
   database: '../laundry-monitor/data/laundry.sqlite',
+  seriesDatabase: '../laundry-monitor/data/laundry-series.sqlite',
   host: '127.0.0.1',
   port: 8787,
   refreshSeconds: 30,
@@ -31,6 +32,12 @@ export function normalizeConfig(input, { baseDir = process.cwd(), sourcePath = n
   }
   const databasePath = path.resolve(baseDir, databaseRaw.trim());
 
+  const seriesRaw = input.seriesDatabase ?? DEFAULTS.seriesDatabase;
+  if (typeof seriesRaw !== 'string' || !seriesRaw.trim()) {
+    throw new Error(`seriesDatabase 必须是非空路径${where}`);
+  }
+  const seriesDatabasePath = path.resolve(baseDir, seriesRaw.trim());
+
   const port = Number(input.port ?? DEFAULTS.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`port 必须是 0-65535 的整数${where}`);
@@ -43,7 +50,7 @@ export function normalizeConfig(input, { baseDir = process.cwd(), sourcePath = n
     throw new Error(`refreshSeconds 必须 >= 5${where}`);
   }
 
-  return { databasePath, host, port, refreshSeconds, sourcePath };
+  return { databasePath, seriesDatabasePath, host, port, refreshSeconds, sourcePath };
 }
 
 /** 读取配置文件（文件不存在时返回默认值，方便零配置启动）。 */

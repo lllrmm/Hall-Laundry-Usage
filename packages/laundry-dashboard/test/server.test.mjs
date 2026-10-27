@@ -50,7 +50,14 @@ function buildFixtureDb() {
 async function withServer(fn) {
   const { dir, file } = buildFixtureDb();
   const app = createDashboardServer({
-    config: { databasePath: file, host: '127.0.0.1', port: 0, refreshSeconds: 30 },
+    config: {
+      databasePath: file,
+      // 这个 fixture 只造了原始库：日序列接口应回退到 raw 即时生成
+      seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
+      host: '127.0.0.1',
+      port: 0,
+      refreshSeconds: 30,
+    },
     logger: { info() {}, warn() {}, error() {} },
   });
 
@@ -82,6 +89,8 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
     assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
     assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
+    assert.match(html, /\/aggregate\.js/, '应加载浏览器端聚合脚本');
+    assert.match(html, /\/history\.js/, '应加载浏览器端取数计划脚本');
     assert.match(html, /Database updated/, '顶栏时间标签应为 Database updated');
     assert.doesNotMatch(html, />Data updated</, '旧标签 Data updated 应已移除');
     assert.match(html, /id="bars-range"/, '占比图应显示当前时间范围');
@@ -128,59 +137,31 @@ test('GET /api/series 按机器过滤并返回分桶', async () => {
   });
 });
 
-test('GET /api/bars 与 /api/hourly', async () => {
+test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', async () => {
   await withServer(async (base) => {
-    const bars = await (await fetch(`${base}/api/bars?since=1h`)).json();
-    assert.equal(bars.rows.length, 1);
-    assert.equal(bars.rows[0].availableRatio, 1);
+    const payload = await (await fetch(`${base}/api/days`)).json();
+    assert.equal(payload.available, true);
+    assert.equal(payload.source, 'raw');
+    assert.equal(payload.count, 1, '1 台机器 × 1 天');
+    assert.equal(payload.encoding.noData, 0xff);
 
-    const hourly = await (await fetch(`${base}/api/hourly?since=24h`)).json();
-    assert.equal(hourly.hours.length, 24);
+    const row = payload.days[0];
+    assert.equal(row.machineId, 'm1');
+    const bytes = Buffer.from(row.seq, 'base64');
+    assert.equal(bytes.length, 1440);
+    const at = new Date(T0);
+    assert.equal(bytes[at.getHours() * 60 + at.getMinutes()], 0x01, '该分钟为空闲');
 
-    const heatmap = await (await fetch(`${base}/api/heatmap?since=24h`)).json();
-    assert.equal(heatmap.cells.length, 1);
-    const cell = heatmap.cells[0];
-    assert.ok(cell.weekday >= 0 && cell.weekday <= 6);
-    assert.ok(cell.minute >= 0 && cell.minute <= 1439);
-    assert.equal(cell.samples, 1);
-    assert.equal(cell.usageRatio, 0);
-    assert.ok(heatmap.since && heatmap.until);
+    const scoped = await (await fetch(`${base}/api/days?machines=nope`)).json();
+    assert.equal(scoped.count, 0);
 
-    const profile = await (await fetch(`${base}/api/profile?since=all`)).json();
-    assert.equal(profile.slots.length, 288);
-    assert.equal(profile.bucketSeconds, 300);
-    assert.ok(profile.slots.some((slot) => slot.samples > 0));
+    const invalid = await fetch(`${base}/api/days?from=bogus`);
+    assert.equal(invalid.status, 500);
 
-    const minuteProfile = await (await fetch(`${base}/api/profile?since=all&bucketSeconds=60`)).json();
-    assert.equal(minuteProfile.slots.length, 1440, '1 分钟精度每天 1440 槽');
-    assert.equal(minuteProfile.bucketSeconds, 60);
-
-    const weekdayProfile = await (await fetch(`${base}/api/profile?since=all&weekday=2`)).json();
-    assert.equal(weekdayProfile.slots.length, 288);
-    assert.equal(weekdayProfile.weekday, 2);
-
-    const scopedBars = await (await fetch(`${base}/api/bars?since=all&weekday=1&hour=0`)).json();
-    assert.equal(scopedBars.scope.weekday, 1);
-    assert.equal(scopedBars.scope.hour, 0);
-    assert.ok(Array.isArray(scopedBars.rows));
-
-    const multiBars = await (await fetch(`${base}/api/bars?since=all&weekdays=0,1`)).json();
-    assert.deepEqual(multiBars.scope.weekdays, [0, 1]);
-
-    const multiProfile = await (
-      await fetch(`${base}/api/profile?since=all&bucketSeconds=60&weekdays=0,1`)
-    ).json();
-    assert.equal(multiProfile.slots.length, 1440);
-
-    const emptyHeatmap = await (
-      await fetch(`${base}/api/heatmap?since=all&until=2000-01-01T00:00:00.000Z`)
-    ).json();
-    assert.equal(emptyHeatmap.cells.length, 0, 'until 早于数据时无热力图样本');
-
-    const emptyProfile = await (
-      await fetch(`${base}/api/profile?since=all&until=2000-01-01T00:00:00.000Z`)
-    ).json();
-    assert.ok(emptyProfile.slots.every((slot) => slot.samples === 0), 'until 早于数据时剖面无样本');
+    // 旧的聚合接口已移除
+    for (const route of ['/api/bars', '/api/hourly', '/api/heatmap', '/api/profile']) {
+      assert.equal((await fetch(`${base}${route}`)).status, 404, `${route} 应已删除`);
+    }
   });
 });
 

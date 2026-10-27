@@ -144,7 +144,14 @@ function waitFor(check, { timeout = 8000, interval = 50, label = 'condition' } =
 test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { skip: isBun ? 'jsdom 测试仅在 node 下运行' : false }, async () => {
   const { dir, file } = buildFixtureDb();
   const app = createDashboardServer({
-    config: { databasePath: file, host: '127.0.0.1', port: 0, refreshSeconds: 30 },
+    config: {
+      databasePath: file,
+      // fixture 只造原始库：/api/days 走 raw 回退，也能验证前端在无序列库时的表现
+      seriesDatabasePath: path.join(dir, 'missing-series.sqlite'),
+      host: '127.0.0.1',
+      port: 0,
+      refreshSeconds: 30,
+    },
     logger: { info() {}, warn() {}, error() {} },
   });
 
@@ -156,8 +163,14 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     const baseUrl = `http://127.0.0.1:${address.port}`;
 
     const virtualConsole = new VirtualConsole();
-    virtualConsole.on('jsdomError', (error) => errors.push(error.message));
-    virtualConsole.on('error', (...args) => errors.push(args.join(' ')));
+    virtualConsole.on('jsdomError', (error) => {
+      if (process.env.DEBUG_DOM) console.error('[jsdomError]', error);
+      errors.push(error.message);
+    });
+    virtualConsole.on('error', (...args) => {
+      if (process.env.DEBUG_DOM) console.error('[console.error]', ...args);
+      errors.push(args.join(' '));
+    });
 
     dom = await JSDOM.fromURL(`${baseUrl}/`, {
       runScripts: 'dangerously',
@@ -223,6 +236,20 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     }, { label: 'Chart.js 图表实例创建' });
 
     const charts = () => dom.window.__laundryCharts;
+
+    // 关掉自动刷新计时器，避免测试中途的定时刷新干扰请求计数
+    const autoBox = document.getElementById('auto');
+    autoBox.checked = false;
+    autoBox.dispatchEvent(new dom.window.Event('change'));
+
+    // 记录之后的 /api/days 请求：只有 data range 变化 / 新选机器且缺数据时才应出现
+    const dayRequests = [];
+    const originalFetch = dom.window.fetch;
+    dom.window.fetch = (input, init) => {
+      const url = String(input);
+      if (url.includes('/api/days')) dayRequests.push(url);
+      return originalFetch(input, init);
+    };
 
     for (const id of ['chart-bars', 'chart-profile']) {
       assert.ok(document.querySelector(`#${id} canvas`), `${id} 应渲染出 canvas`);
@@ -375,6 +402,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: '拖动时段后清空星期选择并显示周几柱状图' },
     );
     assert.doesNotMatch(document.getElementById('profile-hint').textContent, /Mon, Tue/, '时段选择与星期互斥');
+    assert.equal(dayRequests.length, 0, '点分钟 / 选星期 / 拖时段都只在本地重算，不请求后端');
 
     // 互斥：时段已选时点星期 → 时段选择被清空（选 fixture 当天，保证有数据）
     const todayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(t0.getDay() + 6) % 7];
@@ -435,6 +463,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 3, {
       label: 'State breakdown 跟随机器选择（3 台）',
     });
+    assert.equal(dayRequests.length, 0, '取消勾选机器只在本地重算，不请求后端');
 
     document.getElementById('select-all').click(); // Select all
     await waitFor(() => document.querySelectorAll('#machine-chips .chip.active').length === 4, {
@@ -475,6 +504,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       { label: 'Profile 只显示勾选的洗衣机' },
     );
     assert.match(document.getElementById('selected-count').textContent, /1\/4/);
+    assert.equal(dayRequests.length, 0, '新选机器的数据已缓存时不需要请求后端（只补 diff）');
 
     document.getElementById('select-all').click(); // 恢复全选
     await waitFor(() => charts().profile && charts().profile.data.datasets.length === 2, {
@@ -492,6 +522,11 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => document.querySelector('#heatmap .empty'), { label: '日期范围外热力图空状态' });
     await waitFor(() => document.querySelector('#chart-profile .empty'), { label: '日期范围外剖面空状态' });
     await waitFor(() => document.querySelector('#chart-bars .empty'), { label: '日期范围外占比图空状态' });
+    assert.equal(
+      dayRequests.length,
+      0,
+      'date range 变化只补 diff：全部历史已缓存，切到没有数据的范围不需要请求',
+    );
 
     // All dates → 恢复全部历史
     document.getElementById('date-all').click();
@@ -504,6 +539,22 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => charts().bars && charts().bars.data.labels.length === 4, {
       label: '清除日期后占比图恢复',
     });
+    assert.equal(dayRequests.length, 0, '切回全部历史也没有新请求（缓存已覆盖）');
+
+    // 自动/手动刷新只重取今天、已选机器的序列
+    const today = new Date();
+    const todayText = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+      today.getDate(),
+    ).padStart(2, '0')}`;
+    const beforeRefresh = dayRequests.length;
+    document.getElementById('refresh').click();
+    await waitFor(() => dayRequests.length === beforeRefresh + 1, { label: '刷新请求今天的序列' });
+    const refreshUrl = dayRequests[dayRequests.length - 1];
+    assert.match(refreshUrl, new RegExp(`from=${todayText}`), '刷新只请求今天');
+    assert.match(refreshUrl, new RegExp(`to=${todayText}`), '刷新只请求今天');
+    assert.match(refreshUrl, /machines=/, '刷新只请求已选机器');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(dayRequests.length, beforeRefresh + 1, '刷新只应产生一个 /api/days 请求');
 
     // 6) 主题：Auto → Light → Dark，图表用深色色板重建
     const root = document.documentElement;

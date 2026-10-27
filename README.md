@@ -93,11 +93,11 @@ start-all.cmd
 #   采集窗口关闭 = 停止采集；看板窗口关闭 = 停止看板，互不影响
 
 # 方式二：手动分别启动
-# 终端 1：采集（每 60 秒一次，写入 data/laundry.sqlite）
+# 终端 1：采集（每 60 秒一次，写入 data/laundry.sqlite + data/laundry-series.sqlite）
 cd packages/laundry-monitor && npm start
 #   或双击 packages/laundry-monitor/run.cmd
 
-# 终端 2：看板（只读数据库，http://127.0.0.1:8787）
+# 终端 2：看板（只读两个 SQLite，http://127.0.0.1:8787）
 cd packages/laundry-dashboard && npm start
 #   或双击 packages/laundry-dashboard/run.cmd
 ```
@@ -105,6 +105,7 @@ cd packages/laundry-dashboard && npm start
 - 停掉看板：采集继续（数据库照常增长）；重新启动看板即可看到最新数据。
 - 停掉采集：看板仍可访问，只显示最后一次采集到的数据（页面上会显示"数据更新"时间）。
 - 看板端口/数据库路径在 `packages/laundry-dashboard/dashboard.config.json`；采集周期/bearer 在 `packages/laundry-monitor/monitor.config.json`（含 token，已被 git 忽略）。
+- 看板的历史图表只从 `/api/days` 取「每台机器每天 1,440 字节」的原始序列，聚合全部在浏览器端完成，交互不会触发后端计算。
 
 ## 测试与自检
 
@@ -133,7 +134,7 @@ start-all.cmd          一键启动采集 + 看板两个窗口（也可分别用
 laundry.mjs            只读 API 客户端 + CLI（可直接 import 复用）
 packages/laundry-machines/  npm 包：机器状态查询库（ESM + TS 类型 + CLI + 测试）
 packages/laundry-monitor/   采集服务：按配置周期轮询并写入 SQLite（stats/export/run）
-packages/laundry-dashboard/ 看板服务：只读 SQLite，Chart.js 图表 + 当前状态（服务端零依赖 HTTP）
+packages/laundry-dashboard/ 看板服务：只读 SQLite，浏览器端聚合 + Chart.js 图表（服务端零依赖 HTTP）
 token.txt              Bearer token（勿提交到 git）
 docs/API.md            API 文档
 docs/openapi.json      OpenAPI 3.0 规格

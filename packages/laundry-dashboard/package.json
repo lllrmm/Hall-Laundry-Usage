@@ -1,7 +1,7 @@
 {
   "name": "hkust-laundry-dashboard",
   "version": "0.1.0",
-  "description": "Read-only web dashboard for the HKUST laundry monitor SQLite database: latest machine status, availability trends, per-machine utilisation and hourly patterns.",
+  "description": "Read-only web dashboard for the HKUST laundry monitor SQLite database: latest machine status, availability heatmap, time-of-day profile and per-machine state breakdown (aggregated in the browser).",
   "type": "module",
   "main": "./src/server.js",
   "bin": {
@@ -20,7 +20,7 @@
   "scripts": {
     "start": "node bin/serve.mjs --config dashboard.config.json",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/queries.test.mjs test/server.test.mjs test/frontend.dom.test.mjs",
+    "test:in-process": "node --test-isolation=none --test test/queries.test.mjs test/days.test.mjs test/aggregate.test.mjs test/history.test.mjs test/server.test.mjs test/frontend.dom.test.mjs",
     "test:bun": "bun test"
   },
   "license": "MIT",

@@ -8,6 +8,12 @@ async function get(path, asJson = true) {
   return asJson ? JSON.parse(text) : text;
 }
 
+async function status(path) {
+  const response = await fetch(BASE + path);
+  await response.text();
+  return response.status;
+}
+
 const checks = [];
 function check(name, condition, detail) {
   checks.push({ name, ok: Boolean(condition), detail });
@@ -17,7 +23,11 @@ function check(name, condition, detail) {
 const html = await get('/', false);
 check(
   '页面 /',
-  html.includes('Laundry Monitor') && html.includes('chart-bars') && html.includes('chart-profile'),
+  html.includes('Laundry Monitor') &&
+    html.includes('chart-bars') &&
+    html.includes('chart-profile') &&
+    html.includes('aggregate.js') &&
+    html.includes('history.js'),
   `${html.length} bytes`,
 );
 check('主题切换控件', html.includes('id="theme-toggle"') && html.includes('data-theme'), '');
@@ -25,8 +35,29 @@ check('Date range 控件', html.includes('Date range') && !html.includes('chart-
 
 const css = await get('/styles.css', false);
 const appJs = await get('/app.js', false);
+const aggregateJs = await get('/aggregate.js', false);
+const historyJs = await get('/history.js', false);
 check('响应式样式', css.includes('@media (max-width: 720px)') && css.includes('@media (max-width: 420px)'), '');
-check('移动端图表逻辑', appJs.includes('compact') && appJs.includes('shortMachineName'), '');
+check(
+  '浏览器端聚合脚本',
+  aggregateJs.includes('buildHeatmap') &&
+    aggregateJs.includes('buildProfile') &&
+    aggregateJs.includes('buildStateBreakdown') &&
+    historyJs.includes('planDiff') &&
+    appJs.includes('Aggregate.buildHeatmap') &&
+    appJs.includes('History.planDiff'),
+  '',
+);
+check(
+  '前端只重取 diff',
+  appJs.includes('/api/days') &&
+    appJs.includes('fetchedAllMachines') &&
+    appJs.includes('loadHistoryForRefresh') &&
+    !appJs.includes('/api/bars') &&
+    !appJs.includes('/api/heatmap') &&
+    !appJs.includes('/api/profile'),
+  '',
+);
 
 const vendor = await get('/vendor/chart.umd.js', false);
 check(
@@ -44,63 +75,67 @@ const state = await get('/api/state');
 check('/api/state meta', state.meta?.available === true, `lastObserved=${state.meta?.lastObservedAt}`);
 check('/api/state 机器数', state.latest?.length === 12, `${state.latest?.length} 台`);
 check('/api/state 最新状态完整', state.latest?.every((m) => typeof m.available === 'boolean' && m.name), '');
+check('/api/state firstObservedAt', Boolean(state.meta?.firstObservedAt), `${state.meta?.firstObservedAt}`);
 
 const series = await get('/api/series?since=1h');
 check('/api/series 桶', Array.isArray(series.buckets) && series.buckets.length > 0, `${series.buckets?.length} 桶 / ${series.bucketSeconds}s`);
 check('/api/series 机器', series.machines?.length === 12, `${series.machines?.length} 台`);
-check('/api/series 数据点', Object.keys(series.series ?? {}).length === 12 && series.totals.available.some((v) => v !== null), '');
+
+const days = await get('/api/days');
 check(
-  '/api/series 按机型聚合',
-  series.totalsByKind?.washer?.inUse?.length > 0 && series.totalsByKind?.dryer?.inUse?.length > 0,
-  `byKind: ${Object.keys(series.totalsByKind ?? {}).join(', ')}`,
+  '/api/days 日序列',
+  days.available === true && days.count >= 12,
+  `source=${days.source} ${days.count} 条 / ${days.firstDay} ~ ${days.lastDay}`,
 );
-
-const bars = await get('/api/bars?since=1h');
-check('/api/bars', bars.rows?.length === 12, `${bars.rows?.length} 行`);
-check('/api/bars 时段', Boolean(bars.since && bars.until), `${bars.since} – ${bars.until}`);
-
-const scopedBars = await get('/api/bars?since=all&weekday=1');
+check('/api/days 编码表', days.encoding?.inUse === 0 && days.encoding?.available === 1 && days.encoding?.noData === 255, '');
 check(
-  '/api/bars 按热力图行筛选',
-  scopedBars.scope?.weekday === 1 && Array.isArray(scopedBars.rows),
-  `${scopedBars.rows?.length} 行`,
-);
-
-const hourly = await get('/api/hourly?since=24h');
-check('/api/hourly', hourly.hours?.length === 24 && hourly.hours.some((h) => h.samples > 0), '');
-check(
-  '/api/hourly 使用率',
-  hourly.hours.some((h) => h.usageRatio > 0) &&
-    hourly.hours.every((h) => h.usageRatio === null || (h.usageRatio >= 0 && h.usageRatio <= 1)),
+  '/api/days 每台机器每天 1440 字节',
+  days.days.length > 0 &&
+    days.days.every((row) => Buffer.from(row.seq, 'base64').length === 1440 && row.updatedAt),
   '',
 );
 
-const heatmap = await get('/api/heatmap?since=30d');
+if (days.days.length) {
+  const seq = Buffer.from(days.days[0].seq, 'base64');
+  const seen = new Set(seq);
+  check(
+    '/api/days 字节内容合理',
+    seen.has(0x01) || seen.has(0x00),
+    `states: ${[...seen].sort((a, b) => a - b).join(',')}`,
+  );
+}
+
+const oneMachine = state.latest[0];
+const scopedDays = await get(`/api/days?machines=${oneMachine.id}`);
 check(
-  '/api/heatmap',
-  heatmap.cells?.length > 0 &&
-    heatmap.cells.every(
-      (cell) => cell.weekday >= 0 && cell.weekday <= 6 && cell.minute >= 0 && cell.minute <= 1439 && cell.samples > 0,
-    ),
-  `${heatmap.cells?.length} 个格子（1 分钟）`,
+  '/api/days 按机器过滤',
+  scopedDays.count >= 1 && scopedDays.days.every((row) => row.machineId === oneMachine.id),
+  `${scopedDays.count} 条`,
 );
 
-const profile = await get('/api/profile?since=all&weekday=1&bucketSeconds=60');
+if (days.firstDay) {
+  const oneDay = await get(`/api/days?from=${days.firstDay}&to=${days.firstDay}`);
+  check(
+    '/api/days 按日期过滤',
+    oneDay.count >= 12 && oneDay.days.every((row) => row.day === days.firstDay),
+    `${oneDay.count} 条 @ ${days.firstDay}`,
+  );
+}
+
+const removed = [];
+for (const route of ['/api/bars', '/api/hourly', '/api/heatmap', '/api/profile', '/api/profile/days']) {
+  removed.push(`${route}=${await status(route)}`);
+}
 check(
-  '/api/profile 1 分钟剖面',
-  profile.slots?.length === 1440 && profile.bucketSeconds === 60,
-  `${profile.slots?.filter((slot) => slot.samples > 0).length ?? 0} 个有数据槽`,
+  '旧聚合接口已移除',
+  removed.every((entry) => entry.endsWith('=404')),
+  removed.join(' '),
 );
-
-const daily = await get('/api/profile/days?since=all&fromMinute=720&toMinute=780');
-check('/api/profile/days', Array.isArray(daily.days) && daily.days.length >= 1, `${daily.days?.length} 天`);
-
-const filtered = await get('/api/series?since=1h&machines=' + state.latest.filter((m) => m.kind === 'dryer').map((m) => m.id).join(','));
-check('/api/series 按机器过滤', filtered.machines?.length === 6, `${filtered.machines?.length} 台烘干机`);
 
 console.log('\nlastObservedAt:', state.meta.lastObservedAt);
 console.log('lastPoll:', JSON.stringify(state.meta.lastPoll));
 console.log('pollCount:', state.meta.pollCount, '| snapshots:', state.meta.snapshots);
+console.log('days source:', days.source, '| rows:', days.count);
 
 const failed = checks.filter((c) => !c.ok);
 if (failed.length) {

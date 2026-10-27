@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DashboardDatabase } from './queries.js';
+import { DaysDatabase, normalizeDay } from './days.js';
 import { parseRange } from './time.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
@@ -46,29 +47,12 @@ function parseMachineIds(params) {
   return [...new Set(fromComma.map((id) => id.trim()).filter(Boolean))];
 }
 
-/** 解析可选整数参数，非法/越界返回 null */
-function parseOptionalInt(value, min, max) {
+/** 解析可选 YYYY-MM-DD 参数；非法抛错（交给上层转 500 JSON） */
+function parseDayParam(value) {
   if (value === null || value === undefined || value === '') return null;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < min || parsed > max) return null;
-  return parsed;
-}
-
-/** 解析可选 ISO 时间参数，非法返回 null */
-function parseIsoParam(value) {
-  if (!value) return null;
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
-}
-
-/** 解析 ?weekdays=0,2,4（也支持重复参数），返回去重后的 0–6 */
-function parseWeekdays(params) {
-  const values = params
-    .getAll('weekdays')
-    .flatMap((value) => value.split(','))
-    .map((value) => Number.parseInt(value.trim(), 10))
-    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
-  return [...new Set(values)];
+  const day = normalizeDay(value);
+  if (!day) throw new Error(`无法解析日期参数：${value}`);
+  return day;
 }
 
 /**
@@ -79,6 +63,10 @@ function parseWeekdays(params) {
  */
 export function createDashboardServer({ config, logger = console }) {
   const database = new DashboardDatabase(config.databasePath);
+  const daysDatabase = new DaysDatabase({
+    rawPath: config.databasePath,
+    seriesPath: config.seriesDatabasePath ?? null,
+  });
   const cache = new Map();
 
   const cached = (key, build) => {
@@ -135,84 +123,13 @@ export function createDashboardServer({ config, logger = console }) {
       return true;
     }
 
-    if (route === '/api/bars') {
-      const range = parseRange(sinceParam);
-      const until = parseIsoParam(url.searchParams.get('until'));
-      const weekday = parseOptionalInt(url.searchParams.get('weekday'), 0, 6);
-      const hour = parseOptionalInt(url.searchParams.get('hour'), 0, 23);
-      const minute = parseOptionalInt(url.searchParams.get('minute'), 0, 1439);
-      const fromMinute = parseOptionalInt(url.searchParams.get('fromMinute'), 0, 1439);
-      const toMinute = parseOptionalInt(url.searchParams.get('toMinute'), 0, 1439);
-      const weekdays = parseWeekdays(url.searchParams);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${weekdays.join(',')}:${hour ?? 'all'}:${minute ?? 'all'}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
-      sendJson(
-        res,
-        200,
-        cached(key, () =>
-          database.bars({
-            since: range.since,
-            until,
-            machineIds,
-            weekday,
-            weekdays,
-            hour,
-            minute,
-            fromMinute,
-            toMinute,
-          }),
-        ),
-      );
-      return true;
-    }
-
-    if (route === '/api/hourly') {
-      const range = parseRange(sinceParam);
-      const key = `${route}?${range.label}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => database.hourly({ since: range.since, machineIds })));
-      return true;
-    }
-
-    if (route === '/api/heatmap') {
-      const range = parseRange(sinceParam);
-      const until = parseIsoParam(url.searchParams.get('until'));
-      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => database.heatmap({ since: range.since, until, machineIds })));
-      return true;
-    }
-
-    if (route === '/api/profile/days') {
-      const range = parseRange(sinceParam);
-      const until = parseIsoParam(url.searchParams.get('until'));
-      const fromMinute = parseOptionalInt(url.searchParams.get('fromMinute'), 0, 1439);
-      const toMinute = parseOptionalInt(url.searchParams.get('toMinute'), 0, 1439);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
-      sendJson(
-        res,
-        200,
-        cached(key, () =>
-          database.dailyProfile({ since: range.since, until, machineIds, fromMinute, toMinute }),
-        ),
-      );
-      return true;
-    }
-
-    if (route === '/api/profile') {
-      const range = parseRange(sinceParam);
-      const until = parseIsoParam(url.searchParams.get('until'));
-      const weekdayParam = url.searchParams.get('weekday');
-      const weekday =
-        weekdayParam === null || weekdayParam === '' ? null : Number.parseInt(weekdayParam, 10);
-      const bucketSeconds = Number.parseInt(url.searchParams.get('bucketSeconds') ?? '', 10);
-      const bucket = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? bucketSeconds : 300;
-      const weekdays = parseWeekdays(url.searchParams);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${weekdays.join(',')}:${machineIds.sort().join(',')}:${bucket}`;
-      sendJson(
-        res,
-        200,
-        cached(key, () =>
-          database.profile({ since: range.since, until, weekday, weekdays, machineIds, bucketSeconds: bucket }),
-        ),
-      );
+    if (route === '/api/days') {
+      // 历史图表用的原始日序列（每台机器每天 1,440 字节的 base64）。
+      // 聚合全部交给浏览器端 public/aggregate.js，交互不再请求后端。
+      const fromDay = parseDayParam(url.searchParams.get('from'));
+      const toDay = parseDayParam(url.searchParams.get('to'));
+      const key = `${route}?${fromDay ?? ''}~${toDay ?? ''}:${machineIds.sort().join(',')}`;
+      sendJson(res, 200, cached(key, () => daysDatabase.days({ fromDay, toDay, machineIds })));
       return true;
     }
 
@@ -287,6 +204,7 @@ export function createDashboardServer({ config, logger = console }) {
     },
     close() {
       database.close();
+      daysDatabase.close();
       return new Promise((resolve) => server.close(() => resolve()));
     },
   };

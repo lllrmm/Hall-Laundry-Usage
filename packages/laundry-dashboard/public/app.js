@@ -1,6 +1,12 @@
-/* 洗衣房看板前端（无框架，图表用 Chart.js） */
+/* 洗衣房看板前端（无框架，图表用 Chart.js；历史聚合全部在浏览器端完成） */
 (() => {
   'use strict';
+
+  const Aggregate = window.LaundryAggregate;
+  if (!Aggregate) throw new Error('aggregate.js 未加载');
+
+  const History = window.LaundryHistory;
+  if (!History) throw new Error('history.js 未加载');
 
   /* ---------------- 主题 ---------------- */
 
@@ -60,16 +66,18 @@
     machines: [],
     latest: [],
     meta: null,
-    series: null,
-    bars: null,
-    hourly: null,
-    heatmap: null,
+    /** machineId|day → {machineId, day, seq: Uint8Array(1440), updatedAt} */
+    dayCache: new Map(),
+    /** 已经请求过的机器·天（没有数据的日期也算，避免重复请求） */
+    fetchedDays: new Map(),
+    /** 已经取过全部历史的机器 */
+    fetchedAllMachines: new Set(),
     heatmapFocus: null,
     heatmapRange: null,
     weekdaySelection: new Set(),
+    heatmap: null,
     profile: null,
-    profileKey: null,
-    profileAt: 0,
+    bars: null,
     charts: { trend: null, bars: null, hourly: null, profile: null },
     auto: true,
     refreshSeconds: 30,
@@ -311,14 +319,6 @@
 
   /* ---------------- 选择控件 ---------------- */
 
-  /** 日期范围 → API 参数（本地日期，含首尾两天） */
-  function dateRangeParams() {
-    const params = {};
-    if (state.dateFrom) params.since = new Date(`${state.dateFrom}T00:00:00`).toISOString();
-    if (state.dateTo) params.until = new Date(`${state.dateTo}T23:59:59.999`).toISOString();
-    return params;
-  }
-
   function syncDateInputs() {
     const from = $('date-from');
     const to = $('date-to');
@@ -328,53 +328,37 @@
     if (all) all.disabled = !state.dateFrom && !state.dateTo;
   }
 
-  function machineIdsParam() {
-    return [...state.selected].join(',');
-  }
-
-  /** 图表通用参数：日期范围 + 选中的机器（所有面板共用） */
-  function chartParams(extra = {}) {
-    const dateParams = dateRangeParams();
-    const params = new URLSearchParams({ since: dateParams.since ?? 'all' });
-    if (dateParams.until) params.set('until', dateParams.until);
-    const machines = machineIdsParam();
-    if (machines) params.set('machines', machines);
-    for (const [key, value] of Object.entries(extra)) params.set(key, String(value));
-    return params;
-  }
-
   function dateRangeLabel() {
     return state.dateFrom || state.dateTo
       ? `${state.dateFrom ?? '…'} – ${state.dateTo ?? '…'}`
       : 'all history';
   }
 
-  /** 读取日期输入并重新加载图表（热力图 / 剖面跟随日期） */
-  function applyDateRange() {
+  /** 读取日期输入并重新加载图表（日期范围变化 → 向后台要当前已选机器在新范围的数据） */
+  async function applyDateRange() {
     state.dateFrom = $('date-from')?.value || null;
     state.dateTo = $('date-to')?.value || null;
-    state.profile = null;
-    state.profileKey = null;
     syncDateInputs();
-    loadCharts();
+    await loadHistoryForRange();
   }
 
-  function clearDateRange() {
+  async function clearDateRange() {
     state.dateFrom = null;
     state.dateTo = null;
-    state.profile = null;
-    state.profileKey = null;
     syncDateInputs();
-    loadCharts();
+    await loadHistoryForRange();
   }
 
   /** 全选 / 全不选（按钮文字随状态切换） */
-  function toggleSelectAll() {
+  async function toggleSelectAll() {
     if (!state.machines.length) return;
-    if (state.selected.size === state.machines.length) state.selected.clear();
-    else state.selected = new Set(state.machines.map((machine) => machine.id));
+    const selecting = state.selected.size !== state.machines.length;
+    if (selecting) state.selected = new Set(state.machines.map((machine) => machine.id));
+    else state.selected.clear();
     renderMachineChips();
-    loadCharts();
+    // 机器从不选变成选：要这些机器在当前日期范围下的数据
+    if (selecting) await loadHistoryForRange();
+    else renderViews();
   }
 
   function renderMachineChips() {
@@ -433,11 +417,14 @@
       button.appendChild(tag);
     }
 
-    button.onclick = () => {
-      if (state.selected.has(machine.id)) state.selected.delete(machine.id);
-      else state.selected.add(machine.id);
+    button.onclick = async () => {
+      const selecting = !state.selected.has(machine.id);
+      if (selecting) state.selected.add(machine.id);
+      else state.selected.delete(machine.id);
       renderMachineChips();
-      loadCharts();
+      // 机器从不选变成选：只补这台机器在当前日期范围下还没缓存的天
+      if (selecting) await loadHistoryForMachine();
+      else renderViews();
     };
 
     return button;
@@ -629,18 +616,6 @@
 
   const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  /** 点击行/列切换剖面焦点（再次点击取消）；range 焦点由热力图拖动产生 */
-  function setHeatmapFocus(kind, value) {
-    const focus = state.heatmapFocus;
-    state.heatmapFocus = focus && focus.kind === kind && focus.value === value ? null : { kind, value };
-    state.heatmapRange = null;
-    // 时段选择与星期选择互斥
-    state.weekdaySelection.clear();
-    if (state.heatmap) renderHeatmap(state.heatmap);
-    refreshProfile();
-    loadBars();
-  }
-
   function hhmm(minute) {
     return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
   }
@@ -714,9 +689,7 @@
           state.heatmapFocus = null;
           state.heatmapRange = null;
         }
-        if (state.heatmap) renderHeatmap(state.heatmap);
-        refreshProfile();
-        loadBars();
+        renderViews();
       });
       labelBox.appendChild(label);
     }
@@ -849,9 +822,7 @@
       state.heatmapFocus = { kind: 'range', from, to };
       // 时段选择与星期选择互斥
       state.weekdaySelection.clear();
-      renderHeatmap(state.heatmap);
-      refreshProfile();
-      loadBars();
+      renderViews();
     };
     axis.onmouseleave = () => {
       axisDragStart = null;
@@ -860,9 +831,10 @@
     };
 
     if (hint) {
+      const coverage = heatmap.coverage;
       const covered =
-        heatmap.since && heatmap.until
-          ? `${fmtRangeTime(heatmap.since)} – ${fmtRangeTime(heatmap.until)}`
+        coverage?.since && coverage?.until
+          ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
           : 'all history';
       hint.textContent = `${covered} · ${totalSamples} samples · click weekday labels to filter · drag the top axis (30-min steps) to select a time range`;
     }
@@ -1058,9 +1030,10 @@
     const washerPoints = washerValues.map((value, index) => ({ x: index, y: value }));
     const dryerPoints = dryerValues.map((value, index) => ({ x: index, y: value }));
 
+    const coverage = state.heatmap?.coverage;
     const period =
-      data.since && data.until
-        ? `${fmtRangeTime(data.since)} – ${fmtRangeTime(data.until)}`
+      coverage?.since && coverage?.until
+        ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
         : 'all history';
     const wdLabel = weekdaySelectionLabel();
     const title = `${wdLabel ? `${wdLabel} · ` : ''}1-min profile · ${period}`;
@@ -1129,162 +1102,265 @@
     });
   }
 
-  /** 行/默认剖面按需拉取 5 分钟数据（同一日期/机器/周几 60 秒内复用） */
-  async function refreshProfile() {
-    if (!state.selected.size) {
-      state.profile = null;
-      showChartEmpty('profile', $('chart-profile'), 'Select at least one machine');
-      return;
-    }
+  /* ---------------- 历史数据（/api/days → 浏览器端聚合） ---------------- */
 
-    const focus = state.heatmapFocus;
-    if (focus && focus.kind === 'minute') {
-      renderProfile();
-      return;
-    }
-
-    // 时段选择与"选时间点"一致：直接用热力图数据按周几聚合
-    if (focus && focus.kind === 'range') {
-      renderProfile();
-      return;
-    }
-
-    const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
-    const machineKey = machineIdsParam();
-    const weekdayKey = [...state.weekdaySelection].sort((a, b) => a - b).join(',') || 'all';
-    const key = `${weekdayKey}|${dateKey}|${machineKey}`;
-    const fresh = state.profileKey === key && state.profile && Date.now() - (state.profileAt ?? 0) < 60_000;
-    if (fresh) {
-      renderProfile();
-      return;
-    }
-
-    try {
-      const params = chartParams();
-      params.set('bucketSeconds', '60');
-      const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
-      if (weekdays.length) params.set('weekdays', weekdays.join(','));
-      const data = await api(`/api/profile?${params}`);
-      if (!state.selected.size) return; // 请求期间清空了选择，丢弃结果
-      state.profile = data;
-      state.profileKey = key;
-      state.profileAt = Date.now();
-      renderProfile();
-    } catch (error) {
-      console.error('Failed to load profile', error);
-      showChartEmpty('profile', $('chart-profile'), 'Failed to load profile');
-    }
+  /** base64 → Uint8Array（每台机器每天 1,440 字节） */
+  function decodeSequence(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
   }
 
-  /* ---------------- 图表数据装载 ---------------- */
-
-  /** State breakdown 的查询范围：日期范围 + 机器选择 + 热力图选中的行/列 */
-  function barsQuery() {
-    const focus = state.heatmapFocus;
-    const extra = {};
-    let label = null;
-    const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
-    if (weekdays.length) extra.weekdays = weekdays.join(',');
-    const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
-
-    if (focus && focus.kind === 'minute') {
-      extra.minute = focus.value;
-      label = `${wdPrefix}${hhmm(focus.value)} · ${dateRangeLabel()}`;
-    } else if (focus && focus.kind === 'range') {
-      extra.fromMinute = focus.from;
-      extra.toMinute = focus.to;
-      label = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
-    } else if (weekdays.length) {
-      label = `${wdPrefix}${dateRangeLabel()}`;
-    }
-    return { params: chartParams(extra), label };
+  function todayKey() {
+    return History.todayKey();
   }
 
-  /** 只刷新 State breakdown（热力图选择变化时立即生效） */
-  async function loadBars() {
-    if (!state.selected.size) {
-      state.bars = null;
-      showChartEmpty('bars', $('chart-bars'), 'Select at least one machine');
-      $('bars-range').textContent = '';
-      return;
-    }
+  /** 当前日期范围是否包含今天（自动刷新只重取今天的数据） */
+  function rangeIncludesToday() {
+    return History.rangeIncludesToday(state.dateFrom, state.dateTo);
+  }
 
-    const { params, label } = barsQuery();
-    const requestId = (state.barsRequestId ?? 0) + 1;
-    state.barsRequestId = requestId;
-    try {
-      const bars = await api(`/api/bars?${params}`);
-      if (requestId !== state.barsRequestId) return;
-      state.bars = bars;
-      renderBarsChart();
-      const barsRangeEl = $('bars-range');
-      if (barsRangeEl) {
-        barsRangeEl.textContent =
-          label ??
-          (bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '');
+  /** 记录某台机器的某些天已经取过（即使那天没有数据） */
+  function markFetched(machineIds, fromDay, toDay, returnedDays) {
+    for (const machineId of machineIds) {
+      if (!fromDay && !toDay) {
+        state.fetchedAllMachines.add(machineId);
+        continue;
       }
-    } catch (error) {
-      console.error('Failed to load bars', error);
-    }
-  }
-
-  async function loadCharts() {
-    // 没选机器时，所有面板都没有样本可统计
-    if (!state.selected.size) {
-      state.requestId = (state.requestId ?? 0) + 1; // 让进行中的旧请求失效
-      state.barsRequestId = (state.barsRequestId ?? 0) + 1;
-      state.bars = null;
-      state.heatmap = null;
-      state.profile = null;
-      showChartEmpty('bars', $('chart-bars'), 'Select at least one machine');
-      renderHeatmap(null, 'Select at least one machine');
-      showChartEmpty('profile', $('chart-profile'), 'Select at least one machine');
-      $('bars-range').textContent = '';
-      return;
-    }
-
-    // State breakdown = 日期范围 + 机器选择 + 热力图选中行/列
-    const barsQueryInfo = barsQuery();
-    const barsParams = barsQueryInfo.params;
-
-    // 热力图与剖面跟随 Date range 与 Machines selected（未选日期 = 全部历史）
-    const heatmapParams = chartParams();
-
-    const requestId = (state.requestId ?? 0) + 1;
-    state.requestId = requestId;
-
-    try {
-      const [bars, heatmap] = await Promise.all([
-        api(`/api/bars?${barsParams}`),
-        api(`/api/heatmap?${heatmapParams}`),
-      ]);
-
-      if (requestId !== state.requestId) return; // 只渲染最新一次请求
-
-      state.bars = bars;
-      renderBarsChart(); // 无论选择什么，都展示全部机器的状态占比
-
-      // 右上角：热力图选中行/列时显示该范围，否则显示实际时段
-      const barsRangeEl = $('bars-range');
-      if (barsRangeEl) {
-        barsRangeEl.textContent =
-          barsQueryInfo.label ??
-          (bars.since && bars.until ? `${fmtRangeTime(bars.since)} – ${fmtRangeTime(bars.until)}` : '');
+      let days = state.fetchedDays.get(machineId);
+      if (!days) {
+        days = new Set();
+        state.fetchedDays.set(machineId, days);
       }
-
-      if (heatmap) {
-        state.heatmap = heatmap;
-        renderHeatmap(heatmap);
-        await refreshProfile();
+      if (fromDay && toDay) {
+        for (const day of History.dayListBetween(fromDay, toDay)) days.add(day);
       } else {
-        state.heatmap = null;
-        showChartEmpty('profile', $('chart-profile'), 'No data yet (waiting for polls)');
+        for (const day of returnedDays) days.add(day);
       }
-    } catch (error) {
-      console.error('Failed to load charts', error);
-      $('db-badge').textContent = `Load failed: ${error.message}`;
-      $('db-badge').className = 'badge error';
     }
+  }
+
+  /** 当前选择下还缺哪些机器·天（已缓存的不再请求；缺失日期按连续区间分组） */
+  function pendingRequests() {
+    return History.planDiff({
+      selectedIds: [...state.selected],
+      dateFrom: state.dateFrom,
+      dateTo: state.dateTo,
+      fetchedAllMachines: state.fetchedAllMachines,
+      fetchedDays: state.fetchedDays,
+    });
+  }
+
+  /**
+   * 向后端要一段机器·天的序列（只在缓存缺数据时调用）。
+   * 返回的数据会替换缓存里对应机器、对应日期的旧序列。
+   */
+  async function fetchHistory({ machineIds = [], fromDay = null, toDay = null } = {}) {
+    const params = new URLSearchParams();
+    const ids = machineIds.filter(Boolean);
+    if (ids.length) params.set('machines', ids.join(','));
+    if (fromDay) params.set('from', fromDay);
+    if (toDay) params.set('to', toDay);
+
+    const data = await api(`/api/days?${params}`);
+    if (data.available === false) throw new Error('history database unavailable');
+
+    // 先清掉这次请求覆盖的机器·天，再写入新数据（今天的序列会随轮询增长）
+    const wanted = new Set(ids);
+    for (const [key, record] of state.dayCache) {
+      if (wanted.size && !wanted.has(record.machineId)) continue;
+      if (fromDay && record.day < fromDay) continue;
+      if (toDay && record.day > toDay) continue;
+      state.dayCache.delete(key);
+    }
+
+    const returnedDays = new Set();
+    for (const row of data.days ?? []) {
+      returnedDays.add(row.day);
+      state.dayCache.set(`${row.machineId}|${row.day}`, {
+        machineId: row.machineId,
+        day: row.day,
+        seq: decodeSequence(row.seq),
+        updatedAt: row.updatedAt ?? null,
+      });
+    }
+
+    markFetched(ids, fromDay, toDay, returnedDays);
+    return data;
+  }
+
+  function historyFailed(error) {
+    console.error('Failed to load history data', error);
+    $('db-badge').textContent = `Load failed: ${error.message}`;
+    $('db-badge').className = 'badge error';
+    if (!state.heatmap) clearCharts('Failed to load history data');
+  }
+
+  /** 把当前缺失的机器·天补齐（已缓存的不再请求） */
+  async function fetchPendingHistory() {
+    for (const request of pendingRequests()) await fetchHistory(request);
+  }
+
+  /** 日期范围变化：只补新范围里还没缓存过的机器·天 */
+  async function loadHistoryForRange() {
+    if (!state.selected.size) {
+      renderViews();
+      return;
+    }
+    try {
+      await fetchPendingHistory();
+    } catch (error) {
+      historyFailed(error);
+      return;
+    }
+    renderViews();
+  }
+
+  /** 机器从不选变成选：只补这台机器在当前范围里还没缓存过的天 */
+  async function loadHistoryForMachine() {
+    try {
+      await fetchPendingHistory();
+    } catch (error) {
+      historyFailed(error);
+      return;
+    }
+    renderViews();
+  }
+
+  /** 自动/手动刷新：只重取今天、已选机器的序列（今天的序列还在增长） */
+  async function loadHistoryForRefresh() {
+    if (!state.selected.size || !rangeIncludesToday()) return;
+    const today = todayKey();
+    try {
+      await fetchHistory({ machineIds: [...state.selected], fromDay: today, toDay: today });
+    } catch (error) {
+      historyFailed(error);
+      return;
+    }
+    renderViews();
+  }
+
+  /** 当前日期范围 + 机器选择对应的机器·天序列 */
+  function recordsForView() {
+    const from = state.dateFrom;
+    const to = state.dateTo;
+    const records = [];
+    for (const record of state.dayCache.values()) {
+      if (!state.selected.has(record.machineId)) continue;
+      if (from && record.day < from) continue;
+      if (to && record.day > to) continue;
+      records.push(record);
+    }
+    return records;
+  }
+
+  /** 展示用的覆盖时段：日期范围与真实首条观测取交集，结束时间不超过现在 */
+  function computeCoverage(records) {
+    const now = Date.now();
+    let since = null;
+    if (state.meta?.firstObservedAt) since = new Date(state.meta.firstObservedAt);
+    if (state.dateFrom) {
+      const from = new Date(`${state.dateFrom}T00:00:00`);
+      since = since ? new Date(Math.max(since.getTime(), from.getTime())) : from;
+    } else if (!since && records.length) {
+      const earliest = records.reduce((min, record) => (record.day < min ? record.day : min), records[0].day);
+      since = new Date(`${earliest}T00:00:00`);
+    }
+
+    let until = new Date(now);
+    if (state.dateTo) {
+      const end = new Date(`${state.dateTo}T23:59:59.999`);
+      until = new Date(Math.min(end.getTime(), now));
+    }
+    if (since && until.getTime() < since.getTime()) until = new Date(since.getTime());
+    return { since: since ? since.toISOString() : null, until: until.toISOString() };
+  }
+
+  /** State breakdown 用的机器顺序：洗衣机 → 烘干机 → 其他 */
+  function chartMachineList() {
+    const kindOrder = { washer: 0, dryer: 1 };
+    return state.machines
+      .filter((machine) => state.selected.has(machine.id))
+      .slice()
+      .sort(
+        (a, b) =>
+          (kindOrder[a.kind] ?? 2) - (kindOrder[b.kind] ?? 2) ||
+          String(a.name).localeCompare(String(b.name)),
+      );
+  }
+
+  /** State breakdown 的筛选范围标签（热力图选中的分钟 / 时段 / 星期） */
+  function barsScopeLabel() {
+    const focus = state.heatmapFocus;
+    const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
+    const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
+    if (focus && focus.kind === 'minute') {
+      return `${wdPrefix}${hhmm(focus.value)} · ${dateRangeLabel()}`;
+    }
+    if (focus && focus.kind === 'range') {
+      return `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
+    }
+    if (weekdays.length) return `${wdPrefix}${dateRangeLabel()}`;
+    return null;
+  }
+
+  function clearCharts(message = 'No data yet (waiting for polls)') {
+    state.heatmap = null;
+    state.profile = null;
+    state.bars = null;
+    renderHeatmap(null, message);
+    showChartEmpty('bars', $('chart-bars'), message);
+    showChartEmpty('profile', $('chart-profile'), message);
+    $('bars-range').textContent = '';
+  }
+
+  /**
+   * 纯本地重算并重绘：勾机器、选星期、拖时段、点分钟都走这里，不请求后端。
+   */
+  function renderViews() {
+    if (!state.selected.size) {
+      clearCharts('Select at least one machine');
+      return;
+    }
+
+    const records = recordsForView();
+    const machineList = chartMachineList();
+    const kindById = {};
+    const nameById = {};
+    for (const machine of state.machines) {
+      kindById[machine.id] = machine.kind;
+      nameById[machine.id] = machine.name;
+    }
+
+    const coverage = computeCoverage(records);
+    const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
+    const focus = state.heatmapFocus;
+
+    state.heatmap = { ...Aggregate.buildHeatmap(records), coverage };
+    state.profile = Aggregate.buildProfile(records, { kindById, weekdays });
+    const breakdown = Aggregate.buildStateBreakdown(records, {
+      kindById,
+      nameById,
+      machineIds: machineList.map((machine) => machine.id),
+      weekdays,
+      minute: focus && focus.kind === 'minute' ? focus.value : null,
+      fromMinute: focus && focus.kind === 'range' ? focus.from : null,
+      toMinute: focus && focus.kind === 'range' ? focus.to : null,
+    });
+    state.bars = { ...breakdown, since: coverage.since, until: coverage.until };
+
+    renderHeatmap(state.heatmap);
+    renderProfile();
+    renderBarsChart();
+
+    const scopeLabel = barsScopeLabel();
+    $('bars-range').textContent = state.bars.rows.length
+      ? scopeLabel ??
+        (coverage.since && coverage.until
+          ? `${fmtRangeTime(coverage.since)} – ${fmtRangeTime(coverage.until)}`
+          : '')
+      : '';
   }
 
   /* ---------------- 数据刷新 ---------------- */
@@ -1327,12 +1403,14 @@
 
   let refreshing = false;
 
-  async function refreshAll() {
+  async function refreshAll({ initial = false } = {}) {
     if (refreshing) return;
     refreshing = true;
     try {
       await loadState();
-      await loadCharts();
+      // 首次加载取全部历史；之后刷新只重取今天的序列
+      if (initial) await loadHistoryForRange();
+      else await loadHistoryForRefresh();
     } catch (error) {
       console.error('Refresh failed', error);
       $('db-badge').textContent = `Connection failed: ${error.message}`;
@@ -1449,7 +1527,7 @@
     applyTheme(readThemeMode(), { redraw: false });
     watchSystemTheme();
     bindEvents();
-    await refreshAll();
+    await refreshAll({ initial: true });
     setInterval(tick, 1000);
   }
 
