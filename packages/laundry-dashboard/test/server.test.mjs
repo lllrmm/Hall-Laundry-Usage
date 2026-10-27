@@ -79,6 +79,8 @@ test('GET / 返回看板页面', async () => {
     assert.match(html, /id="theme-toggle"/, '页面应包含主题切换按钮');
     assert.match(html, /data-theme/, '首屏应内联主题初始化脚本');
     assert.match(html, /\/vendor\/chart\.umd\.js/, '应加载本地 vendor 的 Chart.js');
+    assert.match(html, /Database updated/, '顶栏时间标签应为 Database updated');
+    assert.doesNotMatch(html, />Data updated</, '旧标签 Data updated 应已移除');
     assert.doesNotMatch(html, /Washers show detergent/, '状态区不应再有洗粉提示文案');
   });
 });
