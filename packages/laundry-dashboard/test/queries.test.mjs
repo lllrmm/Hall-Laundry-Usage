@@ -220,6 +220,11 @@ test('bars：时间窗内状态占比', () => {
     // until 早于数据 → 无样本
     const before = dashboard.bars({ since: null, until: '2000-01-01T00:00:00.000Z' });
     assert.equal(before.rows.length, 0, 'until 早于数据时占比图无样本');
+
+    // 多选星期：7 天合计 = 全部样本
+    const multiWeekdays = dashboard.bars({ since: null, weekdays: [0, 1, 2, 3, 4, 5, 6] });
+    assert.equal(sumSamples(multiWeekdays), totalSamples, '多选全部星期时样本总数一致');
+    assert.deepEqual(multiWeekdays.scope.weekdays, [0, 1, 2, 3, 4, 5, 6]);
   });
 });
 
@@ -296,6 +301,12 @@ test('profile：5 分钟精度（每天 288 槽）', () => {
     // until 早于数据 → 剖面全空
     const none = dashboard.profile({ since: null, until: '2000-01-01T00:00:00.000Z' });
     assert.ok(none.slots.every((slot) => slot.samples === 0), 'until 早于数据时剖面无样本');
+
+    // 多选星期：7 天合计 = 不筛选
+    const allDays = dashboard.profile({ since });
+    const multiDays = dashboard.profile({ since, weekdays: [0, 1, 2, 3, 4, 5, 6] });
+    const sum = (result) => result.slots.reduce((total, slot) => total + slot.samples, 0);
+    assert.equal(sum(multiDays), sum(allDays), '多选全部星期时剖面样本总数一致');
   });
 });
 

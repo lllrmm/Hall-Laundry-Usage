@@ -283,7 +283,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       ['Washers in use', 'Dryers in use'],
       '时间剖面按机型分两条线',
     );
-    assert.match(document.getElementById('profile-hint').textContent, /All days · 1-min profile/);
+    assert.match(document.getElementById('profile-hint').textContent, /1-min profile · /);
 
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
@@ -306,6 +306,32 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
         (node) => node.classList.contains('active') && node.textContent === 'Tue',
       ),
       '选中的周几行应高亮',
+    );
+
+    // 多选星期：Mon + Tue 同时勾选
+    const findRow = (label) =>
+      [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
+        (node) => node.textContent === label,
+      );
+    findRow('Mon').click();
+    await waitFor(
+      () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 2 &&
+        /Mon, Tue · 1-min profile/.test(document.getElementById('profile-hint').textContent),
+      { label: '同时勾选 Mon + Tue' },
+    );
+    await waitFor(() => /Mon, Tue · /.test(document.getElementById('bars-range').textContent), {
+      label: 'State breakdown 跟随多选的星期',
+    });
+
+    // 取消多选，回到全部星期
+    findRow('Mon').click();
+    findRow('Tue').click();
+    await waitFor(
+      () =>
+        document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 0 &&
+        /1-min profile · /.test(document.getElementById('profile-hint').textContent),
+      { label: '取消星期选择后回到默认剖面' },
     );
 
     clickAxis(720);
@@ -370,7 +396,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       () =>
         charts().profile &&
         charts().profile.data.labels.length === 1440 &&
-        /All days/.test(document.getElementById('profile-hint').textContent),
+        /1-min profile/.test(document.getElementById('profile-hint').textContent),
       { label: '再次点击取消选择' },
     );
     await waitFor(() => /^\d{2}-\d{2} \d{2}:\d{2} – /.test(document.getElementById('bars-range').textContent), {

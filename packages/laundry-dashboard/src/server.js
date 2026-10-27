@@ -61,6 +61,16 @@ function parseIsoParam(value) {
   return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
 }
 
+/** 解析 ?weekdays=0,2,4（也支持重复参数），返回去重后的 0–6 */
+function parseWeekdays(params) {
+  const values = params
+    .getAll('weekdays')
+    .flatMap((value) => value.split(','))
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
+  return [...new Set(values)];
+}
+
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
@@ -133,7 +143,8 @@ export function createDashboardServer({ config, logger = console }) {
       const minute = parseOptionalInt(url.searchParams.get('minute'), 0, 1439);
       const fromMinute = parseOptionalInt(url.searchParams.get('fromMinute'), 0, 1439);
       const toMinute = parseOptionalInt(url.searchParams.get('toMinute'), 0, 1439);
-      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${hour ?? 'all'}:${minute ?? 'all'}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
+      const weekdays = parseWeekdays(url.searchParams);
+      const key = `${route}?${range.label}:${until ?? 'open'}:${machineIds.sort().join(',')}:${weekday ?? 'all'}:${weekdays.join(',')}:${hour ?? 'all'}:${minute ?? 'all'}:${fromMinute ?? 'all'}:${toMinute ?? 'all'}`;
       sendJson(
         res,
         200,
@@ -143,6 +154,7 @@ export function createDashboardServer({ config, logger = console }) {
             until,
             machineIds,
             weekday,
+            weekdays,
             hour,
             minute,
             fromMinute,
@@ -192,12 +204,13 @@ export function createDashboardServer({ config, logger = console }) {
         weekdayParam === null || weekdayParam === '' ? null : Number.parseInt(weekdayParam, 10);
       const bucketSeconds = Number.parseInt(url.searchParams.get('bucketSeconds') ?? '', 10);
       const bucket = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? bucketSeconds : 300;
-      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${bucket}`;
+      const weekdays = parseWeekdays(url.searchParams);
+      const key = `${route}?${range.label}:${until ?? 'open'}:${weekday ?? 'all'}:${weekdays.join(',')}:${bucket}`;
       sendJson(
         res,
         200,
         cached(key, () =>
-          database.profile({ since: range.since, until, weekday, bucketSeconds: bucket }),
+          database.profile({ since: range.since, until, weekday, weekdays, bucketSeconds: bucket }),
         ),
       );
       return true;

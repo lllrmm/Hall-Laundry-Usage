@@ -66,6 +66,7 @@
     heatmap: null,
     heatmapFocus: null,
     heatmapRange: null,
+    weekdaySelection: new Set(),
     profile: null,
     profileKey: null,
     profileAt: 0,
@@ -699,8 +700,15 @@
       const label = document.createElement('div');
       label.className = 'heatmap-row-label';
       label.textContent = WEEKDAY_LABELS[weekday];
-      if (focus && focus.kind === 'weekday' && focus.value === weekday) label.classList.add('active');
-      label.addEventListener('click', () => setHeatmapFocus('weekday', weekday));
+      if (state.weekdaySelection.has(weekday)) label.classList.add('active');
+      label.title = `Toggle ${WEEKDAY_LABELS[weekday]} (multi-select)`;
+      label.addEventListener('click', () => {
+        if (state.weekdaySelection.has(weekday)) state.weekdaySelection.delete(weekday);
+        else state.weekdaySelection.add(weekday);
+        if (state.heatmap) renderHeatmap(state.heatmap);
+        refreshProfile();
+        loadBars();
+      });
       labelBox.appendChild(label);
     }
 
@@ -723,6 +731,13 @@
         ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
         ctx.fillRect(minuteX(preview.from), top, minuteX(preview.to + 1) - minuteX(preview.from), 7 * rowH);
         return;
+      }
+
+      if (state.weekdaySelection.size) {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.14)';
+        for (const weekday of state.weekdaySelection) {
+          ctx.fillRect(0, top + weekday * rowH, cssWidth, rowH - 1);
+        }
       }
 
       if (focus && focus.kind === 'weekday') {
@@ -889,6 +904,17 @@
     return options;
   }
 
+  /** 当前勾选的星期（空 = 全部 7 天） */
+  function selectedWeekdays() {
+    if (!state.weekdaySelection.size) return [0, 1, 2, 3, 4, 5, 6];
+    return [...state.weekdaySelection].sort((a, b) => a - b);
+  }
+
+  function weekdaySelectionLabel() {
+    const list = selectedWeekdays();
+    return list.length === 7 ? '' : list.map((value) => WEEKDAY_LABELS[value]).join(', ');
+  }
+
   /** 历史剖面：行/默认 → 1 分钟线图；列（分钟）→ 一周 7 天柱状图 */
   function renderProfile() {
     const container = $('chart-profile');
@@ -906,10 +932,11 @@
       }
 
       const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.minute}`, cell]));
+      const weekdayList = selectedWeekdays();
       const labels = [];
       const values = [];
       const samples = [];
-      for (let weekday = 0; weekday < 7; weekday += 1) {
+      for (const weekday of weekdayList) {
         const cell = byKey.get(`${weekday}-${focus.value}`);
         labels.push(WEEKDAY_LABELS[weekday]);
         values.push(cell ? round1(cell.usageRatio * 100) : null);
@@ -917,7 +944,8 @@
       }
 
       const time = `${pad2(Math.floor(focus.value / 60))}:${pad2(focus.value % 60)}`;
-      if (hint) hint.textContent = `${time} · usage by weekday · ${dateRangeLabel()}`;
+      const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
+      if (hint) hint.textContent = `${wdPrefix}${time} · usage by weekday · ${dateRangeLabel()}`;
       mountChart('profile', container, {
         type: 'bar',
         data: {
@@ -947,11 +975,12 @@
         return;
       }
 
-      // 拖选的分钟区间 → 按周几统计（柱状图）
-      const labels = [...WEEKDAY_LABELS];
+      // 拖选的分钟区间 → 按周几统计（柱状图，仅显示勾选的星期）
+      const weekdayList = selectedWeekdays();
+      const labels = weekdayList.map((weekday) => WEEKDAY_LABELS[weekday]);
       const values = [];
       const samples = [];
-      for (let weekday = 0; weekday < 7; weekday += 1) {
+      for (const weekday of weekdayList) {
         let weighted = 0;
         let weight = 0;
         for (const cell of cells) {
@@ -964,8 +993,9 @@
         samples.push(weight);
       }
 
+      const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
       if (hint) {
-        hint.textContent = `${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday · ${dateRangeLabel()}`;
+        hint.textContent = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · usage by weekday · ${dateRangeLabel()}`;
       }
       mountChart('profile', container, {
         type: 'bar',
@@ -1006,10 +1036,8 @@
       data.since && data.until
         ? `${fmtRangeTime(data.since)} – ${fmtRangeTime(data.until)}`
         : 'all history';
-    const title =
-      focus && focus.kind === 'weekday'
-        ? `${WEEKDAY_LABELS[focus.value]} · 1-min profile · ${period}`
-        : `All days · 1-min profile · ${period}`;
+    const wdLabel = weekdaySelectionLabel();
+    const title = `${wdLabel ? `${wdLabel} · ` : ''}1-min profile · ${period}`;
     if (hint) hint.textContent = title;
 
     // 只画有样本的机型（机器选择变化时图例自动收缩）
@@ -1074,7 +1102,8 @@
 
     const dateKey = `${state.dateFrom ?? ''}~${state.dateTo ?? ''}`;
     const machineKey = machineIdsParam();
-    const key = `${focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all'}|${dateKey}|${machineKey}`;
+    const weekdayKey = [...state.weekdaySelection].sort((a, b) => a - b).join(',') || 'all';
+    const key = `${weekdayKey}|${dateKey}|${machineKey}`;
     const fresh = state.profileKey === key && state.profile && Date.now() - (state.profileAt ?? 0) < 60_000;
     if (fresh) {
       renderProfile();
@@ -1084,7 +1113,8 @@
     try {
       const params = chartParams();
       params.set('bucketSeconds', '60');
-      if (focus && focus.kind === 'weekday') params.set('weekday', String(focus.value));
+      const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
+      if (weekdays.length) params.set('weekdays', weekdays.join(','));
       const data = await api(`/api/profile?${params}`);
       if (!state.selected.size) return; // 请求期间清空了选择，丢弃结果
       state.profile = data;
@@ -1104,16 +1134,19 @@
     const focus = state.heatmapFocus;
     const extra = {};
     let label = null;
-    if (focus && focus.kind === 'weekday') {
-      extra.weekday = focus.value;
-      label = `${WEEKDAY_LABELS[focus.value]} · ${dateRangeLabel()}`;
-    } else if (focus && focus.kind === 'minute') {
+    const weekdays = [...state.weekdaySelection].sort((a, b) => a - b);
+    if (weekdays.length) extra.weekdays = weekdays.join(',');
+    const wdPrefix = weekdaySelectionLabel() ? `${weekdaySelectionLabel()} · ` : '';
+
+    if (focus && focus.kind === 'minute') {
       extra.minute = focus.value;
-      label = `${hhmm(focus.value)} · ${dateRangeLabel()}`;
+      label = `${wdPrefix}${hhmm(focus.value)} · ${dateRangeLabel()}`;
     } else if (focus && focus.kind === 'range') {
       extra.fromMinute = focus.from;
       extra.toMinute = focus.to;
-      label = `${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
+      label = `${wdPrefix}${hhmm(focus.from)}–${hhmm(focus.to)} · ${dateRangeLabel()}`;
+    } else if (weekdays.length) {
+      label = `${wdPrefix}${dateRangeLabel()}`;
     }
     return { params: chartParams(extra), label };
   }

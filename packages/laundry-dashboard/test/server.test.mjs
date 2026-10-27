@@ -164,6 +164,14 @@ test('GET /api/bars 与 /api/hourly', async () => {
     assert.equal(scopedBars.scope.hour, 0);
     assert.ok(Array.isArray(scopedBars.rows));
 
+    const multiBars = await (await fetch(`${base}/api/bars?since=all&weekdays=0,1`)).json();
+    assert.deepEqual(multiBars.scope.weekdays, [0, 1]);
+
+    const multiProfile = await (
+      await fetch(`${base}/api/profile?since=all&bucketSeconds=60&weekdays=0,1`)
+    ).json();
+    assert.equal(multiProfile.slots.length, 1440);
+
     const emptyHeatmap = await (
       await fetch(`${base}/api/heatmap?since=all&until=2000-01-01T00:00:00.000Z`)
     ).json();

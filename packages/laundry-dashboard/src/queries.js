@@ -389,6 +389,7 @@ export class DashboardDatabase {
     until = null,
     machineIds = [],
     weekday = null,
+    weekdays = [],
     hour = null,
     minute = null,
     fromMinute = null,
@@ -419,14 +420,21 @@ export class DashboardDatabase {
       params.push(fromMinute, toMinute);
     }
     const hasMinute = Number.isInteger(minute) && minute >= 0 && minute <= 1439;
+    const weekdayList = (Array.isArray(weekdays) ? weekdays : []).filter(
+      (value) => Number.isInteger(value) && value >= 0 && value <= 6,
+    );
+    const hasWeekdays = weekdayList.length > 0;
     const hasWeekday = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6;
     const hasHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
     if (hasMinute) {
       scopeFilter += ` AND ${minuteExpr} = ?`;
       params.push(minute);
     }
-    if (hasWeekday) {
-      // 热力图 weekday 0=周一 … 6=周日
+    if (hasWeekdays) {
+      // 热力图 weekday 0=周一 … 6=周日，支持多选
+      scopeFilter += ` AND (CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) + 6) % 7 IN (${weekdayList.map(() => '?').join(', ')})`;
+      params.push(...weekdayList);
+    } else if (hasWeekday) {
       scopeFilter += ` AND (CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) + 6) % 7 = ?`;
       params.push(weekday);
     }
@@ -481,6 +489,7 @@ export class DashboardDatabase {
         until,
         scope: {
           weekday: hasWeekday ? weekday : null,
+          weekdays: hasWeekdays ? weekdayList : null,
           hour: hasHour ? hour : null,
           minute: hasMinute ? minute : null,
           fromMinute: hasRange ? fromMinute : null,
@@ -592,7 +601,7 @@ export class DashboardDatabase {
    * 按 5 分钟精度的时间剖面（每天 288 个槽位）。
    * weekday 0=周一…6=周日；不传则汇总所有天（按样本数加权由调用方处理，这里返回逐槽聚合值）。
    */
-  profile({ since = null, until = null, weekday = null, bucketSeconds = 300 } = {}) {
+  profile({ since = null, until = null, weekday = null, weekdays = [], bucketSeconds = 300 } = {}) {
     const db = this._ensure();
     const slotsPerDay = Math.round(86400 / bucketSeconds);
     const slotsPerHour = slotsPerDay / 24;
@@ -602,8 +611,14 @@ export class DashboardDatabase {
 
     const params = [since ?? '0000-01-01T00:00:00.000Z'];
     let weekdayFilter = '';
-    if (weekday !== null && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6) {
+    const weekdayList = (Array.isArray(weekdays) ? weekdays : []).filter(
+      (value) => Number.isInteger(value) && value >= 0 && value <= 6,
+    );
+    if (weekdayList.length > 0) {
       // SQLite %w: 0=周日 … 6=周六；我们的 0=周一
+      weekdayFilter = `AND CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) IN (${weekdayList.map(() => '?').join(', ')})`;
+      params.push(...weekdayList.map((value) => (value + 1) % 7));
+    } else if (weekday !== null && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6) {
       weekdayFilter = `AND CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) = ?`;
       params.push((weekday + 1) % 7);
     }
