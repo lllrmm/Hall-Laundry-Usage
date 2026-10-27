@@ -169,7 +169,12 @@ test('jsdom 渲染：状态卡片 + 四张图表 + 筛选交互', { skip: isBun 
 
     const trendSvg = document.querySelector('#chart-trend svg');
     assert.ok(trendSvg, '趋势图应有 svg');
-    assert.ok(trendSvg.querySelectorAll('path.series-line').length >= 2, '趋势图应有可用/在用两条线');
+    const trendLines = trendSvg.querySelectorAll('path.series-line');
+    assert.equal(trendLines.length, 1, '趋势图只画"在用"一条线');
+    assert.ok(
+      ['#f59e0b', '#fbbf24'].includes(trendLines[0].getAttribute('stroke')),
+      `趋势线应为 in-use 颜色，实际 ${trendLines[0].getAttribute('stroke')}`,
+    );
     assert.equal(document.querySelectorAll('#chart-series path.series-line').length, 4, '每台机器一条折线');
     assert.equal(document.querySelectorAll('#chart-bars svg rect').length > 3, true, '占比图应画出柱段');
     // 小时图：只有有数据的那个小时会画柱子（测试数据集中在几分钟内）

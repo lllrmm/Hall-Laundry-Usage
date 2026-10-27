@@ -835,10 +835,11 @@
   }
 
   function renderTrend(series) {
-    const totals = series.totals ?? { available: [], inUse: [] };
-    const machineCount = Math.max(1, ...(series.machines ?? []).length ? [series.machines.length] : [1]);
-    const values = [...(totals.available ?? []), ...(totals.inUse ?? [])].filter((v) => v !== null);
-    const yMax = Math.max(machineCount, Math.ceil(Math.max(1, ...values)));
+    const totals = series.totals ?? { inUse: [] };
+    // 只画"在用"一条线：Y 轴按实际峰值自适应（至少 1 台）
+    const values = (totals.inUse ?? []).filter((v) => v !== null);
+    const peak = values.length ? Math.max(...values) : 0;
+    const yMax = Math.max(1, Math.ceil(peak));
 
     $('trend-hint').textContent = series.buckets?.length
       ? `from ${fmtDateTime(series.since)} · ${series.bucketSeconds >= 60 ? `${Math.round(series.bucketSeconds / 60)} min` : `${series.bucketSeconds} s`}/point · ${series.buckets.length} points`
@@ -850,7 +851,6 @@
       yMax,
       yFormat: (value) => `${Math.round(value)}`,
       lines: [
-        { label: 'Free', color: cssVar('--free', '#22c55e'), values: totals.available ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
         { label: 'In use', color: cssVar('--busy', '#f59e0b'), values: totals.inUse ?? [], step: false, valueFormat: (v) => `${v.toFixed(1)}` },
       ],
     });
