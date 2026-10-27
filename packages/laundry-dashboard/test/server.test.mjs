@@ -143,6 +143,15 @@ test('GET /api/bars 与 /api/hourly', async () => {
     assert.equal(cell.samples, 1);
     assert.equal(cell.usageRatio, 0);
     assert.ok(heatmap.since && heatmap.until);
+
+    const profile = await (await fetch(`${base}/api/profile?since=all`)).json();
+    assert.equal(profile.slots.length, 288);
+    assert.equal(profile.bucketSeconds, 300);
+    assert.ok(profile.slots.some((slot) => slot.samples > 0));
+
+    const weekdayProfile = await (await fetch(`${base}/api/profile?since=all&weekday=2`)).json();
+    assert.equal(weekdayProfile.slots.length, 288);
+    assert.equal(weekdayProfile.weekday, 2);
   });
 });
 

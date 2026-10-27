@@ -226,6 +226,43 @@ test('heatmap：按星期 × 小时聚合使用率', () => {
   });
 });
 
+test('profile：5 分钟精度（每天 288 槽）', () => {
+  withDashboard((dashboard) => {
+    const since = new Date(T0 - 60_000).toISOString();
+    const profile = dashboard.profile({ since, weekday: null });
+    assert.equal(profile.bucketSeconds, 300);
+    assert.equal(profile.slots.length, 288);
+
+    const used = profile.slots.filter((slot) => slot.samples > 0);
+    assert.ok(used.length >= 1, '应至少有一个 5 分钟槽有数据');
+    assert.ok(used.every((slot) => slot.usageRatio >= 0 && slot.usageRatio <= 1));
+
+    // 3 轮轮询集中在 2 分钟内，应落在同一或相邻的 5 分钟槽（不依赖 SQLite localtime 与 JS 时区一致）
+    assert.ok(used.length >= 1 && used.length <= 2, '样本应集中在 1–2 个 5 分钟槽');
+    assert.ok(used.every((slot) => slot.slot >= 0 && slot.slot < 288));
+    if (used.length === 2) {
+      assert.ok(Math.abs(used[0].slot - used[1].slot) <= 1, '相邻两个槽最多相差 1');
+    }
+
+    // 按机型拆分（washer / dryer 各自一条线）
+    const sample = used[0];
+    assert.ok('washerUsage' in sample && 'dryerUsage' in sample);
+    assert.ok(sample.washerSamples > 0 && sample.dryerSamples > 0, '洗衣机与烘干机都应有样本');
+    assert.ok(sample.washerUsage >= 0 && sample.washerUsage <= 1);
+    assert.ok(sample.dryerUsage >= 0 && sample.dryerUsage <= 1);
+
+    // 指定周几（0=周一）：只保留该周几的数据
+    const start = new Date(T0);
+    const weekday = (start.getDay() + 6) % 7;
+    const only = dashboard.profile({ since: null, weekday });
+    assert.equal(only.slots.length, 288);
+    assert.ok(only.slots.some((slot) => slot.samples > 0));
+
+    const other = dashboard.profile({ since: null, weekday: (weekday + 3) % 7 });
+    assert.equal(other.slots.filter((slot) => slot.samples > 0).length, 0, '其他周几没有数据');
+  });
+});
+
 test('洗粉标注：洗衣机 powder 字段（with / without），烘干机为 null', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-powder-'));
   const file = path.join(dir, 'test.sqlite');

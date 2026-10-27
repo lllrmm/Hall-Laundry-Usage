@@ -524,6 +524,108 @@ export class DashboardDatabase {
     }
   }
 
+  /**
+   * 按 5 分钟精度的时间剖面（每天 288 个槽位）。
+   * weekday 0=周一…6=周日；不传则汇总所有天（按样本数加权由调用方处理，这里返回逐槽聚合值）。
+   */
+  profile({ since = null, weekday = null, bucketSeconds = 300 } = {}) {
+    const db = this._ensure();
+    const slotsPerDay = Math.round(86400 / bucketSeconds);
+    const slotsPerHour = slotsPerDay / 24;
+    if (!db || !this._hasSchema(db)) {
+      return { available: false, since, until: null, bucketSeconds, slots: [] };
+    }
+
+    const params = [since ?? '0000-01-01T00:00:00.000Z'];
+    let weekdayFilter = '';
+    if (weekday !== null && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6) {
+      // SQLite %w: 0=周日 … 6=周六；我们的 0=周一
+      weekdayFilter = `AND CAST(strftime('%w', s.observed_at, 'localtime') AS INTEGER) = ?`;
+      params.push((weekday + 1) % 7);
+    }
+
+    try {
+      const rows = db
+        .prepare(
+          `SELECT CAST(strftime('%H', s.observed_at, 'localtime') AS INTEGER) * ${slotsPerHour}
+                  + CAST(strftime('%M', s.observed_at, 'localtime') AS INTEGER) / ${Math.max(1, Math.round(bucketSeconds / 60))} AS slot,
+                  m.kind AS kind,
+                  COUNT(*) AS samples,
+                  AVG(CASE WHEN s.state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio
+           FROM machine_snapshots s
+           LEFT JOIN machines m ON m.id = s.machine_id
+           WHERE s.observed_at >= ? ${weekdayFilter}
+           GROUP BY slot, kind
+           ORDER BY slot`,
+        )
+        .all(...params);
+
+      const bySlot = new Map();
+      for (const row of rows) {
+        const slot = Number(row.slot);
+        let entry = bySlot.get(slot);
+        if (!entry) {
+          entry = { samples: 0, weighted: 0, washerSamples: 0, washerWeighted: 0, dryerSamples: 0, dryerWeighted: 0 };
+          bySlot.set(slot, entry);
+        }
+        const samples = Number(row.samples);
+        const usage = Number(row.usage_ratio);
+        entry.samples += samples;
+        entry.weighted += usage * samples;
+        if (row.kind === 'washer') {
+          entry.washerSamples += samples;
+          entry.washerWeighted += usage * samples;
+        } else if (row.kind === 'dryer') {
+          entry.dryerSamples += samples;
+          entry.dryerWeighted += usage * samples;
+        }
+      }
+
+      const slots = Array.from({ length: slotsPerDay }, (_, slot) => {
+        const entry = bySlot.get(slot);
+        if (!entry) {
+          return {
+            slot,
+            samples: 0,
+            usageRatio: null,
+            washerUsage: null,
+            washerSamples: 0,
+            dryerUsage: null,
+            dryerSamples: 0,
+          };
+        }
+        return {
+          slot,
+          samples: entry.samples,
+          usageRatio: entry.samples ? entry.weighted / entry.samples : null,
+          washerUsage: entry.washerSamples ? entry.washerWeighted / entry.washerSamples : null,
+          washerSamples: entry.washerSamples,
+          dryerUsage: entry.dryerSamples ? entry.dryerWeighted / entry.dryerSamples : null,
+          dryerSamples: entry.dryerSamples,
+        };
+      });
+
+      const span = db
+        .prepare(
+          `SELECT MIN(s.observed_at) AS first, MAX(s.observed_at) AS last
+           FROM machine_snapshots s
+           WHERE s.observed_at >= ? ${weekdayFilter}`,
+        )
+        .get(...params);
+
+      return {
+        available: true,
+        since: since ?? span?.first ?? null,
+        until: span?.last ?? null,
+        bucketSeconds,
+        weekday,
+        slots,
+      };
+    } catch {
+      return { available: false, since, until: null, bucketSeconds, slots: [] };
+    }
+  }
+
   /** 根据 id 列表返回机器信息（保持 kind/name 顺序） */
   _selectedMachines(machineIds) {
     const all = this.machines();

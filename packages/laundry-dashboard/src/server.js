@@ -131,6 +131,22 @@ export function createDashboardServer({ config, logger = console }) {
       return true;
     }
 
+    if (route === '/api/profile') {
+      const range = parseRange(sinceParam);
+      const weekdayParam = url.searchParams.get('weekday');
+      const weekday =
+        weekdayParam === null || weekdayParam === '' ? null : Number.parseInt(weekdayParam, 10);
+      const bucketSeconds = Number.parseInt(url.searchParams.get('bucketSeconds') ?? '', 10);
+      const bucket = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? bucketSeconds : 300;
+      const key = `${route}?${range.label}:${weekday ?? 'all'}:${bucket}`;
+      sendJson(
+        res,
+        200,
+        cached(key, () => database.profile({ since: range.since, weekday, bucketSeconds: bucket })),
+      );
+      return true;
+    }
+
     return false;
   };
 

@@ -73,6 +73,9 @@
     hourly: null,
     heatmap: null,
     heatmapFocus: null,
+    profile: null,
+    profileKey: null,
+    profileAt: 0,
     charts: { trend: null, bars: null, hourly: null, profile: null },
     auto: true,
     refreshSeconds: 30,
@@ -735,7 +738,7 @@
     const focus = state.heatmapFocus;
     state.heatmapFocus = focus && focus.kind === kind && focus.value === value ? null : { kind, value };
     if (state.heatmap) renderHeatmap(state.heatmap);
-    renderProfile();
+    refreshProfile();
   }
 
   function renderHeatmap(heatmap, emptyMessage = 'No data yet (waiting for polls)') {
@@ -819,71 +822,26 @@
   }
 
   /** 历史剖面：选中周几 → 24 小时分布；选中小时 → 一周 7 天分布；未选 → 全部按小时（样本加权） */
-  function renderProfile() {
-    const container = $('chart-profile');
-    const hint = $('profile-hint');
-    const heatmap = state.heatmap;
-    const cells = heatmap?.cells ?? [];
+  /** 5 分钟槽位 → HH:mm */
+  function slotLabel(slot, bucketSeconds) {
+    const minutes = slot * (bucketSeconds / 60);
+    const hour = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    return `${pad2(hour)}:${pad2(minute)}`;
+  }
 
-    if (!cells.length) {
-      if (hint) hint.textContent = '';
-      showChartEmpty('profile', container, 'No data yet (waiting for polls)');
-      return;
-    }
-
-    const colors = chartColors();
-    const compact = container.clientWidth > 0 && container.clientWidth < 520;
-    const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.hour}`, cell]));
-    const focus = state.heatmapFocus;
-
-    const labels = [];
-    const values = [];
-    const samples = [];
-    let title = 'All days · usage by hour · all history';
-
-    if (focus && focus.kind === 'weekday') {
-      title = `${WEEKDAY_LABELS[focus.value]} · usage by hour · all history`;
-      for (let hour = 0; hour < 24; hour += 1) {
-        const cell = byKey.get(`${focus.value}-${hour}`);
-        labels.push(`${pad2(hour)}:00`);
-        values.push(cell ? round1(cell.usageRatio * 100) : null);
-        samples.push(cell?.samples ?? 0);
-      }
-    } else if (focus && focus.kind === 'hour') {
-      title = `${pad2(focus.value)}:00 · usage by weekday · all history`;
-      for (let weekday = 0; weekday < 7; weekday += 1) {
-        const cell = byKey.get(`${weekday}-${focus.value}`);
-        labels.push(WEEKDAY_LABELS[weekday]);
-        values.push(cell ? round1(cell.usageRatio * 100) : null);
-        samples.push(cell?.samples ?? 0);
-      }
-    } else {
-      for (let hour = 0; hour < 24; hour += 1) {
-        let weighted = 0;
-        let weight = 0;
-        for (let weekday = 0; weekday < 7; weekday += 1) {
-          const cell = byKey.get(`${weekday}-${hour}`);
-          if (!cell) continue;
-          weighted += cell.usageRatio * cell.samples;
-          weight += cell.samples;
-        }
-        labels.push(`${pad2(hour)}:00`);
-        values.push(weight > 0 ? round1((weighted / weight) * 100) : null);
-        samples.push(weight);
-      }
-    }
-
-    if (hint) hint.textContent = title;
-
+  function profileChartOptions(colors, compact, { showLegend = false } = {}) {
     const options = baseChartOptions(colors, compact);
-    options.plugins.legend.display = false;
+    options.plugins.legend.display = showLegend;
     options.interaction = { mode: 'index', intersect: false };
     options.plugins.tooltip.callbacks = {
       title: (items) => items[0]?.label ?? '',
       label: (item) => {
-        if (item.raw === null) return 'No data';
-        const count = samples[item.dataIndex] ?? 0;
-        return count > 0 ? `Usage: ${item.formattedValue}% · ${count} samples` : `Usage: ${item.formattedValue}%`;
+        if (item.raw === null || item.raw === undefined) return `${item.dataset.label}: no data`;
+        const count = item.dataset.samples?.[item.dataIndex] ?? 0;
+        return count > 0
+          ? `${item.dataset.label}: ${item.formattedValue}% · ${count} samples`
+          : `${item.dataset.label}: ${item.formattedValue}%`;
       },
     };
     options.scales = {
@@ -893,7 +851,7 @@
           font: chartFont(9),
           maxRotation: 0,
           autoSkip: true,
-          maxTicksLimit: compact ? 8 : 12,
+          maxTicksLimit: compact ? 6 : 10,
         },
         grid: { display: false },
         border: { color: colors.grid },
@@ -910,36 +868,142 @@
         border: { color: colors.grid },
       },
     };
+    return options;
+  }
 
-    // 选中周几（行）→ 线图；选中小时（列）或未选 → 柱状图
-    const isLine = Boolean(focus && focus.kind === 'weekday');
-    const dataset = isLine
-      ? {
-          label: 'Usage rate',
-          data: values,
-          borderColor: colors.busy,
-          backgroundColor: hexToRgba(colors.busy, 0.14),
-          borderWidth: 2,
-          tension: 0.25,
-          fill: true,
-          pointRadius: compact ? 2 : 3,
-          pointHoverRadius: 5,
-          spanGaps: false,
-        }
-      : {
-          label: 'Usage rate',
-          data: values,
-          backgroundColor: colors.busy,
-          borderRadius: 3,
-          borderWidth: 0,
-          maxBarThickness: compact ? 14 : 30,
-        };
+  /** 历史剖面：行/默认 → 5 分钟线图；列 → 一周 7 天柱状图 */
+  function renderProfile() {
+    const container = $('chart-profile');
+    const hint = $('profile-hint');
+    const focus = state.heatmapFocus;
+    const colors = chartColors();
+    const compact = container.clientWidth > 0 && container.clientWidth < 520;
+
+    if (focus && focus.kind === 'hour') {
+      const cells = state.heatmap?.cells ?? [];
+      if (!cells.length) {
+        if (hint) hint.textContent = '';
+        showChartEmpty('profile', container, 'No data yet (waiting for polls)');
+        return;
+      }
+
+      const byKey = new Map(cells.map((cell) => [`${cell.weekday}-${cell.hour}`, cell]));
+      const labels = [];
+      const values = [];
+      const samples = [];
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        const cell = byKey.get(`${weekday}-${focus.value}`);
+        labels.push(WEEKDAY_LABELS[weekday]);
+        values.push(cell ? round1(cell.usageRatio * 100) : null);
+        samples.push(cell?.samples ?? 0);
+      }
+
+      if (hint) hint.textContent = `${pad2(focus.value)}:00 · usage by weekday · all history`;
+      mountChart('profile', container, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Usage rate',
+              data: values,
+              backgroundColor: colors.busy,
+              borderRadius: 3,
+              borderWidth: 0,
+              maxBarThickness: compact ? 14 : 30,
+              samples,
+            },
+          ],
+        },
+        options: profileChartOptions(colors, compact),
+      });
+      return;
+    }
+
+    const data = state.profile;
+    if (!data || !data.slots?.length) {
+      if (hint) hint.textContent = '';
+      showChartEmpty('profile', container, 'No data yet (waiting for polls)');
+      return;
+    }
+
+    const labels = data.slots.map((entry) => slotLabel(entry.slot, data.bucketSeconds));
+    const toPercent = (value) => (value === null || value === undefined ? null : round1(value * 100));
+    const washerValues = data.slots.map((entry) => toPercent(entry.washerUsage));
+    const dryerValues = data.slots.map((entry) => toPercent(entry.dryerUsage));
+    const washerSamples = data.slots.map((entry) => entry.washerSamples ?? 0);
+    const dryerSamples = data.slots.map((entry) => entry.dryerSamples ?? 0);
+
+    const title =
+      focus && focus.kind === 'weekday'
+        ? `${WEEKDAY_LABELS[focus.value]} · 5-min profile · all history`
+        : 'All days · 5-min profile · all history';
+    if (hint) hint.textContent = title;
 
     mountChart('profile', container, {
-      type: isLine ? 'line' : 'bar',
-      data: { labels, datasets: [dataset] },
-      options,
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Washers in use',
+            data: washerValues,
+            borderColor: colors.washer,
+            backgroundColor: hexToRgba(colors.washer, 0.12),
+            borderWidth: 2,
+            tension: 0.15,
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            spanGaps: false,
+            samples: washerSamples,
+          },
+          {
+            label: 'Dryers in use',
+            data: dryerValues,
+            borderColor: colors.dryer,
+            backgroundColor: hexToRgba(colors.dryer, 0.12),
+            borderWidth: 2,
+            tension: 0.15,
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            spanGaps: false,
+            samples: dryerSamples,
+          },
+        ],
+      },
+      options: profileChartOptions(colors, compact, { showLegend: true }),
     });
+  }
+
+  /** 行/默认剖面按需拉取 5 分钟数据（同一周几 60 秒内复用） */
+  async function refreshProfile() {
+    const focus = state.heatmapFocus;
+    if (focus && focus.kind === 'hour') {
+      renderProfile();
+      return;
+    }
+
+    const key = focus && focus.kind === 'weekday' ? `w${focus.value}` : 'all';
+    const fresh = state.profileKey === key && state.profile && Date.now() - (state.profileAt ?? 0) < 60_000;
+    if (fresh) {
+      renderProfile();
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({ since: 'all', bucketSeconds: '300' });
+      if (focus && focus.kind === 'weekday') params.set('weekday', String(focus.value));
+      const data = await api(`/api/profile?${params}`);
+      state.profile = data;
+      state.profileKey = key;
+      state.profileAt = Date.now();
+      renderProfile();
+    } catch (error) {
+      console.error('Failed to load profile', error);
+      showChartEmpty('profile', $('chart-profile'), 'Failed to load profile');
+    }
   }
 
   /* ---------------- 图表数据装载 ---------------- */
@@ -1001,7 +1065,7 @@
       if (heatmap) {
         state.heatmap = heatmap;
         renderHeatmap(heatmap);
-        renderProfile();
+        await refreshProfile();
       } else {
         state.heatmap = null;
         showChartEmpty('profile', $('chart-profile'), 'No data yet (waiting for polls)');

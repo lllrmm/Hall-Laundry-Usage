@@ -73,6 +73,13 @@ check(
   `${heatmap.cells?.length} 个格子`,
 );
 
+const profile = await get('/api/profile?since=all&weekday=1');
+check(
+  '/api/profile 5 分钟剖面',
+  profile.slots?.length === 288 && profile.bucketSeconds === 300,
+  `${profile.slots?.filter((slot) => slot.samples > 0).length ?? 0} 个有数据槽`,
+);
+
 const filtered = await get('/api/series?since=1h&machines=' + state.latest.filter((m) => m.kind === 'dryer').map((m) => m.id).join(','));
 check('/api/series 按机器过滤', filtered.machines?.length === 6, `${filtered.machines?.length} 台烘干机`);
 

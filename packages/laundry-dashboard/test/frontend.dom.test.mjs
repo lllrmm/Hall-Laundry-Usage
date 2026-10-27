@@ -286,12 +286,17 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '热力图提示说明用全部历史样本并可点行/列',
     );
 
-    // 历史剖面：默认（柱状图）；点行 → 该周几 24 小时（线图）；点列 → 该小时 7 天（柱状图）
-    await waitFor(() => charts().profile && charts().profile.data.labels.length === 24, {
-      label: '默认剖面（24 小时）',
+    // 历史剖面：默认 5 分钟线图；点行 → 该周几 5 分钟线图；点列 → 该小时 7 天柱状图
+    await waitFor(() => charts().profile && charts().profile.data.labels.length === 288, {
+      label: '默认剖面（5 分钟 × 288 槽）',
     });
-    assert.equal(charts().profile.config.type, 'bar', '默认剖面用柱状图');
-    assert.match(document.getElementById('profile-hint').textContent, /All days · usage by hour/);
+    assert.equal(charts().profile.config.type, 'line', '默认剖面用线图');
+    assert.deepEqual(
+      Array.from(charts().profile.data.datasets, (dataset) => dataset.label),
+      ['Washers in use', 'Dryers in use'],
+      '时间剖面按机型分两条线',
+    );
+    assert.match(document.getElementById('profile-hint').textContent, /All days · 5-min profile/);
 
     const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
       (node) => node.textContent === 'Tue',
@@ -300,9 +305,9 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.labels.length === 24 &&
-        /Tue · usage by hour/.test(document.getElementById('profile-hint').textContent),
-      { label: '点击周几行显示该天的小时剖面' },
+        charts().profile.data.labels.length === 288 &&
+        /Tue · 5-min profile/.test(document.getElementById('profile-hint').textContent),
+      { label: '点击周几行显示该天的 5 分钟剖面' },
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
     assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
@@ -325,12 +330,12 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(charts().profile.config.type, 'bar', '选中列时剖面用柱状图');
     assert.equal(document.querySelectorAll('#heatmap .heatmap-cell.col-active').length, 7, '该列所有格子高亮');
 
-    // 再次点击同一列 → 取消选择，回到默认剖面
+    // 再次点击同一列 → 取消选择，回到默认 5 分钟剖面
     [...document.querySelectorAll('#heatmap .heatmap-hour')].find((node) => node.textContent === '12').click();
     await waitFor(
       () =>
         charts().profile &&
-        charts().profile.data.labels.length === 24 &&
+        charts().profile.data.labels.length === 288 &&
         /All days/.test(document.getElementById('profile-hint').textContent),
       { label: '再次点击取消选择' },
     );
