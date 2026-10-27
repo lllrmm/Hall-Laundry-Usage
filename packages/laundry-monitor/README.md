@@ -81,7 +81,11 @@ laundry-monitor init   [--config monitor.config.json]   # 生成配置模板
 | `0x02` | maintenance（维护） |
 | `0x03` | disabled（停用） |
 | `0x04` | offline（离线） |
-| `0x05` | on_hold（暂停） |
+| `0x05` | on_hold（旧编码，仅解码兼容，不再写入） |
+| `0x06` | on_hold + underlying state=in_use |
+| `0x07` | on_hold + underlying state=available |
+| `0x08` | on_hold + underlying state=offline |
+| `0x09` | on_hold + underlying state 无法识别 |
 | `0xfe` | unknown（状态无法识别） |
 | `0xff` | no_data（该分钟没有成功轮询） |
 

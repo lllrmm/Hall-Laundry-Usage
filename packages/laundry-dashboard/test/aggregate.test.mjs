@@ -44,18 +44,35 @@ test('weekdayOfDay：0=周一 … 6=周日（与日期所在时区无关）', ()
   assert.equal(Agg.weekdayOfDay('bad'), null);
 });
 
-test('isOperational / isInUse：on_hold 计入分子和分母', () => {
+test('isOperational / isInUse：on_hold 按底层 state 计入分子/分母', () => {
   assert.equal(Agg.isOperational(BYTE.available), true);
   assert.equal(Agg.isOperational(BYTE.inUse), true);
-  assert.equal(Agg.isOperational(BYTE.onHold), true, 'on_hold 计入使用率分母');
+  assert.equal(Agg.isOperational(BYTE.onHoldInUse), true, 'on_hold + in_use 计入分母');
+  assert.equal(Agg.isOperational(BYTE.onHoldAvailable), true, 'on_hold + available 计入分母');
+  assert.equal(Agg.isOperational(BYTE.onHold), true, '旧编码 on_hold 兼容');
+  assert.equal(Agg.isOperational(BYTE.onHoldOffline), false, 'on_hold + offline 不算可运营');
+  assert.equal(Agg.isOperational(BYTE.onHoldUnknown), false);
   assert.equal(Agg.isOperational(BYTE.maintenance), false);
   assert.equal(Agg.isOperational(BYTE.offline), false);
   assert.equal(Agg.isOperational(BYTE.noData), false);
 
   assert.equal(Agg.isInUse(BYTE.inUse), true);
-  assert.equal(Agg.isInUse(BYTE.onHold), true, 'on_hold 计入使用率分子');
+  assert.equal(Agg.isInUse(BYTE.onHoldInUse), true, 'on_hold + in_use 计入分子');
+  assert.equal(Agg.isInUse(BYTE.onHold), true, '旧编码按占用处理');
+  assert.equal(Agg.isInUse(BYTE.onHoldAvailable), false, 'on_hold + available 只进分母');
   assert.equal(Agg.isInUse(BYTE.available), false);
   assert.equal(Agg.isInUse(BYTE.maintenance), false);
+
+  for (const byte of [
+    BYTE.onHold,
+    BYTE.onHoldInUse,
+    BYTE.onHoldAvailable,
+    BYTE.onHoldOffline,
+    BYTE.onHoldUnknown,
+  ]) {
+    assert.equal(Agg.isOnHold(byte), true, `0x${byte.toString(16)} 应归入 On hold`);
+  }
+  assert.equal(Agg.isOnHold(BYTE.inUse), false);
 });
 
 test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () => {
@@ -67,7 +84,10 @@ test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () =
         600: BYTE.inUse,
         601: BYTE.available,
         602: BYTE.maintenance,
-        603: BYTE.onHold,
+        603: BYTE.onHoldInUse,
+        604: BYTE.onHoldAvailable,
+        605: BYTE.onHoldOffline,
+        606: BYTE.onHoldUnknown,
       }),
     },
     { machineId: 'd1', day: TUESDAY, seq: sequence({ 600: BYTE.available }) },
@@ -75,7 +95,7 @@ test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () =
 
   const heatmap = Agg.buildHeatmap(records);
   assert.equal(heatmap.minutes, 1440);
-  assert.equal(heatmap.samples, 4, '维护/离线/no_data 不计入样本；on_hold 计入');
+  assert.equal(heatmap.samples, 5, 'maintenance/offline/unknown/no_data 不计入；on_hold 的 in_use/available 计入');
 
   const monday600 = cellAt(heatmap.cells, 0, 600);
   assert.equal(monday600.samples, 1);
@@ -86,10 +106,16 @@ test('buildHeatmap：星期 × 分钟只在可运营样本上算使用率', () =
   assert.equal(monday601.usageRatio, 0);
 
   const monday603 = cellAt(heatmap.cells, 0, 603);
-  assert.equal(monday603.samples, 1, 'on_hold 计入分母');
-  assert.equal(monday603.usageRatio, 1, 'on_hold 计入分子');
+  assert.equal(monday603.samples, 1, 'on_hold + in_use 计入分母');
+  assert.equal(monday603.usageRatio, 1, 'on_hold + in_use 计入分子');
+
+  const monday604 = cellAt(heatmap.cells, 0, 604);
+  assert.equal(monday604.samples, 1, 'on_hold + available 计入分母');
+  assert.equal(monday604.usageRatio, 0, 'on_hold + available 不计入分子');
 
   assert.equal(cellAt(heatmap.cells, 0, 602), undefined, '维护样本不产生热力图格子');
+  assert.equal(cellAt(heatmap.cells, 0, 605), undefined, 'on_hold + offline 不算可运营样本');
+  assert.equal(cellAt(heatmap.cells, 0, 606), undefined, 'on_hold + unknown 不算可运营样本');
   const tuesday600 = cellAt(heatmap.cells, 1, 600);
   assert.equal(tuesday600.samples, 1);
   assert.equal(tuesday600.usageRatio, 0);
@@ -104,7 +130,8 @@ test('buildProfile：1 分钟槽位，按机型拆分，可筛选星期', () => 
         600: BYTE.inUse,
         601: BYTE.available,
         602: BYTE.maintenance,
-        603: BYTE.onHold,
+        603: BYTE.onHoldInUse,
+        604: BYTE.onHoldAvailable,
       }),
     },
     { machineId: 'd1', day: TUESDAY, seq: sequence({ 600: BYTE.available }) },
@@ -116,10 +143,15 @@ test('buildProfile：1 分钟槽位，按机型拆分，可筛选星期', () => 
   assert.equal(profile.slots.length, 1440);
 
   const slot603 = profile.slots[603];
-  assert.equal(slot603.samples, 1, 'on_hold 计入剖面分母');
+  assert.equal(slot603.samples, 1, 'on_hold + in_use 计入剖面分母');
   assert.equal(slot603.usageRatio, 1);
   assert.equal(slot603.washerSamples, 1);
-  assert.equal(slot603.washerUsage, 1, 'on_hold 计入剖面分子');
+  assert.equal(slot603.washerUsage, 1, 'on_hold + in_use 计入剖面分子');
+
+  const slot604 = profile.slots[604];
+  assert.equal(slot604.samples, 1, 'on_hold + available 计入剖面分母');
+  assert.equal(slot604.usageRatio, 0);
+  assert.equal(slot604.washerUsage, 0);
 
   const slot600 = profile.slots[600];
   assert.equal(slot600.samples, 2);
@@ -257,6 +289,29 @@ test('buildStateBreakdown：各种状态都计入分母，no_data 除外', () =>
     weekdays: [0],
   });
   assert.equal(monday.rows.length, 0, '没有样本的机器不出现在占比图里');
+});
+
+test('buildStateBreakdown：on_hold 的各细分字节都归入 On hold', () => {
+  const records = [
+    {
+      machineId: 'w1',
+      day: TUESDAY,
+      seq: sequence({
+        600: BYTE.onHold,
+        601: BYTE.onHoldInUse,
+        602: BYTE.onHoldAvailable,
+        603: BYTE.onHoldOffline,
+        604: BYTE.onHoldUnknown,
+      }),
+    },
+  ];
+  const row = Agg.buildStateBreakdown(records, { machineIds: ['w1'] }).rows[0];
+  assert.equal(row.samples, 5);
+  assert.equal(row.onHoldRatio, 1, '5 种 on_hold 字节都归入 On hold');
+  assert.equal(row.inUseRatio, 0);
+  assert.equal(row.availableRatio, 0);
+  assert.equal(row.offlineRatio, 0);
+  assert.equal(row.unknownRatio, 0);
 });
 
 test('buildHeatmap / buildProfile：空数据返回空结果但不抛错', () => {

@@ -17,6 +17,7 @@ import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
 import { SeriesDatabase } from '../../laundry-monitor/src/series.js';
 
 import { createDashboardServer } from '../src/server.js';
+import { snapshotByte, STATE_BYTES } from '../src/days.js';
 
 const silentLogger = { info() {}, warn() {}, error() {} };
 const MINUTES = 1440;
@@ -306,6 +307,25 @@ test('GET /api/days：序列库缺天时用 raw 补齐（source=mixed）', async
     assertBytes(payload, 'm-washer', day2, { 660: EXPECTED.available, 665: EXPECTED.offline });
     assertBytes(payload, 'm-maint', day1, { 600: EXPECTED.maintenance });
   });
+});
+
+test('snapshotByte：on_hold 按底层 state 细分编码', () => {
+  assert.equal(
+    snapshotByte({ status: 'on_hold', state: 'in_use', available: 0 }),
+    STATE_BYTES.onHoldInUse,
+  );
+  assert.equal(
+    snapshotByte({ status: 'on_hold', state: 'available', available: 0 }),
+    STATE_BYTES.onHoldAvailable,
+  );
+  assert.equal(
+    snapshotByte({ status: 'on_hold', state: 'offline', available: 0 }),
+    STATE_BYTES.onHoldOffline,
+  );
+  assert.equal(
+    snapshotByte({ status: 'on_hold', state: 'weird', available: 0 }),
+    STATE_BYTES.onHoldUnknown,
+  );
 });
 
 test('GET /api/state：meta 里返回数据覆盖的日期范围 span', async () => {

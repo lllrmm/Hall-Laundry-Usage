@@ -6,8 +6,10 @@
  * 不再往返后端；后端只负责发原始日序列。
  *
  * 字节编码（与 laundry-monitor/src/series.js、laundry-dashboard/src/days.js 一致）：
- *   0x00 in_use      0x01 available   0x02 maintenance  0x03 disabled
- *   0x04 offline     0x05 on_hold     0xfe unknown      0xff no_data
+ *   0x00 in_use        0x01 available   0x02 maintenance  0x03 disabled  0x04 offline
+ *   0x05 on_hold(旧)   0x06 on_hold+in_use   0x07 on_hold+available
+ *   0x08 on_hold+offline  0x09 on_hold+unknown
+ *   0xfe unknown       0xff no_data
  *
  * 该文件是普通 <script>（非 ES module），同时挂到全局 `LaundryAggregate`，
  * 便于 node 测试用 vm 直接执行。
@@ -24,7 +26,11 @@
     maintenance: 0x02,
     disabled: 0x03,
     offline: 0x04,
-    onHold: 0x05,
+    onHold: 0x05, // 旧编码，兼容历史序列（按 on_hold + in_use 处理）
+    onHoldInUse: 0x06,
+    onHoldAvailable: 0x07,
+    onHoldOffline: 0x08,
+    onHoldUnknown: 0x09,
     unknown: 0xfe,
     noData: 0xff,
   });
@@ -45,14 +51,35 @@
     { key: 'unknownRatio', label: 'Unknown' },
   ]);
 
-  /** 可运营状态：在用 / 空闲 / on_hold（on_hold 是启动流程中的占用态，也计入分母） */
+  /**
+   * 可运营状态（计入使用率分母）：
+   *   in_use / available / on_hold+in_use / on_hold+available，以及旧编码 on_hold。
+   * on_hold+offline / on_hold+unknown 不计入（底层其实不可用/无法识别）。
+   */
   function isOperational(byte) {
-    return byte === BYTE.inUse || byte === BYTE.available || byte === BYTE.onHold;
+    return (
+      byte === BYTE.inUse ||
+      byte === BYTE.available ||
+      byte === BYTE.onHold ||
+      byte === BYTE.onHoldInUse ||
+      byte === BYTE.onHoldAvailable
+    );
   }
 
-  /** 计入使用率分子的状态：in_use（on_hold 视作占用，同样计入） */
+  /** 计入使用率分子的状态：in_use，以及底层 state=in_use 的 on_hold */
   function isInUse(byte) {
-    return byte === BYTE.inUse || byte === BYTE.onHold;
+    return byte === BYTE.inUse || byte === BYTE.onHold || byte === BYTE.onHoldInUse;
+  }
+
+  /** on_hold 系列字节（State breakdown 统一归到 On hold 段） */
+  function isOnHold(byte) {
+    return (
+      byte === BYTE.onHold ||
+      byte === BYTE.onHoldInUse ||
+      byte === BYTE.onHoldAvailable ||
+      byte === BYTE.onHoldOffline ||
+      byte === BYTE.onHoldUnknown
+    );
   }
 
   /**
@@ -246,6 +273,10 @@
             row.counts.offline += 1;
             break;
           case BYTE.onHold:
+          case BYTE.onHoldInUse:
+          case BYTE.onHoldAvailable:
+          case BYTE.onHoldOffline:
+          case BYTE.onHoldUnknown:
             row.counts.onHold += 1;
             break;
           default:
@@ -291,6 +322,7 @@
     BYTE,
     isOperational,
     isInUse,
+    isOnHold,
     weekdayOfDay,
     buildHeatmap,
     buildProfile,

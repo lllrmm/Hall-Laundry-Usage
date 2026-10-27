@@ -73,9 +73,27 @@ test('字节编码：机器状态 → 1 byte', () => {
   assert.equal(stateByte({ available: false, state: 'offline' }), STATE_BYTES.offline);
   assert.equal(stateByte({ available: false, state: 'x', status: 'maintenance' }), STATE_BYTES.maintenance);
   assert.equal(stateByte({ available: false, state: 'x', status: 'disabled' }), STATE_BYTES.disabled);
-  assert.equal(stateByte({ available: false, state: 'x', status: 'on_hold' }), STATE_BYTES.on_hold);
   assert.equal(stateByte({ available: false, state: 'weird', status: 'enabled' }), STATE_BYTES.unknown);
   assert.equal(stateByte(null), STATE_BYTES.no_data);
+
+  // on_hold 按底层 state 细分，保留“占用/空闲”信息
+  assert.equal(
+    stateByte({ available: false, state: 'in_use', status: 'on_hold' }),
+    STATE_BYTES.on_hold_in_use,
+  );
+  assert.equal(
+    stateByte({ available: false, state: 'available', status: 'on_hold' }),
+    STATE_BYTES.on_hold_available,
+  );
+  assert.equal(
+    stateByte({ available: false, state: 'offline', status: 'on_hold' }),
+    STATE_BYTES.on_hold_offline,
+  );
+  assert.equal(
+    stateByte({ available: false, state: 'x', status: 'on_hold' }),
+    STATE_BYTES.on_hold_unknown,
+  );
+
   // 维护中的机器 state 也可能是 available：status 必须优先，不能被当成可运营样本
   assert.equal(
     stateByte({ available: false, state: 'available', status: 'maintenance' }),
@@ -90,6 +108,14 @@ test('字节编码：机器状态 → 1 byte', () => {
   assert.equal(snapshotByte({ available: 0, state: 'in_use' }), STATE_BYTES.in_use);
   assert.equal(snapshotByte({ available: 0, state: 'offline' }), STATE_BYTES.offline);
   assert.equal(snapshotByte({ available: 0, state: 'x', status: 'maintenance' }), STATE_BYTES.maintenance);
+  assert.equal(
+    snapshotByte({ available: 0, state: 'in_use', status: 'on_hold' }),
+    STATE_BYTES.on_hold_in_use,
+  );
+  assert.equal(
+    snapshotByte({ available: 0, state: 'available', status: 'on_hold' }),
+    STATE_BYTES.on_hold_available,
+  );
   assert.equal(
     snapshotByte({ available: 0, state: 'available', status: 'maintenance' }),
     STATE_BYTES.maintenance,

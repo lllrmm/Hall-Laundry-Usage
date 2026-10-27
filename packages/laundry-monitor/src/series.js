@@ -3,14 +3,18 @@
  * 是原始快照库（raw sqlite）的"日级压缩派生层"，供看板快速做历史规律查询。
  *
  * 字节编码（1 byte / 分钟）：
- *   0x00 in_use        占用
- *   0x01 available     空闲
- *   0x02 maintenance   维护
- *   0x03 disabled      停用
- *   0x04 offline       离线
- *   0x05 on_hold       暂停
- *   0xfe unknown       轮询成功但状态无法识别
- *   0xff no_data       该分钟没有成功轮询
+ *   0x00 in_use                 占用
+ *   0x01 available              空闲
+ *   0x02 maintenance            维护
+ *   0x03 disabled               停用
+ *   0x04 offline                离线
+ *   0x05 on_hold                旧的通用 on_hold 编码（仅解码兼容，不再写入）
+ *   0x06 on_hold + in_use       占用流程中，且底层 state=in_use
+ *   0x07 on_hold + available    占用流程中，且底层 state=available
+ *   0x08 on_hold + offline      占用流程中，且底层 state=offline
+ *   0x09 on_hold + unknown      status=on_hold 但底层 state 无法识别
+ *   0xfe unknown                轮询成功但状态无法识别
+ *   0xff no_data                该分钟没有成功轮询
  */
 
 import fs from 'node:fs';
@@ -25,7 +29,11 @@ export const STATE_BYTES = Object.freeze({
   maintenance: 0x02,
   disabled: 0x03,
   offline: 0x04,
-  on_hold: 0x05,
+  on_hold: 0x05, // 旧编码，仅用于兼容历史序列
+  on_hold_in_use: 0x06,
+  on_hold_available: 0x07,
+  on_hold_offline: 0x08,
+  on_hold_unknown: 0x09,
   unknown: 0xfe,
   no_data: 0xff,
 });
@@ -38,6 +46,10 @@ export const BYTE_LABELS = Object.freeze({
   [STATE_BYTES.disabled]: 'disabled',
   [STATE_BYTES.offline]: 'offline',
   [STATE_BYTES.on_hold]: 'on_hold',
+  [STATE_BYTES.on_hold_in_use]: 'on_hold_in_use',
+  [STATE_BYTES.on_hold_available]: 'on_hold_available',
+  [STATE_BYTES.on_hold_offline]: 'on_hold_offline',
+  [STATE_BYTES.on_hold_unknown]: 'on_hold_unknown',
   [STATE_BYTES.unknown]: 'unknown',
   [STATE_BYTES.no_data]: 'no_data',
 });
@@ -101,6 +113,14 @@ export function powderFor(serviceValue) {
   return null;
 }
 
+/** status=on_hold 时，按底层 state 细分编码 */
+export function onHoldByte(state) {
+  if (state === 'in_use') return STATE_BYTES.on_hold_in_use;
+  if (state === 'available') return STATE_BYTES.on_hold_available;
+  if (state === 'offline') return STATE_BYTES.on_hold_offline;
+  return STATE_BYTES.on_hold_unknown;
+}
+
 /** 归一化后的机器对象 → 一个字节 */
 export function stateByte(machine) {
   if (!machine) return STATE_BYTES.no_data;
@@ -112,7 +132,7 @@ export function stateByte(machine) {
     case 'disabled':
       return STATE_BYTES.disabled;
     case 'on_hold':
-      return STATE_BYTES.on_hold;
+      return onHoldByte(machine.state);
     default:
       break;
   }
@@ -131,7 +151,7 @@ export function snapshotByte(row) {
     case 'disabled':
       return STATE_BYTES.disabled;
     case 'on_hold':
-      return STATE_BYTES.on_hold;
+      return onHoldByte(row.state);
     default:
       break;
   }

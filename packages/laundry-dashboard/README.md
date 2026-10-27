@@ -70,11 +70,15 @@ GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
 | `0x02` | maintenance 维护 | 否（但计入 State breakdown） |
 | `0x03` | disabled 停用 | 否（但计入 State breakdown） |
 | `0x04` | offline 离线 | 否（但计入 State breakdown） |
-| `0x05` | on_hold 占用/保留（按占用处理） | 是（分子 + 分母） |
+| `0x05` | on_hold（旧编码，仅解码兼容） | 是（按 on_hold + in_use 处理） |
+| `0x06` | on_hold + in_use | 是（分子 + 分母） |
+| `0x07` | on_hold + available | 是（仅分母） |
+| `0x08` | on_hold + offline | 否（但计入 State breakdown 的 On hold） |
+| `0x09` | on_hold + unknown | 否（但计入 State breakdown 的 On hold） |
 | `0xfe` | unknown 无法识别 | 否（计入 State breakdown 的 Unknown） |
 | `0xff` | no_data 该分钟没有成功轮询 | 否（不计入任何统计） |
 
-> 热力图 / Inspection 的可运营样本 = `available` + `in_use` + `on_hold`；其中 `in_use` 与 `on_hold` 都算“占用”，同时计入分子和分母。`State breakdown` 仍然逐状态单独展示（On hold 单独一段）。
+> 热力图 / Inspection 的可运营样本 = `available` + `in_use` + `on_hold(+in_use)` + `on_hold(+available)`；其中 `in_use` 与 `on_hold(+in_use)` 计入分子，`on_hold(+available)` 只进分母。`State breakdown` 仍把 5 种 on_hold 字节统一归入 `On hold` 段。
 
 ### 前端脚本
 

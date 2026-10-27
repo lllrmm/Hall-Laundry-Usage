@@ -9,8 +9,10 @@
  * `public/aggregate.js` 计算，交互（选星期、拖时段、勾机器、切日期）不再请求后端。
  *
  * 字节编码（与 laundry-monitor/src/series.js 保持一致）：
- *   0x00 in_use      0x01 available   0x02 maintenance  0x03 disabled
- *   0x04 offline     0x05 on_hold     0xfe unknown      0xff no_data
+ *   0x00 in_use        0x01 available   0x02 maintenance  0x03 disabled  0x04 offline
+ *   0x05 on_hold(旧)   0x06 on_hold+in_use   0x07 on_hold+available
+ *   0x08 on_hold+offline  0x09 on_hold+unknown
+ *   0xfe unknown       0xff no_data
  */
 
 import fs from 'node:fs';
@@ -25,7 +27,11 @@ export const STATE_BYTES = Object.freeze({
   maintenance: 0x02,
   disabled: 0x03,
   offline: 0x04,
-  onHold: 0x05,
+  onHold: 0x05, // 旧编码，仅用于兼容历史序列
+  onHoldInUse: 0x06,
+  onHoldAvailable: 0x07,
+  onHoldOffline: 0x08,
+  onHoldUnknown: 0x09,
   unknown: 0xfe,
   noData: 0xff,
 });
@@ -38,6 +44,10 @@ export const BYTE_LABELS = Object.freeze({
   [STATE_BYTES.disabled]: 'disabled',
   [STATE_BYTES.offline]: 'offline',
   [STATE_BYTES.onHold]: 'on_hold',
+  [STATE_BYTES.onHoldInUse]: 'on_hold_in_use',
+  [STATE_BYTES.onHoldAvailable]: 'on_hold_available',
+  [STATE_BYTES.onHoldOffline]: 'on_hold_offline',
+  [STATE_BYTES.onHoldUnknown]: 'on_hold_unknown',
   [STATE_BYTES.unknown]: 'unknown',
   [STATE_BYTES.noData]: 'no_data',
 });
@@ -92,6 +102,14 @@ function nextLocalDayStart(day) {
   return start;
 }
 
+/** status=on_hold 时，按底层 state 细分编码（与 monitor 一致） */
+function onHoldByte(state) {
+  if (state === 'in_use') return STATE_BYTES.onHoldInUse;
+  if (state === 'available') return STATE_BYTES.onHoldAvailable;
+  if (state === 'offline') return STATE_BYTES.onHoldOffline;
+  return STATE_BYTES.onHoldUnknown;
+}
+
 /** 原始快照行 → 一个字节（与 monitor 的 snapshotByte 逻辑一致） */
 export function snapshotByte(row) {
   // 非 enabled 的 status 优先（维护中的机器 state 也可能是 available）
@@ -101,7 +119,7 @@ export function snapshotByte(row) {
     case 'disabled':
       return STATE_BYTES.disabled;
     case 'on_hold':
-      return STATE_BYTES.onHold;
+      return onHoldByte(row.state);
     default:
       break;
   }
