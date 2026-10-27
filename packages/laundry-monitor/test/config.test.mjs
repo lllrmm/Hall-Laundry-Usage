@@ -18,6 +18,7 @@ test('默认值：只给 bearer 也能跑', () => {
   assert.equal(config.timeoutMs, 15_000);
   assert.equal(config.retentionDays, 30);
   assert.equal(config.logLevel, 'info');
+  assert.ok(config.seriesDatabasePath.endsWith(path.join('data', 'laundry-series.sqlite')));
   assert.deepEqual(config.warnings, []);
 });
 
@@ -47,9 +48,16 @@ test('缺少 bearer：默认报错，requireBearer=false 时只给警告', () =>
 test('database 相对路径按配置文件目录解析', () => {
   const config = normalizeConfig(baseInput, { env: {}, baseDir: path.join('/base', 'dir') });
   assert.equal(config.databasePath, path.resolve('/base/dir', './data/laundry.sqlite'));
+  assert.equal(config.seriesDatabasePath, path.resolve('/base/dir', './data/laundry-series.sqlite'));
 
   const custom = normalizeConfig({ ...baseInput, database: './db/custom.sqlite' }, { env: {}, baseDir: '/tmp/x' });
   assert.equal(custom.databasePath, path.resolve('/tmp/x/db/custom.sqlite'));
+
+  const customSeries = normalizeConfig(
+    { ...baseInput, seriesDatabase: './db/series.sqlite' },
+    { env: {}, baseDir: '/tmp/y' },
+  );
+  assert.equal(customSeries.seriesDatabasePath, path.resolve('/tmp/y/db/series.sqlite'));
 });
 
 test('参数校验：间隔过小 / 非法 URL / 非法日志级别 / 负数保留期', () => {

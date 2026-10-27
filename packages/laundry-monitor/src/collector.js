@@ -8,10 +8,11 @@
  * @param {object} options
  * @param {import('hkust-laundry-machines').LaundryClient} options.client
  * @param {import('./db.js').MonitorDatabase} options.db
+ * @param {import('./series.js').SeriesDatabase} [options.series] 序列库（raw 的日级压缩派生层）
  * @param {{info: Function, error: Function, debug: Function, warn: Function}} [options.logger]
  * @param {() => Date} [options.now]
  */
-export async function pollOnce({ client, db, logger, now = () => new Date() }) {
+export async function pollOnce({ client, db, series, logger, now = () => new Date() }) {
   const startedAt = now();
   const startedMs = Date.now();
 
@@ -23,6 +24,15 @@ export async function pollOnce({ client, db, logger, now = () => new Date() }) {
       finishedAt,
       durationMs: Date.now() - startedMs,
     });
+
+    // 序列库是派生数据：写失败只告警，不影响原始记录
+    if (series) {
+      try {
+        series.recordPoll(status.machines, finishedAt);
+      } catch (error) {
+        logger?.warn(`写序列库失败（不影响原始记录）：${error.message}`);
+      }
+    }
 
     const changed = result.transitions.length;
     logger?.info(

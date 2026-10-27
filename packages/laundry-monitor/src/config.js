@@ -21,6 +21,7 @@ export const DEFAULTS = {
   pollIntervalSeconds: 60,
   timeoutMs: 15_000,
   database: './data/laundry.sqlite',
+  seriesDatabase: './data/laundry-series.sqlite',
   retentionDays: 30,
   logLevel: 'info',
 };
@@ -102,6 +103,12 @@ export function normalizeConfig(
   }
   const databasePath = path.resolve(baseDir, expandEnv(databaseRaw.trim(), env));
 
+  const seriesRaw = input.seriesDatabase ?? DEFAULTS.seriesDatabase;
+  if (typeof seriesRaw !== 'string' || !seriesRaw.trim()) {
+    throw new Error(`seriesDatabase 必须是非空路径字符串${where}`);
+  }
+  const seriesDatabasePath = path.resolve(baseDir, expandEnv(seriesRaw.trim(), env));
+
   let retentionDays = input.retentionDays === undefined ? DEFAULTS.retentionDays : input.retentionDays;
   if (retentionDays !== null) {
     retentionDays = Number(retentionDays);
@@ -132,6 +139,7 @@ export function normalizeConfig(
     pollIntervalMs: Math.round(pollIntervalSeconds * 1000),
     timeoutMs,
     databasePath,
+    seriesDatabasePath,
     retentionDays,
     logLevel,
     warnings,

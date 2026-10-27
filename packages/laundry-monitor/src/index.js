@@ -2,6 +2,18 @@
 
 export { loadConfig, normalizeConfig, expandEnv, DEFAULT_CONFIG_FILE, DEFAULTS } from './config.js';
 export { MonitorDatabase, openDatabase, SCHEMA_VERSION } from './db.js';
+export {
+  SeriesDatabase,
+  openSeriesDatabase,
+  MINUTES_PER_DAY,
+  STATE_BYTES,
+  BYTE_LABELS,
+  dayKey,
+  minuteOfDay,
+  stateByte,
+  snapshotByte,
+  powderFor,
+} from './series.js';
 export { pollOnce } from './collector.js';
 export { startMonitor } from './monitor.js';
 export { createLogger } from './logger.js';

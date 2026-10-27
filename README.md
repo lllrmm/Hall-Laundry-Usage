@@ -44,7 +44,8 @@ bun add hkust-laundry-machines
 ## 状态监控工具
 
 **[packages/laundry-monitor](packages/laundry-monitor/README.md)** — 按配置文件里的周期和 bearer 反复抓取机器状态，
-把每次观测写入 SQLite（`poll_runs` / `machine_snapshots` / `machine_transitions`），用于长期分析；
+把每次观测写入 SQLite（`poll_runs` / `machine_snapshots` / `machine_transitions`），同时维护一个
+日级压缩序列库（每台机器每天 1,440 字节的分钟状态），用于长期分析；
 自带 `stats` / `export` 命令，零原生依赖（`node:sqlite`）。
 
 ```bash

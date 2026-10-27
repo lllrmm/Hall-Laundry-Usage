@@ -2,6 +2,8 @@
 
 按固定周期抓取 HKUST 洗衣房机器状态，把**每一次观测**写进 SQLite，供之后做占用率、使用时长、空闲时段等分析。
 
+写入两个库：**原始库**（每次轮询的完整记录，用于精确分析与排查）和**序列库**（每台机器每天 1,440 字节的分钟状态，用于快速历史规律查询）。原始库是真相源，序列库随时可由它重建。
+
 依赖 [`hkust-laundry-machines`](../laundry-machines) 做接口调用与归一化；存储用 Node 内置的 `node:sqlite`（Node ≥ 22.5，**零原生依赖**）。
 
 ## 工作方式
@@ -13,9 +15,11 @@ monitor.config.json
    startMonitor ──► 每 N 秒调一次 GET /app/laundry-rooms/machines
         │                │
         │                ├─ 成功：写 poll_runs + machines + machine_snapshots + machine_transitions
+        │                │        └─ 同时更新序列库（machine_days / machine_meta / machine_latest）
         │                └─ 失败：写 poll_runs(ok=0, error_code=...)，不中断循环
         ▼
    data/laundry.sqlite（WAL）──► stats / export / 任意 SQL 分析
+   data/laundry-series.sqlite ──► 看板只读：热力图 / 剖面 / 趋势
 ```
 
 ## 快速开始
@@ -47,7 +51,8 @@ token 获取：登录 <https://laundry.ust.hk/ldr/app/> → DevTools → Applica
 | `baseUrl` | `https://laundry.ust.hk/ldr/api` | API 基址 |
 | `pollIntervalSeconds` | `60` | 轮询间隔，最小 5，建议 ≥ 15（站点未公开限流） |
 | `timeoutMs` | `15000` | 单次请求超时 |
-| `database` | `./data/laundry.sqlite` | SQLite 文件；相对路径以**配置文件所在目录**为基准 |
+| `database` | `./data/laundry.sqlite` | 原始库路径；相对路径以**配置文件所在目录**为基准 |
+| `seriesDatabase` | `./data/laundry-series.sqlite` | 序列库路径（日级压缩派生层） |
 | `retentionDays` | `30` | 保留天数；`null` 表示不清理 |
 | `logLevel` | `info` | `debug` / `info` / `warn` / `error` / `silent` |
 
@@ -58,10 +63,33 @@ laundry-monitor run    --config monitor.config.json     # 常驻采集
 laundry-monitor once   --config monitor.config.json     # 单次采集（cron / systemd timer）
 laundry-monitor stats  --config monitor.config.json [--since 24h] [--json]
 laundry-monitor export --config monitor.config.json [--since 7d] [--format csv|jsonl] [--out file]
+laundry-monitor series --config monitor.config.json [--json]   # 序列库统计
+laundry-monitor rebuild --config monitor.config.json [--since 30d]  # 从原始库重建序列库
 laundry-monitor init   [--config monitor.config.json]   # 生成配置模板
 ```
 
-`--since` 支持 `30m` / `24h` / `7d` 或 ISO 时间。`stats`、`export` 不需要 token（可以分析历史库）。
+`--since` 支持 `30m` / `24h` / `7d` 或 ISO 时间。`stats`、`export`、`series`、`rebuild` 不需要 token（可以分析历史库）。
+
+## 序列库（分钟字节）
+
+每台机器每天一行 `machine_days(machine_id, day, seq BLOB)`，`seq` 固定 **1,440 字节**，索引 = 本地时间第几分钟：
+
+| byte | 含义 |
+|---|---|
+| `0x00` | in_use（占用） |
+| `0x01` | available（空闲） |
+| `0x02` | maintenance（维护） |
+| `0x03` | disabled（停用） |
+| `0x04` | offline（离线） |
+| `0x05` | on_hold（暂停） |
+| `0xfe` | unknown（状态无法识别） |
+| `0xff` | no_data（该分钟没有成功轮询） |
+
+- 存储量：12 台机器 ≈ **17 KB/天、6 MB/年**（原始库约 3.4 MB/天）；
+- 同一分钟多次轮询以**最后一条**为准；跨天按本地日期切行；
+- 同样保存 `machine_meta`（名称/类型/洗粉）与 `machine_latest`（最新状态/剩余时间）；
+- 序列库写失败只告警、不影响原始库；
+- 误删/重建：`laundry-monitor rebuild` 从原始库回填（可重复执行，幂等）。
 
 ### 定时任务示例
 

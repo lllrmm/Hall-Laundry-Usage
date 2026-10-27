@@ -20,6 +20,7 @@ import {
   formatDuration,
   loadConfig,
   openDatabase,
+  openSeriesDatabase,
   parseSince,
   pollOnce,
   startMonitor,
@@ -32,6 +33,8 @@ const HELP = `用法: laundry-monitor <命令> [选项]
   once      只采集一次（适合 cron / systemd timer）
   stats     查看汇总统计（可选 --since 24h / 7d / ISO 时间）
   export    导出快照时间序列（jsonl 或 csv）
+  rebuild   从原始快照库重建序列库（可重复执行）
+  series    查看序列库统计（天数 / 字节 / 最近状态）
   init      生成配置模板 monitor.config.json
 
 选项:
@@ -92,6 +95,10 @@ function openDbAndClient(config, logger) {
   return { db, client };
 }
 
+function openSeries(config) {
+  return openSeriesDatabase(config.seriesDatabasePath);
+}
+
 function printWarnings(config, logger) {
   for (const warning of config.warnings) logger.warn(warning);
 }
@@ -104,6 +111,7 @@ async function runCommand(options) {
   printWarnings(config, logger);
 
   const { db, client } = openDbAndClient(config, logger);
+  const series = openSeries(config);
   const controller = new AbortController();
   let stopping = false;
 
@@ -119,8 +127,10 @@ async function runCommand(options) {
 
   try {
     logger.info(`数据库：${db.filePath}（schema v${db.schemaVersion}）`);
-    await startMonitor({ client, db, config, logger, signal: controller.signal });
+    logger.info(`序列库：${series.filePath}`);
+    await startMonitor({ client, db, series, config, logger, signal: controller.signal });
   } finally {
+    series.close();
     db.close();
   }
 
@@ -135,9 +145,10 @@ async function onceCommand(options) {
   printWarnings(config, logger);
 
   const { db, client } = openDbAndClient(config, logger);
+  const series = openSeries(config);
 
   try {
-    const result = await pollOnce({ client, db, logger });
+    const result = await pollOnce({ client, db, series, logger });
 
     if (options.json) {
       console.log(
@@ -149,6 +160,7 @@ async function onceCommand(options) {
             transitions: result.transitions ?? [],
             error: result.ok ? null : { code: result.error?.code ?? null, message: result.error?.message ?? null },
             database: db.filePath,
+            seriesDatabase: series.filePath,
           },
           null,
           2,
@@ -168,10 +180,12 @@ async function onceCommand(options) {
       }
 
       console.log(`数据库：${db.filePath}`);
+      console.log(`序列库：${series.filePath}`);
     }
 
     return result.ok ? 0 : 1;
   } finally {
+    series.close();
     db.close();
   }
 }
@@ -291,6 +305,58 @@ async function exportCommand(options) {
   }
 }
 
+/* ---------------- rebuild（从 raw 回填序列库） ---------------- */
+
+async function rebuildCommand(options) {
+  const config = loadConfig(options.config, { requireBearer: false });
+  const rawDb = openDatabase(config.databasePath);
+  const series = openSeries(config);
+
+  try {
+    const since = options.since ? parseSince(options.since) : null;
+    const result = series.rebuildFromRaw(rawDb.db, { since });
+    console.log(
+      `已从原始快照回填序列库：${result.rows} 条快照 → ${result.days} 个「机器-日」` +
+        (result.skipped ? `（跳过 ${result.skipped} 条无法解析的时间）` : ''),
+    );
+    console.log(`原始库：${rawDb.filePath}`);
+    console.log(`序列库：${series.filePath}`);
+    return 0;
+  } finally {
+    series.close();
+    rawDb.close();
+  }
+}
+
+/* ---------------- series（序列库统计） ---------------- */
+
+async function seriesCommand(options) {
+  const config = loadConfig(options.config, { requireBearer: false });
+  const series = openSeries(config);
+
+  try {
+    const stats = series.stats();
+    const latest = series.latest();
+    if (options.json) {
+      console.log(JSON.stringify({ ...stats, latest, database: series.filePath }, null, 2));
+    } else {
+      console.log('=== 序列库（分钟字节） ===');
+      console.log(
+        `覆盖        ${stats.days} 天 × ${stats.machines} 台 = ${stats.machineDays} 个「机器-日」（${stats.bytes} 字节）`,
+      );
+      console.log(`最近轮询    ${stats.lastPollAt ?? '-'}`);
+      console.log(`最近回填    ${stats.lastRebuildAt ?? '-'}`);
+      for (const row of latest) {
+        console.log(`  ${row.machine_id}  ${row.state ?? '-'}  ${row.observed_at ?? '-'}`);
+      }
+      console.log(`\n序列库：${series.filePath}`);
+    }
+    return 0;
+  } finally {
+    series.close();
+  }
+}
+
 /* ---------------- init ---------------- */
 
 async function initCommand(options) {
@@ -325,6 +391,10 @@ async function main() {
       return statsCommand(options);
     case 'export':
       return exportCommand(options);
+    case 'rebuild':
+      return rebuildCommand(options);
+    case 'series':
+      return seriesCommand(options);
     case 'init':
       return initCommand(options);
     case 'help':

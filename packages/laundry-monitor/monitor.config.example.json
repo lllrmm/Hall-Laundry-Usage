@@ -5,6 +5,7 @@
   "pollIntervalSeconds": 60,
   "timeoutMs": 15000,
   "database": "./data/laundry.sqlite",
+  "seriesDatabase": "./data/laundry-series.sqlite",
   "retentionDays": 30,
   "logLevel": "info"
 }
