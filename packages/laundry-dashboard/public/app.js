@@ -72,6 +72,9 @@
 
   const $ = (id) => document.getElementById(id);
 
+  /** 热力图时间轴当前的触摸监听（每次重绘前先移除旧的，避免监听器越积越多） */
+  let heatmapTouchHandlers = null;
+
   /* ---------------- 工具 ---------------- */
 
   async function api(path) {
@@ -829,45 +832,51 @@
     axis.onmouseup = (event) => endAxisDrag(event.clientX);
     axis.onmouseleave = () => cancelAxisDrag();
 
-    // 触摸滑动（移动端）：手指在顶部时间轴上横向滑动也能选择时段
+    // 触摸滑动（移动端）：手指在顶部时间轴上横向滑动也能选择时段。
+    // 注意：必须复用/替换监听器 —— 以前每次重绘都 addEventListener 一套新的，
+    // 手机上滑几次就会叠加出 N 套旧闭包，一次触摸触发多次重绘，表现为越来越卡甚至卡死。
+    if (heatmapTouchHandlers) {
+      axis.removeEventListener('touchstart', heatmapTouchHandlers.start);
+      axis.removeEventListener('touchmove', heatmapTouchHandlers.move);
+      axis.removeEventListener('touchend', heatmapTouchHandlers.end);
+      axis.removeEventListener('touchcancel', heatmapTouchHandlers.cancel);
+    }
     const touchClientX = (event) => {
       const touch = event.touches?.[0] ?? event.changedTouches?.[0];
       return touch && Number.isFinite(touch.clientX) ? touch.clientX : null;
     };
-    axis.addEventListener(
-      'touchstart',
-      (event) => {
-        const clientX = touchClientX(event);
-        if (clientX === null) return;
-        beginAxisDrag(clientX);
-        event.preventDefault();
-      },
-      { passive: false },
-    );
-    axis.addEventListener(
-      'touchmove',
-      (event) => {
-        const clientX = touchClientX(event);
-        if (clientX === null) return;
-        moveAxisDrag(clientX);
-        event.preventDefault();
-      },
-      { passive: false },
-    );
-    axis.addEventListener(
-      'touchend',
-      (event) => {
-        const clientX = touchClientX(event);
-        if (clientX === null) {
-          cancelAxisDrag();
-          return;
-        }
-        endAxisDrag(clientX);
-        event.preventDefault();
-      },
-      { passive: false },
-    );
-    axis.addEventListener('touchcancel', () => cancelAxisDrag());
+    const onTouchStart = (event) => {
+      const clientX = touchClientX(event);
+      if (clientX === null) return;
+      beginAxisDrag(clientX);
+      event.preventDefault();
+    };
+    const onTouchMove = (event) => {
+      const clientX = touchClientX(event);
+      if (clientX === null) return;
+      moveAxisDrag(clientX);
+      event.preventDefault();
+    };
+    const onTouchEnd = (event) => {
+      const clientX = touchClientX(event);
+      if (clientX === null) {
+        cancelAxisDrag();
+        return;
+      }
+      endAxisDrag(clientX);
+      event.preventDefault();
+    };
+    const onTouchCancel = () => cancelAxisDrag();
+    axis.addEventListener('touchstart', onTouchStart, { passive: false });
+    axis.addEventListener('touchmove', onTouchMove, { passive: false });
+    axis.addEventListener('touchend', onTouchEnd, { passive: false });
+    axis.addEventListener('touchcancel', onTouchCancel);
+    heatmapTouchHandlers = {
+      start: onTouchStart,
+      move: onTouchMove,
+      end: onTouchEnd,
+      cancel: onTouchCancel,
+    };
 
     if (hint) {
       hint.textContent =

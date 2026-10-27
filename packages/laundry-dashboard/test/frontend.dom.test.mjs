@@ -807,6 +807,26 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '移动端选择结果是整小时区间',
     );
 
+    // 回归：手机上反复拖动不会累积触摸监听器（否则一次触摸触发 N 次重绘，越来越卡）
+    const activeTouchListeners = new Set();
+    const originalAddEventListener = axis.addEventListener.bind(axis);
+    const originalRemoveEventListener = axis.removeEventListener.bind(axis);
+    axis.addEventListener = (type, listener, options) => {
+      if (String(type).startsWith('touch')) activeTouchListeners.add(listener);
+      return originalAddEventListener(type, listener, options);
+    };
+    axis.removeEventListener = (type, listener, options) => {
+      if (String(type).startsWith('touch')) activeTouchListeners.delete(listener);
+      return originalRemoveEventListener(type, listener, options);
+    };
+    for (let index = 0; index < 3; index += 1) {
+      axis.dispatchEvent(mobileTouch('touchstart', rawFrom));
+      axis.dispatchEvent(mobileTouch('touchmove', mobileDragTo));
+      axis.dispatchEvent(mobileTouch('touchend', mobileDragTo));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(activeTouchListeners.size, 4, '反复滑动后触摸监听器仍只有 4 个（不累积）');
+
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
     if (dom) dom.window.close();
