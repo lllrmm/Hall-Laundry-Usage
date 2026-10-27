@@ -68,10 +68,6 @@ cd packages/laundry-dashboard && npm start
 
 详细行为与交互说明见 [packages/laundry-dashboard/README.md](packages/laundry-dashboard/README.md)。
 
-### 取数策略
-
-历史图表按 `(machineId, day)` 在浏览器端缓存，只向后台请求缺失的机器·天；首次加载取数据覆盖范围，自动刷新只重取今天。详见 [dashboard README](packages/laundry-dashboard/README.md)。
-
 ## 采集与数据
 
 采集服务每 60s 拉一次机器状态，写入两个 SQLite：
@@ -91,25 +87,8 @@ npm run stats -- --since 24h                            # 汇总：可用率/使
 npm run once                                            # 只采一次（手动补采/排查）
 ```
 
-### 分钟字节编码
-
-| 字节 | 含义 | 使用率 |
-|---|---|---|
-| `0x00` | in_use | 分子 + 分母 |
-| `0x01` | available | 仅分母 |
-| `0x02` | maintenance | 否 |
-| `0x03` | disabled | 否 |
-| `0x04` | offline | 否 |
-| `0x05` | on_hold（旧编码，仅兼容） | 按 on_hold + in_use 处理 |
-| `0x06` | on_hold + state=in_use | 分子 + 分母 |
-| `0x07` | on_hold + state=available | 仅分母 |
-| `0x08` | on_hold + state=offline | 否 |
-| `0x09` | on_hold + 未知 state | 否 |
-| `0xfe` | unknown（轮询成功但无法识别） | 否 |
-| `0xff` | no_data（该分钟没有成功轮询） | 不计入任何统计 |
-
-- 热力图 / Inspection 的「可运营样本」= available + in_use + on_hold(+in_use) + on_hold(+available)；
-- State breakdown 的分母是全部已观测分钟（含维护/离线/停用等），并按状态单独显示。
+序列库的分钟字节编码与使用率口径（含 on_hold 细分）详见
+[monitor README](packages/laundry-monitor/README.md) 与 [dashboard README](packages/laundry-dashboard/README.md)。
 
 ## HTTP API（站点侧，只读）
 
