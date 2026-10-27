@@ -24,7 +24,7 @@ function check(name, condition, detail) {
 const html = await get('/', false, WEB_BASE);
 check(
   '页面 /',
-  html.includes('Laundry Monitor') &&
+  html.includes('Hall Laundry Usage') &&
     html.includes('chart-bars') &&
     html.includes('chart-profile') &&
     html.includes('aggregate.js') &&

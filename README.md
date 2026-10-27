@@ -1,4 +1,4 @@
-# HallLaundryUsage — HKUST 洗衣房监控与分析
+# Hall Laundry Usage
 
 产出一套**只读**的洗衣房工具链：
 

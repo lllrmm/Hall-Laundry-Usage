@@ -33,7 +33,7 @@ test('静态托管：index.html、JS gzip、404、目录穿越、非 GET', async
     const page = await fetch(`${base}/`);
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-type'), /text\/html/);
-    assert.match(await page.text(), /HKUST Laundry Monitor/);
+    assert.match(await page.text(), /Hall Laundry Usage/);
 
     // Node fetch 会自动解压，这里用 http 拿原始字节验证 gzip
     const rawScript = await new Promise((resolve, reject) => {
