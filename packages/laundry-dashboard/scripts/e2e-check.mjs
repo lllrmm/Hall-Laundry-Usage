@@ -51,7 +51,7 @@ check(
 check(
   '前端只重取 diff',
   appJs.includes('/api/days') &&
-    appJs.includes('fetchedAllMachines') &&
+    appJs.includes('effectiveRange') &&
     appJs.includes('loadHistoryForRefresh') &&
     !appJs.includes('/api/bars') &&
     !appJs.includes('/api/heatmap') &&
@@ -76,12 +76,20 @@ check('/api/state meta', state.meta?.available === true, `lastObserved=${state.m
 check('/api/state 机器数', state.latest?.length === 12, `${state.latest?.length} 台`);
 check('/api/state 最新状态完整', state.latest?.every((m) => typeof m.available === 'boolean' && m.name), '');
 check('/api/state firstObservedAt', Boolean(state.meta?.firstObservedAt), `${state.meta?.firstObservedAt}`);
+check(
+  '/api/state span',
+  Boolean(state.span?.firstDay && state.span?.lastDay),
+  `${state.span?.firstDay} ~ ${state.span?.lastDay}`,
+);
+
+const allIds = state.latest.map((machine) => machine.id).join(',');
+const { firstDay, lastDay } = state.span;
 
 const series = await get('/api/series?since=1h');
 check('/api/series 桶', Array.isArray(series.buckets) && series.buckets.length > 0, `${series.buckets?.length} 桶 / ${series.bucketSeconds}s`);
 check('/api/series 机器', series.machines?.length === 12, `${series.machines?.length} 台`);
 
-const days = await get('/api/days');
+const days = await get(`/api/days?machines=${allIds}&from=${firstDay}&to=${lastDay}`);
 check(
   '/api/days 日序列',
   days.available === true && days.count >= 12,
@@ -106,7 +114,7 @@ if (days.days.length) {
 }
 
 const oneMachine = state.latest[0];
-const scopedDays = await get(`/api/days?machines=${oneMachine.id}`);
+const scopedDays = await get(`/api/days?machines=${oneMachine.id}&from=${firstDay}&to=${lastDay}`);
 check(
   '/api/days 按机器过滤',
   scopedDays.count >= 1 && scopedDays.days.every((row) => row.machineId === oneMachine.id),
@@ -114,13 +122,41 @@ check(
 );
 
 if (days.firstDay) {
-  const oneDay = await get(`/api/days?from=${days.firstDay}&to=${days.firstDay}`);
+  const oneDay = await get(`/api/days?machines=${allIds}&from=${days.firstDay}&to=${days.firstDay}`);
   check(
     '/api/days 按日期过滤',
     oneDay.count >= 12 && oneDay.days.every((row) => row.day === days.firstDay),
     `${oneDay.count} 条 @ ${days.firstDay}`,
   );
 }
+
+const dayList = [...new Set([firstDay, lastDay])];
+const listResult = await get(`/api/days?machines=${oneMachine.id}&days=${dayList.join(',')}`);
+check(
+  '/api/days days 日期列表',
+  listResult.count >= 1 &&
+    listResult.days.every((row) => dayList.includes(row.day)) &&
+    listResult.fromDay === firstDay &&
+    listResult.toDay === lastDay,
+  `${listResult.count} 条 / ${dayList.join(',')}`,
+);
+
+const badRequests = [];
+for (const query of [
+  '',
+  '?machines=',
+  `?machines=${oneMachine.id}`,
+  `?machines=${oneMachine.id}&from=${firstDay}`,
+  `?machines=${oneMachine.id}&from=2026-01-02&to=2026-01-01`,
+  `?machines=${oneMachine.id}&from=${firstDay}&to=${lastDay}&days=${firstDay}`,
+]) {
+  badRequests.push(`${query || '(空)'}=${await status(`/api/days${query}`)}`);
+}
+check(
+  '/api/days 强约束参数校验',
+  badRequests.every((entry) => entry.endsWith('=400')),
+  badRequests.join(' '),
+);
 
 const removed = [];
 for (const route of ['/api/bars', '/api/hourly', '/api/heatmap', '/api/profile', '/api/profile/days']) {
@@ -133,7 +169,9 @@ check(
 );
 
 // gzip：大响应压缩、静态 JS 压缩、小响应不压缩
-const gzDays = await fetch(`${BASE}/api/days`, { headers: { 'accept-encoding': 'gzip' } });
+const gzDays = await fetch(`${BASE}/api/days?machines=${allIds}&from=${firstDay}&to=${lastDay}`, {
+  headers: { 'accept-encoding': 'gzip' },
+});
 const gzDaysBody = await gzDays.json();
 check(
   'gzip /api/days',

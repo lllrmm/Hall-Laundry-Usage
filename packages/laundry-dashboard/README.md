@@ -38,19 +38,23 @@ node bin/serve.mjs --db ../laundry-monitor/data/laundry.sqlite \
 
 ### 数据流与取数策略（只请求 diff）
 
-后端只提供一个历史数据接口：
+后端只提供一个历史数据接口（强约束：`machines` 必填，日期二选一）：
 
 ```
 GET /api/days?machines=<id,id>&from=YYYY-MM-DD&to=YYYY-MM-DD
-→ { available, source, count, days: [{ machineId, day, seq(base64 1440B), updatedAt }] }
+# 或
+GET /api/days?machines=<id,id>&days=YYYY-MM-DD,YYYY-MM-DD
+→ { available, source, fromDay, toDay, count, days: [{ machineId, day, seq(base64 1440B), updatedAt }] }
 ```
+
+不传 `machines`、缺日期范围、`from`/`to` 与 `days` 同时使用等情况一律返回 **400**（不会无参数拉全库）。`/api/state` 会同时返回数据覆盖的本地日期范围 `span: { firstDay, lastDay }`，前端用它在"全部历史"时换算出 /api/days 必填的 `from`/`to`。
 
 `seq` 的每个字节是当天第 N 分钟的状态（编码见下）。前端把这些序列按 `(machineId, day)` 缓存在内存里：
 
 | 操作 | 是否请求后端 | 请求内容 |
 |---|---|---|
-| 首次加载 | 是 | 全部历史 × 当前已选机器（默认全选） |
-| Date range 变化 | **只补 diff** | 新范围里**还没缓存过**的机器·天；缺失日期按连续区间分组，已缓存的一律不重复请求；全部已缓存时不发请求 |
+| 首次加载 | 是 | `span` 范围 × 当前已选机器（默认全选），带 `from`/`to` |
+| Date range 变化 | **只补 diff** | 把选择换算成 span 内的明确 `from`/`to`，只请求里**还没缓存过**的机器·天；缺失日期按连续区间分组，已缓存的一律不重复请求；全部已缓存或与数据无交集时不发请求 |
 | 机器从不选变成选 | **只补 diff** | 这台机器在当前范围里还没缓存过的天；已缓存时不会请求 |
 | 机器取消选择 / 选星期 / 拖时段 / 点分钟 / 切换主题 / 改窗口大小 | 否 | 纯本地重算 + 重绘 |
 | 自动 / 手动刷新 | 是（仅今天） | 只重取**今天**、已选机器的序列（今天的字节还在增长）；Date range 不包含今天时不请求 |
@@ -122,14 +126,15 @@ GET /api/days?machines=<id,id>&from=YYYY-MM-DD&to=YYYY-MM-DD
 | 接口 | 说明 |
 |---|---|
 | `GET /api/meta` | 数据最早/最后更新时间、最近一次轮询结果、轮询次数、机器数、快照数 |
-| `GET /api/state` | meta + 机器维度 + 最新一轮全部机器状态（页面首屏用这一个请求） |
+| `GET /api/state` | meta + 机器维度 + 最新一轮全部机器状态 + 数据覆盖日期范围 `span`（页面首屏用这一个请求） |
 | `GET /api/machines` | 机器维度表（含 `serviceValue` / `serviceLabel` / `powder`） |
 | `GET /api/latest` | 最新一轮每台机器的状态（含 `powder`：`"with"` / `"without"` / `null`） |
-| `GET /api/days?from=YYYY-MM-DD&to=YYYY-MM-DD&machines=id1,id2` | **历史图表唯一数据源**：每台机器每天的 1440 字节分钟状态序列（`seq` 为 base64）；优先读序列库、缺失时回退原始快照；`from`/`to` 为本地日期（含首尾），`machines` 可过滤；返回 `source`（`series`/`raw`/`mixed`）与 `encoding` 编码表 |
+| `GET /api/days?machines=id1,id2&from=YYYY-MM-DD&to=YYYY-MM-DD` | **历史图表唯一数据源**：每台机器每天的 1440 字节分钟状态序列（`seq` 为 base64）。`machines` **必填**；日期用 `from`+`to`（含首尾）或 `days=YYYY-MM-DD,YYYY-MM-DD` 日期列表（互斥，列表最多 366 天）；优先读序列库、缺失时回退原始快照；返回 `source`（`series`/`raw`/`mixed`）与 `encoding` 编码表；参数缺失/非法返回 **400** |
 | `GET /api/series?since=24h&machines=id1,id2` | 原始快照的分桶时间序列（`buckets` + 每台机器的 `availableRatio`/`inUseRatio` + 聚合 `totals` + 按机型的 `totalsByKind.washer/dryer`），供脚本/外部工具使用 |
 
 - `since` 支持 `1h` / `6h` / `24h` / `7d` / `30d` / `all` / ISO 时间；
 - `/api/series` 的分桶粒度按窗口自动选择（目标 ≤ 240 点，最小 30 秒）；
+- `/api/days` 的参数校验错误统一返回 `400 { error: "..." }`（例如缺 `machines`、缺日期、`from` 晚于 `to`、`days` 含非法日期、`from/to` 与 `days` 同时存在）；
 - `powder` 字段：`washing_machine_with_powder` → `"with"`，`washing_machine_without_powder` → `"without"`，烘干机为 `null`；
 - 响应带 4 秒内存缓存，避免多个浏览器标签重复查询大表；
 - 响应体 ≥ 1 KB 且请求头 `Accept-Encoding` 含 gzip 时自动 gzip（JSON 与 `.html/.js/.css/.svg` 静态文件），响应带 `Vary: accept-encoding`；静态文件的压缩结果按 `path + mtime + size` 缓存，不会每次重复压缩；

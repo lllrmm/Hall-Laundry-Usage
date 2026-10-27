@@ -70,8 +70,10 @@
     dayCache: new Map(),
     /** 已经请求过的机器·天（没有数据的日期也算，避免重复请求） */
     fetchedDays: new Map(),
-    /** 已经取过全部历史的机器 */
-    fetchedAllMachines: new Set(),
+    /** 数据覆盖的本地日期范围（来自 /api/state，用于把"全部历史"换算成明确区间） */
+    span: null,
+    /** 是否已经成功加载过完整历史区间 */
+    historyLoaded: false,
     heatmapFocus: null,
     heatmapRange: null,
     weekdaySelection: new Set(),
@@ -1121,13 +1123,35 @@
     return History.rangeIncludesToday(state.dateFrom, state.dateTo);
   }
 
+  /**
+   * 把 UI 上的日期选择换算成 /api/days 必填的明确区间。
+   * "全部历史" 用 /api/state 返回的 span（数据覆盖范围），并夹到已知数据范围内；
+   * 与已知数据完全没有交集时返回 null（不需要请求，直接显示空）。
+   */
+  function effectiveRange() {
+    const span = state.span;
+    let from = state.dateFrom;
+    let to = state.dateTo;
+
+    if (!from && !to) {
+      from = span?.firstDay ?? null;
+      to = span?.lastDay ?? null;
+    } else if (from && !to) {
+      to = span?.lastDay ?? todayKey();
+    } else if (!from && to) {
+      from = span?.firstDay ?? to;
+    }
+    if (!from || !to) return null;
+
+    if (span?.firstDay && from < span.firstDay) from = span.firstDay;
+    if (span?.lastDay && to > span.lastDay) to = span.lastDay;
+    if (from > to) return null;
+    return { fromDay: from, toDay: to };
+  }
+
   /** 记录某台机器的某些天已经取过（即使那天没有数据） */
   function markFetched(machineIds, fromDay, toDay, returnedDays) {
     for (const machineId of machineIds) {
-      if (!fromDay && !toDay) {
-        state.fetchedAllMachines.add(machineId);
-        continue;
-      }
       let days = state.fetchedDays.get(machineId);
       if (!days) {
         days = new Set();
@@ -1143,11 +1167,12 @@
 
   /** 当前选择下还缺哪些机器·天（已缓存的不再请求；缺失日期按连续区间分组） */
   function pendingRequests() {
+    const range = effectiveRange();
+    if (!range) return [];
     return History.planDiff({
       selectedIds: [...state.selected],
-      dateFrom: state.dateFrom,
-      dateTo: state.dateTo,
-      fetchedAllMachines: state.fetchedAllMachines,
+      dateFrom: range.fromDay,
+      dateTo: range.toDay,
       fetchedDays: state.fetchedDays,
     });
   }
@@ -1202,9 +1227,15 @@
     for (const request of pendingRequests()) await fetchHistory(request);
   }
 
-  /** 日期范围变化：只补新范围里还没缓存过的机器·天 */
+  /** 日期范围变化 / 首次加载：只补当前区间里还没缓存过的机器·天 */
   async function loadHistoryForRange() {
     if (!state.selected.size) {
+      renderViews();
+      return;
+    }
+    // 与已知数据没有交集（例如选了全空的日期）：不需要请求
+    if (!effectiveRange()) {
+      state.historyLoaded = false;
       renderViews();
       return;
     }
@@ -1212,8 +1243,10 @@
       await fetchPendingHistory();
     } catch (error) {
       historyFailed(error);
+      state.historyLoaded = false;
       return;
     }
+    state.historyLoaded = true;
     renderViews();
   }
 
@@ -1370,6 +1403,7 @@
     state.meta = data.meta;
     state.machines = data.machines ?? [];
     state.latest = data.latest ?? [];
+    state.span = data.span ?? null;
 
     if (state.firstLoad) {
       state.selected = new Set(state.machines.map((machine) => machine.id));
@@ -1410,6 +1444,7 @@
       await loadState();
       // 首次加载取全部历史；之后刷新只重取今天的序列
       if (initial) await loadHistoryForRange();
+      else if (!state.historyLoaded) await loadHistoryForRange();
       else await loadHistoryForRefresh();
     } catch (error) {
       console.error('Refresh failed', error);

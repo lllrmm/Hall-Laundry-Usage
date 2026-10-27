@@ -20,6 +20,9 @@ const CACHE_MS = 4000;
 /** 小于该字节数的响应不压缩（压缩反而更大/不值得） */
 const GZIP_MIN_BYTES = 1024;
 
+/** /api/days 单次最多查询的天数（防止日期列表无限膨胀） */
+const MAX_DAYS_PER_QUERY = 366;
+
 /** 适合压缩的静态文件类型 */
 const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.svg']);
 
@@ -92,14 +95,6 @@ function parseMachineIds(params) {
   return [...new Set(fromComma.map((id) => id.trim()).filter(Boolean))];
 }
 
-/** 解析可选 YYYY-MM-DD 参数；非法抛错（交给上层转 500 JSON） */
-function parseDayParam(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const day = normalizeDay(value);
-  if (!day) throw new Error(`无法解析日期参数：${value}`);
-  return day;
-}
-
 /**
  * 创建服务实例（不监听）。
  * @param {object} options
@@ -145,7 +140,13 @@ export function createDashboardServer({ config, logger = console }) {
         200,
         cached(key, () => {
           const meta = database.meta();
-          return { meta, machines: database.machines(), latest: database.latest() };
+          return {
+            meta,
+            machines: database.machines(),
+            latest: database.latest(),
+            // 数据覆盖的本地日期范围：前端把"全部历史"换算成 /api/days 必填的 from/to
+            span: daysDatabase.span(),
+          };
         }),
       );
       return true;
@@ -171,10 +172,64 @@ export function createDashboardServer({ config, logger = console }) {
     if (route === '/api/days') {
       // 历史图表用的原始日序列（每台机器每天 1,440 字节的 base64）。
       // 聚合全部交给浏览器端 public/aggregate.js，交互不再请求后端。
-      const fromDay = parseDayParam(url.searchParams.get('from'));
-      const toDay = parseDayParam(url.searchParams.get('to'));
-      const key = `${route}?${fromDay ?? ''}~${toDay ?? ''}:${machineIds.sort().join(',')}`;
-      sendJson(res, 200, cached(key, () => daysDatabase.days({ fromDay, toDay, machineIds })));
+      // 强约束：machines 必填；日期用 from+to 或 days 列表（互斥），避免无参数拉全库。
+      const badRequest = (message) => {
+        sendJson(res, 400, { error: message });
+        return true;
+      };
+
+      if (!machineIds.length) {
+        return badRequest('machines 参数必填（逗号分隔的机器 id）');
+      }
+
+      const rawDays = url
+        .searchParams.getAll('days')
+        .flatMap((value) => value.split(','))
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const rawFrom = url.searchParams.get('from');
+      const rawTo = url.searchParams.get('to');
+      const hasFrom = Boolean(rawFrom && rawFrom.trim());
+      const hasTo = Boolean(rawTo && rawTo.trim());
+      const hasDays = rawDays.length > 0;
+
+      if (hasDays && (hasFrom || hasTo)) {
+        return badRequest('from/to 与 days 不能同时使用');
+      }
+      if (hasDays && rawDays.length > MAX_DAYS_PER_QUERY) {
+        return badRequest(`days 最多 ${MAX_DAYS_PER_QUERY} 天`);
+      }
+
+      let dayList = null;
+      let fromDay = null;
+      let toDay = null;
+
+      if (hasDays) {
+        const requested = new Set();
+        for (const value of rawDays) {
+          const day = normalizeDay(value);
+          if (!day) return badRequest(`days 列表里包含非法日期：${value}`);
+          requested.add(day);
+        }
+        dayList = [...requested].sort();
+      } else {
+        if (!hasFrom || !hasTo) {
+          return badRequest('machines 之外还需要 from 和 to（YYYY-MM-DD），或改用 days 日期列表');
+        }
+        fromDay = normalizeDay(rawFrom);
+        if (!fromDay) return badRequest(`无法解析日期参数：${rawFrom}`);
+        toDay = normalizeDay(rawTo);
+        if (!toDay) return badRequest(`无法解析日期参数：${rawTo}`);
+        if (fromDay > toDay) return badRequest('from 不能晚于 to');
+      }
+
+      const dateKey = dayList ? `days=${dayList.join(',')}` : `${fromDay}~${toDay}`;
+      const key = `${route}?${dateKey}:${machineIds.slice().sort().join(',')}`;
+      sendJson(
+        res,
+        200,
+        cached(key, () => daysDatabase.days({ machineIds, fromDay, toDay, days: dayList })),
+      );
       return true;
     }
 

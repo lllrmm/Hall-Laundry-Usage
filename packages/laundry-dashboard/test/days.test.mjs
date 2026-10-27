@@ -1,7 +1,9 @@
 /**
  * /api/days：历史日序列接口。
  *
- * 覆盖：序列库直读、原始快照回退、两者混合、日期/机器筛选、非法参数、旧聚合接口已删除。
+ * 接口强约束：machines 必填；日期用 from+to 或 days 列表（互斥）。
+ * 覆盖：序列库直读、原始快照回退、两者混合、日期/机器/日期列表筛选、
+ * 参数校验（400）、/api/state 的 span、旧聚合接口已删除。
  */
 
 import test from 'node:test';
@@ -51,6 +53,8 @@ const MACHINES = [
   { id: 'm-dryer', name: 'UG4 Dryer (51)', kind: 'dryer', serviceValue: 'dryer_machine' },
   { id: 'm-maint', name: 'UG4 Washer (05)', kind: 'washer', serviceValue: 'washing_machine_with_powder' },
 ];
+
+const ALL_IDS = MACHINES.map((machine) => machine.id).join(',');
 
 function statusAt(when, specs) {
   const machines = MACHINES.map((machine) => ({
@@ -186,28 +190,36 @@ function assertBytes(payload, machineId, day, writes) {
   assert.equal(bytes[0], EXPECTED.noData, '没有轮询的分钟应为 no_data');
 }
 
+async function getJson(base, query) {
+  const response = await fetch(`${base}/api/days?${query}`);
+  return { status: response.status, body: await response.json() };
+}
+
 test('GET /api/days：优先读序列库，返回 1440 字节/机器·天（status 优先编码）', async () => {
   await withServer('full', async ({ base, fixture }) => {
-    const payload = await (await fetch(`${base}/api/days`)).json();
     const { day1, day2 } = fixture.timeline;
+    const { status, body } = await getJson(base, `machines=${ALL_IDS}&from=${day1}&to=${day2}`);
 
-    assert.equal(payload.available, true);
-    assert.equal(payload.source, 'series');
-    assert.equal(payload.count, 6, '3 台机器 × 2 天');
-    assert.equal(payload.firstDay, day1);
-    assert.equal(payload.lastDay, day2);
-    assert.equal(payload.encoding.inUse, 0x00);
-    assert.equal(payload.encoding.noData, 0xff);
+    assert.equal(status, 200);
+    assert.equal(body.available, true);
+    assert.equal(body.source, 'series');
+    assert.equal(body.count, 6, '3 台机器 × 2 天');
+    assert.equal(body.fromDay, day1);
+    assert.equal(body.toDay, day2);
+    assert.equal(body.firstDay, day1);
+    assert.equal(body.lastDay, day2);
+    assert.equal(body.encoding.inUse, 0x00);
+    assert.equal(body.encoding.noData, 0xff);
 
-    assertBytes(payload, 'm-washer', day1, { 600: EXPECTED.available, 601: EXPECTED.inUse });
-    assertBytes(payload, 'm-dryer', day1, { 600: EXPECTED.inUse, 601: EXPECTED.available });
+    assertBytes(body, 'm-washer', day1, { 600: EXPECTED.available, 601: EXPECTED.inUse });
+    assertBytes(body, 'm-dryer', day1, { 600: EXPECTED.inUse, 601: EXPECTED.available });
     // 维护中的机器 state 也是 available，必须算 maintenance 而不是 available
-    assertBytes(payload, 'm-maint', day1, { 600: EXPECTED.maintenance, 601: EXPECTED.maintenance });
-    assertBytes(payload, 'm-washer', day2, { 660: EXPECTED.available, 665: EXPECTED.offline });
-    assertBytes(payload, 'm-dryer', day2, { 660: EXPECTED.available, 665: EXPECTED.inUse });
-    assertBytes(payload, 'm-maint', day2, { 660: EXPECTED.disabled, 665: EXPECTED.disabled });
+    assertBytes(body, 'm-maint', day1, { 600: EXPECTED.maintenance, 601: EXPECTED.maintenance });
+    assertBytes(body, 'm-washer', day2, { 660: EXPECTED.available, 665: EXPECTED.offline });
+    assertBytes(body, 'm-dryer', day2, { 660: EXPECTED.available, 665: EXPECTED.inUse });
+    assertBytes(body, 'm-maint', day2, { 660: EXPECTED.disabled, 665: EXPECTED.disabled });
 
-    assert.ok(rowOf(payload, 'm-washer', day1).updatedAt, '应带该机器·天的最近更新时间');
+    assert.ok(rowOf(body, 'm-washer', day1).updatedAt, '应带该机器·天的最近更新时间');
   });
 });
 
@@ -215,18 +227,20 @@ test('GET /api/days：from / to / machines 过滤', async () => {
   await withServer('full', async ({ base, fixture }) => {
     const { day1, day2 } = fixture.timeline;
 
-    const secondDay = await (await fetch(`${base}/api/days?from=${day2}&to=${day2}`)).json();
+    const secondDay = (
+      await getJson(base, `machines=${ALL_IDS}&from=${day2}&to=${day2}`)
+    ).body;
     assert.equal(secondDay.count, 3);
     assert.ok(secondDay.days.every((row) => row.day === day2));
     assert.equal(secondDay.firstDay, day2);
 
-    const washerOnly = await (await fetch(`${base}/api/days?machines=m-washer`)).json();
+    const washerOnly = (await getJson(base, `machines=m-washer&from=${day1}&to=${day2}`)).body;
     assert.equal(washerOnly.count, 2);
     assert.deepEqual([...new Set(washerOnly.days.map((row) => row.machineId))], ['m-washer']);
 
-    const scoped = await (
-      await fetch(`${base}/api/days?from=${day2}&to=${day2}&machines=m-washer,m-dryer`)
-    ).json();
+    const scoped = (
+      await getJson(base, `machines=m-washer,m-dryer&from=${day2}&to=${day2}`)
+    ).body;
     assert.equal(scoped.count, 2);
     assert.deepEqual(
       scoped.days.map((row) => row.machineId),
@@ -234,7 +248,7 @@ test('GET /api/days：from / to / machines 过滤', async () => {
       '按 day、machineId 排序',
     );
 
-    const none = await (await fetch(`${base}/api/days?from=2000-01-01&to=2000-01-02`)).json();
+    const none = (await getJson(base, `machines=${ALL_IDS}&from=2000-01-01&to=2000-01-02`)).body;
     assert.equal(none.available, true);
     assert.equal(none.count, 0);
     assert.equal(none.firstDay, null);
@@ -242,10 +256,35 @@ test('GET /api/days：from / to / machines 过滤', async () => {
   });
 });
 
+test('GET /api/days：days 日期列表（与 from/to 互斥），只返回列出的日期', async () => {
+  await withServer('full', async ({ base, fixture }) => {
+    const { day1, day2 } = fixture.timeline;
+
+    // 乱序 + 重复 → 排序去重后按天返回
+    const payload = (
+      await getJson(base, `machines=m-washer&days=${day2},${day1},${day2}`)
+    ).body;
+    assert.equal(payload.count, 2);
+    assert.deepEqual(
+      payload.days.map((row) => row.day),
+      [day1, day2],
+    );
+    assert.equal(payload.fromDay, day1);
+    assert.equal(payload.toDay, day2);
+    assertBytes(payload, 'm-washer', day1, { 600: EXPECTED.available, 601: EXPECTED.inUse });
+    assertBytes(payload, 'm-washer', day2, { 660: EXPECTED.available, 665: EXPECTED.offline });
+
+    // 只取其中一天
+    const single = (await getJson(base, `machines=m-washer&days=${day2}`)).body;
+    assert.equal(single.count, 1);
+    assert.equal(single.days[0].day, day2);
+  });
+});
+
 test('GET /api/days：序列库不存在时回退原始快照即时生成', async () => {
   await withServer('raw-only', async ({ base, fixture }) => {
-    const payload = await (await fetch(`${base}/api/days`)).json();
     const { day1, day2 } = fixture.timeline;
+    const payload = (await getJson(base, `machines=${ALL_IDS}&from=${day1}&to=${day2}`)).body;
 
     assert.equal(payload.available, true);
     assert.equal(payload.source, 'raw');
@@ -258,14 +297,93 @@ test('GET /api/days：序列库不存在时回退原始快照即时生成', asyn
 
 test('GET /api/days：序列库缺天时用 raw 补齐（source=mixed）', async () => {
   await withServer('mixed', async ({ base, fixture }) => {
-    const payload = await (await fetch(`${base}/api/days`)).json();
     const { day1, day2 } = fixture.timeline;
+    const payload = (await getJson(base, `machines=${ALL_IDS}&from=${day1}&to=${day2}`)).body;
 
     assert.equal(payload.source, 'mixed');
     assert.equal(payload.count, 6, '第一天来自序列库，第二天来自 raw');
     assertBytes(payload, 'm-washer', day1, { 600: EXPECTED.available });
     assertBytes(payload, 'm-washer', day2, { 660: EXPECTED.available, 665: EXPECTED.offline });
     assertBytes(payload, 'm-maint', day1, { 600: EXPECTED.maintenance });
+  });
+});
+
+test('GET /api/state：返回数据覆盖的日期范围 span', async () => {
+  await withServer('full', async ({ base, fixture }) => {
+    const { day1, day2 } = fixture.timeline;
+    const state = await (await fetch(`${base}/api/state`)).json();
+    assert.deepEqual(state.span, { firstDay: day1, lastDay: day2 });
+  });
+});
+
+test('GET /api/days：参数校验（machines 必填 + from/to 或 days 必填）', async () => {
+  await withServer('full', async ({ base, fixture }) => {
+    const { day1, day2 } = fixture.timeline;
+
+    const cases = [
+      {
+        query: `from=${day1}&to=${day2}`,
+        message: /machines 参数必填/,
+        label: '缺 machines',
+      },
+      {
+        query: `machines=m-washer`,
+        message: /from 和 to/,
+        label: '缺日期范围',
+      },
+      {
+        query: `machines=m-washer&from=${day1}`,
+        message: /from 和 to/,
+        label: '只有 from',
+      },
+      {
+        query: `machines=m-washer&to=${day2}`,
+        message: /from 和 to/,
+        label: '只有 to',
+      },
+      {
+        query: `machines=m-washer&from=nonsense&to=${day2}`,
+        message: /无法解析日期参数/,
+        label: 'from 非法',
+      },
+      {
+        query: `machines=m-washer&from=${day1}&to=2026-13-99`,
+        message: /无法解析日期参数/,
+        label: 'to 不是真实日期',
+      },
+      {
+        query: `machines=m-washer&from=${day2}&to=${day1}`,
+        message: /from 不能晚于 to/,
+        label: 'from 晚于 to',
+      },
+      {
+        query: `machines=m-washer&from=${day1}&to=${day2}&days=${day1}`,
+        message: /不能同时使用/,
+        label: 'from/to 与 days 同时给',
+      },
+      {
+        query: `machines=m-washer&days=${day1},bad-day`,
+        message: /days 列表里包含非法日期/,
+        label: 'days 含非法日期',
+      },
+    ];
+
+    for (const item of cases) {
+      const response = await fetch(`${base}/api/days?${item.query}`);
+      assert.equal(response.status, 400, item.label);
+      const body = await response.json();
+      assert.match(body.error, item.message, item.label);
+    }
+
+    // days 列表超过 366 天 → 400
+    const days = [];
+    for (let index = 0; index < 367; index += 1) {
+      const cursor = new Date(2020, 0, 1 + index);
+      days.push(localKey(cursor));
+    }
+    const tooMany = await fetch(`${base}/api/days?machines=m-washer&days=${days.join(',')}`);
+    assert.equal(tooMany.status, 400);
+    assert.match((await tooMany.json()).error, /最多 366 天/);
   });
 });
 
@@ -283,7 +401,11 @@ test('GET /api/days：两个库都不存在时优雅降级', async () => {
   });
   try {
     const address = await app.listen(0, '127.0.0.1');
-    const payload = await (await fetch(`http://127.0.0.1:${address.port}/api/days`)).json();
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/days?machines=m-washer&from=2026-01-01&to=2026-01-02`,
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
     assert.equal(payload.available, false);
     assert.deepEqual(payload.days, []);
     assert.equal(payload.count, 0);
@@ -291,17 +413,6 @@ test('GET /api/days：两个库都不存在时优雅降级', async () => {
     await app.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('GET /api/days：非法日期参数返回 500 JSON', async () => {
-  await withServer('full', async ({ base }) => {
-    for (const query of ['from=nonsense', 'to=2026-13-99', 'from=2026/01/01']) {
-      const response = await fetch(`${base}/api/days?${query}`);
-      assert.equal(response.status, 500, query);
-      const body = await response.json();
-      assert.match(body.error, /无法解析日期参数/, query);
-    }
-  });
 });
 
 test('旧的聚合接口已移除（交由前端计算）', async () => {

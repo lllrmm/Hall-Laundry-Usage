@@ -46,17 +46,32 @@ test('rangeIncludesToday：全部历史 / 区间内外', () => {
   assert.equal(History.rangeIncludesToday('2026-10-01', null, '2026-10-27'), true);
 });
 
-test('planDiff：全部历史一次取全，已整库取过的机器不再请求', () => {
+test('planDiff：/api/days 必须有明确日期区间，缺一边不规划请求', () => {
   same(History.planDiff({ selectedIds: [] }), []);
+  same(History.planDiff({ selectedIds: ['a'] }), [], '没有日期范围不请求');
+  same(History.planDiff({ selectedIds: ['a'], dateFrom: '2026-10-01' }), [], '只有 from 不请求');
+  same(History.planDiff({ selectedIds: ['a'], dateTo: '2026-10-03' }), [], '只有 to 不请求');
+  same(
+    History.planDiff({ selectedIds: ['a'], dateFrom: '2026-10-03', dateTo: '2026-10-01' }),
+    [],
+    'from 晚于 to 不请求',
+  );
+});
 
-  const allHistory = History.planDiff({ selectedIds: ['a', 'b'] });
-  same(allHistory, [{ machineIds: ['a', 'b'], fromDay: null, toDay: null }]);
-
-  const covered = History.planDiff({
-    selectedIds: ['a', 'b'],
-    fetchedAllMachines: new Set(['a', 'b']),
-  });
-  same(covered, [], '已经取过全部历史的机器不应再请求');
+test('planDiff：已缓存的不再请求', () => {
+  same(
+    History.planDiff({
+      selectedIds: ['a', 'b'],
+      dateFrom: '2026-10-01',
+      dateTo: '2026-10-03',
+      fetchedDays: fetchedDaysOf({
+        a: ['2026-10-01', '2026-10-02', '2026-10-03'],
+        b: ['2026-10-01', '2026-10-02', '2026-10-03'],
+      }),
+    }),
+    [],
+    '全部已缓存（含没有数据的日期）不应该产生请求',
+  );
 });
 
 test('planDiff：data range 变化只补缓存缺的机器·天', () => {
@@ -67,9 +82,7 @@ test('planDiff：data range 变化只补缓存缺的机器·天', () => {
     dateTo: '2026-10-03',
     fetchedDays: fetchedDaysOf({ a: ['2026-10-01', '2026-10-02'] }),
   });
-  same(requests, [
-    { machineIds: ['a', 'b'], fromDay: '2026-10-01', toDay: '2026-10-03' },
-  ]);
+  same(requests, [{ machineIds: ['a', 'b'], fromDay: '2026-10-01', toDay: '2026-10-03' }]);
 
   // a 已全部取过 → 只剩 b
   const onlyB = History.planDiff({
@@ -91,15 +104,6 @@ test('planDiff：data range 变化只补缓存缺的机器·天', () => {
     { machineIds: ['a'], fromDay: '2026-10-02', toDay: '2026-10-02' },
     { machineIds: ['a'], fromDay: '2026-10-04', toDay: '2026-10-04' },
   ]);
-
-  // 全部已缓存（含"那天没数据"也被标记过）→ 不请求
-  const cached = History.planDiff({
-    selectedIds: ['a'],
-    dateFrom: '2026-10-01',
-    dateTo: '2026-10-03',
-    fetchedDays: fetchedDaysOf({ a: ['2026-10-01', '2026-10-02', '2026-10-03'] }),
-  });
-  same(cached, [], '已缓存的范围变化不应该产生请求');
 });
 
 test('planDiff：新选机器只补它自己缺的天', () => {
@@ -127,13 +131,13 @@ test('planDiff：新选机器只补它自己缺的天', () => {
   ]);
 });
 
-test('planDiff：单边日期范围整体请求（无法枚举缺失天数）', () => {
+test('planDiff：单日区间只发一天', () => {
   same(
-    History.planDiff({ selectedIds: ['a'], dateFrom: '2026-10-01' }),
-    [{ machineIds: ['a'], fromDay: '2026-10-01', toDay: null }],
-  );
-  same(
-    History.planDiff({ selectedIds: ['a'], dateTo: '2026-10-01' }),
-    [{ machineIds: ['a'], fromDay: null, toDay: '2026-10-01' }],
+    History.planDiff({
+      selectedIds: ['a'],
+      dateFrom: '2026-10-02',
+      dateTo: '2026-10-02',
+    }),
+    [{ machineIds: ['a'], fromDay: '2026-10-02', toDay: '2026-10-02' }],
   );
 });

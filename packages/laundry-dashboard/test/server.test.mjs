@@ -12,6 +12,15 @@ import { createDashboardServer } from '../src/server.js';
 // 用"相对现在"的时间，保证与真实运行的时间窗口一致
 const T0 = Date.now() - 10 * 60 * 1000;
 
+/** 本地日期 YYYY-MM-DD */
+function localDay(date) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+const DAY = localDay(new Date(T0));
+const DAYS_QUERY = `machines=m1&from=${DAY}&to=${DAY}`;
+
 function buildFixtureDb() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'laundry-dash-server-'));
   const file = path.join(dir, 'test.sqlite');
@@ -121,6 +130,7 @@ test('GET /api/meta 与 /api/state', async () => {
     assert.equal(state.latest.length, 1);
     assert.equal(state.latest[0].name, 'UG4 Dryer (51)');
     assert.equal(state.machines.length, 1);
+    assert.deepEqual(state.span, { firstDay: DAY, lastDay: DAY }, '应返回数据覆盖的日期范围');
   });
 });
 
@@ -139,7 +149,7 @@ test('GET /api/series 按机器过滤并返回分桶', async () => {
 
 test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', async () => {
   await withServer(async (base) => {
-    const payload = await (await fetch(`${base}/api/days`)).json();
+    const payload = await (await fetch(`${base}/api/days?${DAYS_QUERY}`)).json();
     assert.equal(payload.available, true);
     assert.equal(payload.source, 'raw');
     assert.equal(payload.count, 1, '1 台机器 × 1 天');
@@ -152,11 +162,21 @@ test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', as
     const at = new Date(T0);
     assert.equal(bytes[at.getHours() * 60 + at.getMinutes()], 0x01, '该分钟为空闲');
 
-    const scoped = await (await fetch(`${base}/api/days?machines=nope`)).json();
+    const scoped = await (
+      await fetch(`${base}/api/days?machines=nope&from=${DAY}&to=${DAY}`)
+    ).json();
     assert.equal(scoped.count, 0);
 
-    const invalid = await fetch(`${base}/api/days?from=bogus`);
-    assert.equal(invalid.status, 500);
+    // 缺参数 / 非法参数 → 400
+    for (const query of [
+      `from=${DAY}&to=${DAY}`,
+      'machines=m1',
+      `machines=m1&from=${DAY}`,
+      `machines=m1&from=bogus&to=${DAY}`,
+    ]) {
+      const invalid = await fetch(`${base}/api/days?${query}`);
+      assert.equal(invalid.status, 400, query);
+    }
 
     // 旧的聚合接口已移除
     for (const route of ['/api/bars', '/api/hourly', '/api/heatmap', '/api/profile']) {
@@ -168,14 +188,18 @@ test('GET /api/days 返回原始日序列（序列库缺失时回退 raw）', as
 test('gzip：大响应压缩、小响应不压缩、静态 JS 也压缩', async () => {
   await withServer(async (base) => {
     // /api/days 返回 1440 字节日序列，JSON > 1KB，应被 gzip
-    const compressed = await fetch(`${base}/api/days`, { headers: { 'accept-encoding': 'gzip' } });
+    const compressed = await fetch(`${base}/api/days?${DAYS_QUERY}`, {
+      headers: { 'accept-encoding': 'gzip' },
+    });
     assert.equal(compressed.status, 200);
     assert.equal(compressed.headers.get('content-encoding'), 'gzip');
     assert.match(compressed.headers.get('vary') ?? '', /accept-encoding/i);
     const parsed = await compressed.json();
     assert.equal(parsed.count, 1, 'gzip 响应解压后仍是合法 JSON');
 
-    const plain = await fetch(`${base}/api/days`, { headers: { 'accept-encoding': 'identity' } });
+    const plain = await fetch(`${base}/api/days?${DAYS_QUERY}`, {
+      headers: { 'accept-encoding': 'identity' },
+    });
     assert.equal(plain.headers.get('content-encoding'), null);
     assert.equal((await plain.json()).count, parsed.count);
 

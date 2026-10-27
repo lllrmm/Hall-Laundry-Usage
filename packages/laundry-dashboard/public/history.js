@@ -57,51 +57,40 @@
     return true;
   }
 
-  function isFetched(machineId, day, fetchedAllMachines, fetchedDays) {
-    if (fetchedAllMachines?.has(machineId)) return true;
+  function isFetched(machineId, day, fetchedDays) {
     return fetchedDays?.get(machineId)?.has(day) ?? false;
   }
 
   /**
    * 计算还缺哪些机器·天。
    * 把缺失日期按连续区间分组，尽量合并成最少的请求。
+   * /api/days 要求明确日期范围，所以 dateFrom 与 dateTo 必须都给出
+   * （调用方先用自己的数据覆盖范围把"全部历史"换算成具体区间）。
    *
    * @param {object} options
    * @param {string[]} options.selectedIds 当前勾选的机器
    * @param {string|null} options.dateFrom 起始本地日期
    * @param {string|null} options.dateTo 结束本地日期
-   * @param {Set<string>} options.fetchedAllMachines 已取过全部历史的机器
    * @param {Map<string, Set<string>>} options.fetchedDays 已取过的具体机器·天（含没有数据的日期）
-   * @returns {Array<{machineIds: string[], fromDay: string|null, toDay: string|null}>}
+   * @returns {Array<{machineIds: string[], fromDay: string, toDay: string}>}
    */
   function planDiff({
     selectedIds = [],
     dateFrom = null,
     dateTo = null,
-    fetchedAllMachines = new Set(),
     fetchedDays = new Map(),
   } = {}) {
     const selected = selectedIds.filter(Boolean);
     if (!selected.length) return [];
-
-    const targets = selected.filter((machineId) => !fetchedAllMachines.has(machineId));
-    if (!targets.length) return [];
-
-    if (!dateFrom && !dateTo) {
-      // 全部历史：这些机器还没整库取过，一次取全
-      return [{ machineIds: targets, fromDay: null, toDay: null }];
-    }
-    if (!dateFrom || !dateTo) {
-      // 单边日期无法枚举缺失天数，整体请求一次
-      return [{ machineIds: targets, fromDay: dateFrom, toDay: dateTo }];
-    }
+    if (!dateFrom || !dateTo || dateFrom > dateTo) return [];
 
     const missingDays = new Set();
     const missingByMachine = new Map();
-    for (const machineId of targets) {
+    for (const machineId of selected) {
       const missing = dayListBetween(dateFrom, dateTo).filter(
-        (day) => !isFetched(machineId, day, fetchedAllMachines, fetchedDays),
+        (day) => !isFetched(machineId, day, fetchedDays),
       );
+      if (!missing.length) continue;
       missingByMachine.set(machineId, missing);
       for (const day of missing) missingDays.add(day);
     }
@@ -124,9 +113,9 @@
 
     return runs
       .map(([runFrom, runTo]) => ({
-        machineIds: targets.filter((machineId) =>
-          missingByMachine.get(machineId).some((day) => day >= runFrom && day <= runTo),
-        ),
+        machineIds: [...missingByMachine.entries()]
+          .filter(([, missing]) => missing.some((day) => day >= runFrom && day <= runTo))
+          .map(([machineId]) => machineId),
         fromDay: runFrom,
         toDay: runTo,
       }))

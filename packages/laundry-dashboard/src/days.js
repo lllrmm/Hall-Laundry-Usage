@@ -201,24 +201,29 @@ export class DaysDatabase {
   }
 
   /**
-   * 读取日序列。
+   * 读取日序列。参数由调用方（HTTP 层）校验：machines 必填，
+   * 日期范围用 from+to 或显式的 days 列表（二者互斥）。
    * @param {object} [options]
    * @param {string|null} [options.fromDay] 起始本地日期 YYYY-MM-DD（含）
    * @param {string|null} [options.toDay] 结束本地日期 YYYY-MM-DD（含）
-   * @param {string[]} [options.machineIds] 只返回这些机器；空表示全部
+   * @param {string[]} [options.machineIds] 机器 id（必填，非空）
+   * @param {string[]|null} [options.days] 显式日期列表（与 from/to 互斥）
    * @returns {{available: boolean, source: 'series'|'raw'|'mixed'|null, fromDay: string|null,
    *   toDay: string|null, firstDay: string|null, lastDay: string|null, count: number,
    *   encoding: Record<string, number>, days: Array<{machineId: string, day: string,
    *   seq: string, updatedAt: string|null}>}}
    */
-  days({ fromDay = null, toDay = null, machineIds = [] } = {}) {
-    const from = normalizeDay(fromDay);
-    const to = normalizeDay(toDay);
+  days({ fromDay = null, toDay = null, machineIds = [], days = null } = {}) {
+    const dayList = Array.isArray(days) && days.length
+      ? [...new Set(days.map(normalizeDay).filter(Boolean))].sort()
+      : null;
+    const from = dayList ? dayList[0] : normalizeDay(fromDay);
+    const to = dayList ? dayList[dayList.length - 1] : normalizeDay(toDay);
     const ids = (machineIds ?? []).filter((id) => typeof id === 'string' && id.length > 0);
 
-    const seriesRows = this._readSeriesDays(from, to, ids);
+    const seriesRows = this._readSeriesDays(from, to, ids, dayList);
     const seriesKeys = new Set(seriesRows.map((row) => `${row.machineId}|${row.day}`));
-    const rawKeys = this._readRawDayKeys(from, to, ids);
+    const rawKeys = this._readRawDayKeys(from, to, ids, dayList);
     const missingKeys = rawKeys.filter((key) => !seriesKeys.has(key));
     const rawRows = missingKeys.length ? this._buildRawDays(missingKeys) : [];
 
@@ -257,20 +262,65 @@ export class DaysDatabase {
     };
   }
 
+  /**
+   * 数据覆盖的本地日期范围（序列库与原始库取并集）。
+   * 前端用它把"全部历史"换算成 /api/days 必填的 from/to。
+   */
+  span() {
+    const result = { firstDay: null, lastDay: null };
+    const merge = (first, last) => {
+      if (first && (!result.firstDay || first < result.firstDay)) result.firstDay = first;
+      if (last && (!result.lastDay || last > result.lastDay)) result.lastDay = last;
+    };
+
+    const series = this._seriesDb();
+    if (series && hasTable(series, 'machine_days')) {
+      try {
+        const row = series.prepare('SELECT MIN(day) AS first, MAX(day) AS last FROM machine_days').get();
+        merge(row?.first, row?.last);
+      } catch {
+        // ignore
+      }
+    }
+
+    const raw = this._rawDb();
+    if (raw && hasTable(raw, 'machine_snapshots')) {
+      try {
+        const row = raw
+          .prepare(
+            `SELECT MIN(date(observed_at, 'localtime')) AS first,
+                    MAX(date(observed_at, 'localtime')) AS last
+             FROM machine_snapshots`,
+          )
+          .get();
+        merge(row?.first, row?.last);
+      } catch {
+        // ignore
+      }
+    }
+
+    return result;
+  }
+
   /** 序列库里的日序列（库缺失 / 读失败时返回空数组） */
-  _readSeriesDays(fromDay, toDay, machineIds) {
+  _readSeriesDays(fromDay, toDay, machineIds, dayList = null) {
     const db = this._seriesDb();
     if (!db || !hasTable(db, 'machine_days')) return [];
 
     const clauses = [];
     const params = [];
-    if (fromDay) {
-      clauses.push('day >= ?');
-      params.push(fromDay);
-    }
-    if (toDay) {
-      clauses.push('day <= ?');
-      params.push(toDay);
+    if (dayList) {
+      clauses.push(`day IN (${placeholders(dayList.length)})`);
+      params.push(...dayList);
+    } else {
+      if (fromDay) {
+        clauses.push('day >= ?');
+        params.push(fromDay);
+      }
+      if (toDay) {
+        clauses.push('day <= ?');
+        params.push(toDay);
+      }
     }
     if (machineIds.length) {
       clauses.push(`machine_id IN (${placeholders(machineIds.length)})`);
@@ -294,19 +344,24 @@ export class DaysDatabase {
   }
 
   /** 原始快照库里存在数据的 (machine_id|day) 列表（用于判断序列库缺哪些天） */
-  _readRawDayKeys(fromDay, toDay, machineIds) {
+  _readRawDayKeys(fromDay, toDay, machineIds, dayList = null) {
     const db = this._rawDb();
     if (!db || !hasTable(db, 'machine_snapshots')) return [];
 
     const clauses = [];
     const params = [];
-    if (fromDay) {
-      clauses.push("date(observed_at, 'localtime') >= ?");
-      params.push(fromDay);
-    }
-    if (toDay) {
-      clauses.push("date(observed_at, 'localtime') <= ?");
-      params.push(toDay);
+    if (dayList) {
+      clauses.push(`date(observed_at, 'localtime') IN (${placeholders(dayList.length)})`);
+      params.push(...dayList);
+    } else {
+      if (fromDay) {
+        clauses.push("date(observed_at, 'localtime') >= ?");
+        params.push(fromDay);
+      }
+      if (toDay) {
+        clauses.push("date(observed_at, 'localtime') <= ?");
+        params.push(toDay);
+      }
     }
     if (machineIds.length) {
       clauses.push(`machine_id IN (${placeholders(machineIds.length)})`);
