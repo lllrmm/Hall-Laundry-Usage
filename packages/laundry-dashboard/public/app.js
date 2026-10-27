@@ -510,7 +510,7 @@
     const rows = state.bars?.rows ?? [];
 
     if (!rows.length) {
-      showChartEmpty('bars', container, 'No data yet');
+      showChartEmpty('bars', container, 'No data in the selected range');
       return;
     }
 
@@ -600,7 +600,7 @@
     return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`;
   }
 
-  function renderHeatmap(heatmap, emptyMessage = 'No data yet') {
+  function renderHeatmap(heatmap, emptyMessage = 'No data in the selected range') {
     const container = $('heatmap');
     const canvas = $('heatmap-canvas');
     const hoursBox = $('heatmap-hours');
@@ -941,7 +941,7 @@
       const cells = state.heatmap?.cells ?? [];
       if (!cells.length) {
         if (hint) hint.textContent = '';
-        showChartEmpty('profile', container, 'No data yet');
+        showChartEmpty('profile', container, 'No data in the selected range');
         return;
       }
 
@@ -985,7 +985,7 @@
       const cells = state.heatmap?.cells ?? [];
       if (!cells.length) {
         if (hint) hint.textContent = '';
-        showChartEmpty('profile', container, 'No data in this range');
+        showChartEmpty('profile', container, 'No data in the selected range');
         return;
       }
 
@@ -1033,7 +1033,7 @@
     const data = state.profile;
     if (!data || !data.slots?.length || !data.slots.some((entry) => entry.samples > 0)) {
       if (hint) hint.textContent = '';
-      showChartEmpty('profile', container, 'No data in this date range');
+      showChartEmpty('profile', container, 'No data in the selected range');
       return;
     }
 
@@ -1349,7 +1349,7 @@
     return `${dayLabel} · 00:00–23:59${dateRangeSuffix()}`;
   }
 
-  function clearCharts(message = 'No data yet') {
+  function clearCharts(message = 'No data in the selected range') {
     state.heatmap = null;
     state.profile = null;
     state.bars = null;

@@ -618,6 +618,18 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     await waitFor(() => document.querySelector('#heatmap .empty'), { label: '日期范围外热力图空状态' });
     await waitFor(() => document.querySelector('#chart-profile .empty'), { label: '日期范围外剖面空状态' });
     await waitFor(() => document.querySelector('#chart-bars .empty'), { label: '日期范围外占比图空状态' });
+    const emptyTexts = ['#heatmap .empty', '#chart-profile .empty', '#chart-bars .empty'].map(
+      (selector) => document.querySelector(selector).textContent,
+    );
+    assert.deepEqual(
+      emptyTexts,
+      [
+        'No data in the selected range',
+        'No data in the selected range',
+        'No data in the selected range',
+      ],
+      '空状态统一显示 No data in the selected range',
+    );
     assert.equal(
       dayRequests.length,
       0,
