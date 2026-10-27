@@ -56,6 +56,12 @@ check('/api/bars 时段', Boolean(bars.since && bars.until), `${bars.since} – 
 
 const hourly = await get('/api/hourly?since=24h');
 check('/api/hourly', hourly.hours?.length === 24 && hourly.hours.some((h) => h.samples > 0), '');
+check(
+  '/api/hourly 使用率',
+  hourly.hours.some((h) => h.usageRatio > 0) &&
+    hourly.hours.every((h) => h.usageRatio === null || (h.usageRatio >= 0 && h.usageRatio <= 1)),
+  '',
+);
 
 const filtered = await get('/api/series?since=1h&machines=' + state.latest.filter((m) => m.kind === 'dryer').map((m) => m.id).join(','));
 check('/api/series 按机器过滤', filtered.machines?.length === 6, `${filtered.machines?.length} 台烘干机`);

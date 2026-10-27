@@ -435,7 +435,7 @@ export class DashboardDatabase {
     }
   }
 
-  /** 按本地小时聚合的空闲率（找最佳时段用） */
+  /** 按本地小时聚合的使用率 / 空闲率 */
   hourly({ since = null, machineIds = [] } = {}) {
     const db = this._ensure();
     if (!db || !this._hasSchema(db)) return { available: false, since, hours: [] };
@@ -449,6 +449,7 @@ export class DashboardDatabase {
         .prepare(
           `SELECT CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) AS hour,
                   AVG(available) AS free_ratio,
+                  AVG(CASE WHEN state = 'in_use' THEN 1.0 ELSE 0 END) AS usage_ratio,
                   COUNT(*) AS samples
            FROM machine_snapshots
            WHERE observed_at >= ? ${idFilter}
@@ -463,6 +464,7 @@ export class DashboardDatabase {
         return {
           hour,
           freeRatio: row ? Number(row.free_ratio) : null,
+          usageRatio: row ? Number(row.usage_ratio) : null,
           samples: row ? Number(row.samples) : 0,
         };
       });

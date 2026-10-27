@@ -202,6 +202,8 @@ test('hourly：总是返回 24 个小时桶', () => {
     const used = hours.filter((entry) => entry.samples > 0);
     assert.ok(used.length >= 1);
     assert.ok(used.every((entry) => entry.freeRatio >= 0 && entry.freeRatio <= 1));
+    assert.ok(used.every((entry) => entry.usageRatio >= 0 && entry.usageRatio <= 1));
+    assert.ok(used.some((entry) => entry.usageRatio > 0), '烘干机在用应产生使用率');
   });
 });
 

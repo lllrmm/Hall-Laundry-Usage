@@ -652,7 +652,7 @@
   function renderHourlyChart(hourly) {
     const container = $('chart-hourly');
     const hours = hourly?.hours ?? [];
-    const withData = hours.filter((entry) => entry.freeRatio !== null);
+    const withData = hours.filter((entry) => entry.usageRatio !== null);
 
     if (!withData.length) {
       showChartEmpty('hourly', container, 'No data yet (waiting for polls)');
@@ -661,14 +661,13 @@
 
     const colors = chartColors();
     const compact = container.clientWidth > 0 && container.clientWidth < 520;
-    const best = withData.reduce((a, b) => (b.freeRatio > a.freeRatio ? b : a), withData[0]);
 
     const options = baseChartOptions(colors, compact);
     options.plugins.legend.display = false;
     options.interaction = { mode: 'index', intersect: false };
     options.plugins.tooltip.callbacks = {
       title: (items) => items[0]?.label ?? '',
-      label: (item) => (item.raw === null ? 'No data' : `Free: ${item.formattedValue}%`),
+      label: (item) => (item.raw === null ? 'No data' : `Usage: ${item.formattedValue}%`),
     };
     options.scales = {
       x: {
@@ -701,11 +700,9 @@
         labels: hours.map((entry) => `${pad2(entry.hour)}:00`),
         datasets: [
           {
-            label: 'Free rate',
-            data: hours.map((entry) => (entry.freeRatio === null ? null : round1(entry.freeRatio * 100))),
-            backgroundColor: hours.map((entry) =>
-              entry.hour === best.hour ? colors.freeStrong : colors.free,
-            ),
+            label: 'Usage rate',
+            data: hours.map((entry) => (entry.usageRatio === null ? null : round1(entry.usageRatio * 100))),
+            backgroundColor: colors.busy,
             borderRadius: 3,
             borderWidth: 0,
             maxBarThickness: compact ? 12 : 26,

@@ -255,13 +255,15 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       '占比图右上角显示开始 – 结束时段',
     );
 
-    // 按小时：24 根柱子；不再显示 Best time 文案
+    // 按小时：24 根柱子，展示使用率（in use 占比）
     const hourly = charts().hourly;
     assert.equal(hourly.config.type, 'bar');
+    assert.equal(hourly.data.datasets[0].label, 'Usage rate');
     assert.equal(hourly.data.labels.length, 24);
     assert.equal(hourly.data.datasets[0].data.length, 24);
-    assert.equal(hourly.data.datasets[0].backgroundColor.length, 24);
+    assert.equal(typeof hourly.data.datasets[0].backgroundColor, 'string', '使用率柱使用统一颜色');
     assert.doesNotMatch(document.getElementById('hourly-hint').textContent, /Best time/);
+    assert.match(document.getElementById('hourly-hint').textContent, /busier/, '提示文案改为使用率语义');
 
     // 3) 选择控件
     assert.equal(document.querySelectorAll('#ranges .chip').length, 6, '6 个时间跨度');
