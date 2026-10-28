@@ -23,6 +23,15 @@ import { createWebServer } from '../src/server.js';
 const isBun = Boolean(process.versions.bun);
 const T0 = Date.now() - 10 * 60 * 1000;
 
+// fixture 只测了 T0 当天；用真实星期几避免测试依赖“今天是不是周二”
+const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DATA_WEEKDAY = (new Date(T0).getDay() + 6) % 7;
+const DATA_WEEKDAY_LABEL = WEEKDAY_NAMES[DATA_WEEKDAY];
+// 多选时选“数据当天 + 相邻一天”（周日向前取周六，避免跨周排序问题）
+const PAIR_START = DATA_WEEKDAY === 6 ? 5 : DATA_WEEKDAY;
+const PAIR_END = PAIR_START + 1;
+const PAIR_LABEL = `${WEEKDAY_NAMES[PAIR_START]}–${WEEKDAY_NAMES[PAIR_END]}`;
+
 /** 最小 Canvas 2D 上下文：Chart.js 只要求这些方法可调用 */
 function createContext2DStub(canvas) {
   const props = {};
@@ -408,45 +417,46 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.equal(document.getElementById('profile-hint').textContent, profileHintBefore, '点击不改变选择');
     assert.equal(document.querySelectorAll('#heatmap .heatmap-row-label.active').length, 0);
 
-    const tueLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
-      (node) => node.textContent === 'Tue',
+    const dataDayLabel = [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
+      (node) => node.textContent === DATA_WEEKDAY_LABEL,
     );
-    tueLabel.click();
+    dataDayLabel.click();
     await waitFor(
       () =>
         charts().profile &&
         charts().profile.data.datasets[0]?.data.length === 1440 &&
-        document.getElementById('profile-hint').textContent === 'Tue',
+        document.getElementById('profile-hint').textContent === DATA_WEEKDAY_LABEL,
       { label: '点击周几行显示该天的 5 分钟剖面' },
     );
     assert.equal(charts().profile.config.type, 'line', '选中行时剖面用线图');
     assert.ok(charts().profile.data.datasets[0].borderColor, '线图使用 borderColor');
     await waitFor(
-      () => document.getElementById('bars-range').textContent === 'Tue · 00:00–23:59',
+      () => document.getElementById('bars-range').textContent === `${DATA_WEEKDAY_LABEL} · 00:00–23:59`,
       { label: 'State breakdown 跟随选中的星期几' },
     );
     assert.ok(
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].some(
-        (node) => node.classList.contains('active') && node.textContent === 'Tue',
+        (node) => node.classList.contains('active') && node.textContent === DATA_WEEKDAY_LABEL,
       ),
       '选中的周几行应高亮',
     );
 
-    // 多选星期：Mon + Tue 同时勾选
+    // 多选星期：数据当天 + 相邻一天
     const findRow = (label) =>
       [...document.querySelectorAll('#heatmap .heatmap-row-label')].find(
         (node) => node.textContent === label,
       );
-    findRow('Mon').click();
+    const partnerLabel = WEEKDAY_NAMES[PAIR_START === DATA_WEEKDAY ? PAIR_END : PAIR_START];
+    findRow(partnerLabel).click();
     await waitFor(
       () =>
         document.querySelectorAll('#heatmap .heatmap-row-label.active').length === 2 &&
-        document.getElementById('profile-hint').textContent === 'Mon–Tue',
-      { label: '同时勾选 Mon + Tue' },
+        document.getElementById('profile-hint').textContent === PAIR_LABEL,
+      { label: `同时勾选 ${PAIR_LABEL}` },
     );
     await waitFor(
-      () => document.getElementById('bars-range').textContent === 'Mon–Tue · 00:00–23:59',
-      { label: 'State breakdown 跟随多选的星期（连续合并为 Mon–Tue）' },
+      () => document.getElementById('bars-range').textContent === `${PAIR_LABEL} · 00:00–23:59`,
+      { label: `State breakdown 跟随多选的星期（连续合并为 ${PAIR_LABEL}）` },
     );
 
     // 互斥：已选星期时拖动时段 → 星期选择被清空
