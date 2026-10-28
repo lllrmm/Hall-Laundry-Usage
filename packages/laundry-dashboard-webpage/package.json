@@ -1,26 +1,18 @@
 {
   "name": "hkust-laundry-dashboard-webpage",
   "version": "0.1.0",
-  "description": "Static frontend for the HKUST laundry dashboard, served independently from the read-only API.",
+  "description": "Static frontend for the HKUST laundry dashboard; deploy public/ to GitHub Pages or any static host (no server, no API proxy).",
   "type": "module",
-  "main": "./src/server.js",
-  "bin": {
-    "laundry-dashboard-webpage": "./bin/serve.mjs"
-  },
   "files": [
-    "bin",
-    "src",
     "public",
-    "dashboard-webpage.config.example.json",
     "README.md"
   ],
   "engines": {
     "node": ">=22.5"
   },
   "scripts": {
-    "start": "node bin/serve.mjs --config dashboard-webpage.config.json",
     "test": "node --test test/",
-    "test:in-process": "node --test-isolation=none --test test/web.test.mjs test/config.test.mjs test/aggregate.test.mjs test/history.test.mjs test/frontend.dom.test.mjs test/contract.test.mjs"
+    "test:in-process": "node --test-isolation=none --test test/config.test.mjs test/aggregate.test.mjs test/history.test.mjs test/frontend.dom.test.mjs test/contract.test.mjs"
   },
   "license": "MIT",
   "private": true,

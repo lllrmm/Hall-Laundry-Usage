@@ -31,24 +31,11 @@ services:
       - packages/laundry-dashboard-api/bin/serve.mjs
       - --config
       - /config/dashboard-api.config.json
+    ports:
+      - "${API_PORT:-8787}:8787"
     volumes:
       - laundry-data:/data
       - ./deploy/docker/dashboard-api.config.json:/config/dashboard-api.config.json:ro
-    expose:
-      - "8787"
-
-  web:
-    <<: *service
-    command:
-      - node
-      - packages/laundry-dashboard-webpage/bin/serve.mjs
-      - --config
-      - /config/dashboard-webpage.config.json
-    ports:
-      - "${WEB_PORT:-8788}:8788"
-    volumes:
-      - ./deploy/docker/dashboard-webpage.config.json:/config/dashboard-webpage.config.json:ro
 
 volumes:
   laundry-data:
-

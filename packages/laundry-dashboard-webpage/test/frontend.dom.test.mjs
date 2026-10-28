@@ -10,18 +10,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { normalizeResponse } from '../../laundry-monitor/src/machines/index.js';
 import { MonitorDatabase } from '../../laundry-monitor/src/db.js';
 import { createDashboardServer } from '../../laundry-dashboard-api/src/server.js';
-import { createWebServer } from '../src/server.js';
 
 const isBun = Boolean(process.versions.bun);
 const T0 = Date.now() - 10 * 60 * 1000;
+const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 
 // fixture 只测了 T0 当天；用真实星期几避免测试依赖“今天是不是周二”
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -31,6 +33,49 @@ const DATA_WEEKDAY_LABEL = WEEKDAY_NAMES[DATA_WEEKDAY];
 const PAIR_START = DATA_WEEKDAY === 6 ? 5 : DATA_WEEKDAY;
 const PAIR_END = PAIR_START + 1;
 const PAIR_LABEL = `${WEEKDAY_NAMES[PAIR_START]}–${WEEKDAY_NAMES[PAIR_END]}`;
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+};
+
+/** 测试专用静态服务器：模拟 GitHub Pages / 任意静态托管，不含任何 /api 反代 */
+function startStaticServer() {
+  const server = http.createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    const relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
+    const filePath = path.resolve(PUBLIC_DIR, relative);
+    if (!filePath.startsWith(PUBLIC_DIR)) {
+      response.writeHead(403).end('forbidden');
+      return;
+    }
+    fs.readFile(filePath, (error, content) => {
+      if (error) {
+        response.writeHead(404).end('not found');
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': MIME[path.extname(filePath)] ?? 'application/octet-stream',
+      });
+      response.end(content);
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        port: server.address().port,
+        close: () => new Promise((done) => server.close(done)),
+      });
+    });
+  });
+}
 
 /** 最小 Canvas 2D 上下文：Chart.js 只要求这些方法可调用 */
 function createContext2DStub(canvas) {
@@ -166,17 +211,13 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
 
   const errors = [];
   let dom = null;
-  let web = null;
+  let staticServer = null;
 
   try {
     const apiAddress = await app.listen(0, '127.0.0.1');
     const apiUrl = `http://127.0.0.1:${apiAddress.port}`;
-    web = createWebServer({
-      config: { host: '127.0.0.1', port: 0, apiTarget: apiUrl },
-      logger: { info() {}, warn() {}, error() {} },
-    });
-    const webAddress = await web.listen(0, '127.0.0.1');
-    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+    staticServer = await startStaticServer();
+    const baseUrl = `http://127.0.0.1:${staticServer.port}`;
 
     const virtualConsole = new VirtualConsole();
     virtualConsole.on('jsdomError', (error) => {
@@ -188,7 +229,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
       errors.push(args.join(' '));
     });
 
-    dom = await JSDOM.fromURL(`${baseUrl}/`, {
+    dom = await JSDOM.fromURL(`${baseUrl}/?api=${encodeURIComponent(apiUrl)}`, {
       runScripts: 'dangerously',
       resources: 'usable',
       pretendToBeVisual: true,
@@ -882,7 +923,7 @@ test('jsdom 渲染：状态卡片 + 三张 Chart.js 图表 + 筛选交互', { sk
     assert.deepEqual(errors, [], `页面不应有 JS 错误: ${errors.join(' | ')}`);
   } finally {
     if (dom) dom.window.close();
-    if (web) await web.close();
+    if (staticServer) await staticServer.close();
     await app.close();
     try {
       fs.rmSync(dir, { recursive: true, force: true });

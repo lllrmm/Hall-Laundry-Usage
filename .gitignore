@@ -9,7 +9,6 @@ node_modules/
 # 本地运行配置（可能含 敏感信息 / 凭据）
 packages/laundry-monitor/monitor.config.json
 packages/laundry-dashboard-api/dashboard-api.config.json
-packages/laundry-dashboard-webpage/dashboard-webpage.config.json
 
 # 监控数据库（含采集数据）
 packages/laundry-monitor/data/

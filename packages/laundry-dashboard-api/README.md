@@ -3,7 +3,7 @@
 HKUST 洗衣房监控的**只读 JSON API**：读取采集服务写入的 SQLite，给独立部署的前端提供当前状态与历史分钟序列。
 
 - **服务端零依赖**：只用 `node:http` + `node:sqlite`，没有构建步骤；
-- **只做 API**：页面/静态资源由 [`laundry-dashboard-webpage`](../laundry-dashboard-webpage) 独立托管，并通过反向代理调用本服务；
+- **只做 API**：页面/静态资源由 [`laundry-dashboard-webpage`](../laundry-dashboard-webpage) 独立托管（GitHub Pages/CDN），浏览器通过 CORS 直接调用本服务；
 - **聚合在浏览器端**：本服务只发「每台机器每天 1,440 字节的分钟状态序列」，热力图/剖面/占比全部由前端计算；
 - 数据库不存在或还没数据时也能启动（API 返回 `available: false`）。
 
@@ -20,12 +20,12 @@ laundry-monitor（写）
                  ▼ 只读
 laundry-dashboard-api（本服务，JSON API，默认 :8787）
                  ▲
-                 │ api/*
-laundry-dashboard-webpage（静态前端）◄── 浏览器
+                 │ /api/*（浏览器跨域）
+laundry-dashboard-webpage（纯静态，Pages/CDN）◄── 浏览器
 ```
 
 - 序列库是派生数据：任何时候都能用 `node bin/cli.mjs rebuild --config monitor.config.json` 从原始库重建；
-- 停掉本服务：前端页面还能打开，但 API 请求失败；停掉采集：本服务仍返回最后一次采集到的数据。
+- 停掉本服务：静态页面还能打开，但 API 请求失败；停掉采集：本服务仍返回最后一次采集到的数据。
 
 ## 启动
 
@@ -35,7 +35,8 @@ npm start                       # http://127.0.0.1:8787
 # 或：node bin/serve.mjs --config dashboard-api.config.json
 ```
 
-浏览器请访问前端服务（默认 <http://127.0.0.1:8788>），不要直接打开 8787。
+前端由 GitHub Pages / 任意静态托管提供，通过 `?api=https://your-api.example.com` 指向本服务；
+本服务不托管页面，也没有内置反向代理。
 
 ## 数据源
 
@@ -89,20 +90,20 @@ npm start                       # http://127.0.0.1:8787
 |---|---|---|
 | `database` | `../laundry-monitor/data/laundry.sqlite` | 原始快照库路径（必需） |
 | `seriesDatabase` | `../laundry-monitor/data/laundry-series.sqlite` | 日序列库路径；缺失时回退 raw |
-| `host` | `127.0.0.1` | 监听地址；本服务只提供 API，一般只让本机前端反代访问 |
+| `host` | `127.0.0.1` | 监听地址；容器/隧道部署可改 `0.0.0.0` |
 | `port` | `8787` | 监听端口 |
-| `corsOrigins` | `[]` | 允许跨域访问 API 的浏览器 origin 列表；同源/反代部署留空，GitHub Pages 填 `["https://<user>.github.io"]` 或 `["*"]` |
+| `corsOrigins` | `[]` | 允许跨域访问 API 的浏览器 origin 列表；模板已填 `["https://lllrmm.github.io"]`，不需跨域时留空 |
 
-> GitHub Pages 前端通过 `?api=https://your-api.example.com` 访问本服务，此时必须配置 `corsOrigins`（origin 不要带仓库路径）；API 还需支持 HTTPS。若在同一台电脑上从 Pages 访问 `http://127.0.0.1:8787`，Chrome/Edge 会发 Private Network Access 预检，本服务会返回 `Access-Control-Allow-Private-Network: true`；Firefox/Safari 可能直接拦截 HTTPS→HTTP localhost，建议改用本地前端 `http://127.0.0.1:8788`。
+> GitHub Pages 前端通过 `?api=https://your-api.example.com` 访问本服务，此时必须配置 `corsOrigins`（origin 不要带仓库路径）；API 还需支持 HTTPS。若在同一台电脑上从 Pages 访问 `http://127.0.0.1:8787`，Chrome/Edge 会发 Private Network Access 预检，本服务会返回 `Access-Control-Allow-Private-Network: true`；Firefox/Safari 可能直接拦截 HTTPS→HTTP localhost，建议改用 HTTPS 隧道/反代。
 
 ## 测试
 
 ```bash
 npm test                    # 数据层 + HTTP API
 
-# 端到端（需要采集服务、本 API、laundry-dashboard-webpage 都在跑）
+# 端到端（只测 API，需要采集服务 + 本 API 在跑）
 node scripts/e2e-check.mjs
-#   DASHBOARD_URL / WEB_URL 可覆盖默认的 8787 / 8788
+#   DASHBOARD_URL 可覆盖默认的 http://127.0.0.1:8787
 ```
 
 - `test/days.test.mjs`：序列读取、raw 回退、日期校验、编码；
@@ -117,7 +118,7 @@ src/config.js              配置读取与校验
 src/queries.js             只读原始库访问（meta / machinesWithLatest）
 src/days.js                日序列读取 + raw 回退（复用 shared 契约）
 src/server.js              node:http JSON API
-scripts/e2e-check.mjs      前后端 e2e 自检
+scripts/e2e-check.mjs      API e2e 自检
 test/                      node:test 测试
 ```
 
