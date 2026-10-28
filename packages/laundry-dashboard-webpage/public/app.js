@@ -111,15 +111,6 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
   }
 
-  function fmtRelative(iso) {
-    if (!iso) return '';
-    const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
-  }
-
   function fmtDuration(seconds) {
     if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return '';
     const total = Math.max(0, Math.round(seconds));
@@ -183,9 +174,7 @@
     }
 
     if (meta) {
-      $('last-update').textContent = meta.lastObservedAt
-        ? `${fmtClock(meta.lastObservedAt)} · ${fmtRelative(meta.lastObservedAt)}`
-        : '—';
+      $('last-update').textContent = meta.lastObservedAt ? fmtClock(meta.lastObservedAt) : '—';
       $('last-update').title = meta.lastObservedAt ? fmtDateTime(meta.lastObservedAt) : '';
 
       $('latest-time').textContent = meta.lastObservedAt
